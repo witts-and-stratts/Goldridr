@@ -148,7 +148,7 @@ export default function ContactPage() {
                 />
               </div>
 
-              <Button type="submit" className="w-full bg-gold hover:bg-gold/90 text-black font-bold">
+              <Button type="submit" size={ 'lg' } variant={ 'outline' } className="w-full">
                 SEND MESSAGE
               </Button>
             </form>

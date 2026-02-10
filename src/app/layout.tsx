@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
 import "./globals.css";
 import { Inter } from "next/font/google";
+import { Toaster } from "@/components/ui/sonner";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+const inter = Inter( { subsets: [ 'latin' ], variable: '--font-sans' } );
 
 const epilogue = localFont( {
   src: [
@@ -71,11 +73,16 @@ export default function RootLayout( {
   children: React.ReactNode;
 }> ) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={ inter.variable }>
       <body
         className={ `${ epilogue.variable } ${ engry.variable } ${ engravers.variable } antialiased font-sans` }
       >
         { children }
+        <Toaster position="top-right" richColors />
+        <Script
+          src={ `https://maps.googleapis.com/maps/api/js?key=${ process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }&libraries=places` }
+          strategy="lazyOnload"
+        />
       </body>
     </html>
   );

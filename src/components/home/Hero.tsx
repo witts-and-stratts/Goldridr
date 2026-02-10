@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Header } from "./Header";
 
-const HERO_BG = "/assets/4d82f47d262d650362ce6eda036262932fd481c2.png";
+const HERO_BG = "/assets/images/arrive-better-goldridr.jpg";
 
 interface HeroProps {
   onBookNow?: () => void;

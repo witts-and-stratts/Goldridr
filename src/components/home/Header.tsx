@@ -16,7 +16,7 @@ export function Header( { onBookNow }: HeaderProps ) {
 
       <div className="hidden items-center gap-8 md:flex">
         <div className="flex gap-8 font-normal tracking-[0.2em] uppercase text-gray-300 font-wide">
-          <Link href="/about" className="hover:text-white transition-colors">About</Link>
+          {/* <Link href="/about" className="hover:text-white transition-colors">About</Link> */ }
           <Link href="/ride" className="hover:text-white transition-colors">Ride</Link>
           <Link href="/business" className="hover:text-white transition-colors">Business</Link>
           <Link href="/faqs" className="hover:text-white transition-colors">FAQs</Link>
@@ -25,8 +25,8 @@ export function Header( { onBookNow }: HeaderProps ) {
         <Button
           variant="outline"
           size={ 'lg' }
-          className="text-gold bg-transparent border-gold hover:bg-gold/10 hover:text-gold"
           onClick={ onBookNow }
+          className={ 'bg-black/20 border-gold/80' }
         >
           BOOK NOW
         </Button>

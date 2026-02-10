@@ -14,19 +14,59 @@ export default function FaqPage() {
         "Goldridr is a premium transportation service designed to offer luxury, comfort, and reliability for all your travel needs.",
     },
     {
-      question: "How do I book a ride?",
+      question: "Does GoldRidr offer pre-scheduled rides or Ride On Demand?",
       answer:
-        "You can book a ride directly through our website by clicking on the 'Ride' link in the navigation menu, or by downloading our mobile app.",
+        "All our rides are prescheduled for now. You can preschedule up to 4 hours in advance of your desired pick up time. Our Ride On Demand Option will soon be available.",
     },
     {
-      question: "What areas do you serve?",
+      question: "How do I request a ride?",
       answer:
-        "We currently serve major metropolitan areas and select international destinations. Please check our booking page for specific availability in your region.",
+        "You can either book via Phone, On this website or via WhatsApp.",
+    },
+    {
+      question: "Which payment options do you accept?",
+      answer: "GoldRidr accepts Visa, Mastercard, American Express and Discover cards. It is not possible to pay for the ride in cash. You can also pay via Zelle, Cashapp or Apple Pay if you are an iOS user. Our Chaffeurs can also provide you a physical device to tap and pay. Business accounts can also request to receive monthly invoices, instead of paying on a ride-by-ride basis. Please contact business@goldridr.com for additional information. Please keep in mind that all rides are on a pay-before-service basis. "
     },
     {
       question: "Can I schedule a ride in advance?",
       answer:
         "Yes, Goldridr allows you to schedule rides up to 30 days in advance to ensure your travel plans are secured.",
+    },
+    {
+      question: "What if my flight is delayed?",
+      answer: "Providing your flight number when booking an airport pickup allows us to track your arrival and adjust the pickup time for any delays or early arrivals. So we would adjust your pickup time accomodate a delayed or early arrival provided your flight number was provided when booking."
+    },
+    {
+      question: "What is wait time?",
+      answer: "We offer a 15 minute wait time beyong your pick up time just in case life happens and you are not ready at pick up. Wait times might vary based on location, pick up spot or time of day. You will be informed at booking or ahead of your pick up."
+    },
+    {
+      question: "What is the cancellation policy and how can I cancel my ride?",
+      answer: "Riders are able to cancel their ride free of charge up until 2 hours before the scheduled pickup time."
+    },
+    {
+      question: "Rideshare Insurance",
+      answer: "GoldRidr maintains commercial automobile liability insurance for all our vehicles.  Our liability insurance in case of a covered accident is $1,000,000. Uninsured and/or underinsured motorist bodily injury and property damage as required by law. "
+    },
+    {
+      question: "What vehicles does GoldRidr use?",
+      answer: "We use an all Black Chevrolet Suburban fleet. Newer than 2022 Model years. (updated October 2023) "
+    },
+    {
+      question: "What city does GoldRidr operate in?",
+      answer: "We operate in Houston Texas and operate interstate rides within the state of Texas."
+    },
+    {
+      question: "What is seating capacity of your vehciles?",
+      answer: "Each of our SUVs takes up to 7 passengers. We provide car seats for children."
+    },
+    {
+      question: "How much luggage can your vehicles take?",
+      answer: "In addition to the 7 seats available in our SUVs, the trunk space can take 7 carry-on, 5 standard or 3 extra large check-in luggage. In the case of foldable wheelchairs, they take up the space of 1 standard check-in luggage. Our chauffeurs are unable to transport unaccompanied luggage. Should you require multiple vehicles to accommodate your luggage, we ask that at least one passenger ride along in each vehicle."
+    },
+    {
+      question: "What if I have more luggage than the baggage allowance for my booking?",
+      answer: "The maximum luggage allowance shown for each booking is based on safety, so we do not recommend exceeding this limit. If you are traveling with more luggage than the allowance, ensure you book enough vehicles to be able to transport all your belongings without going over the maximum capacity."
     },
     {
       question: "What is your cancellation policy?",

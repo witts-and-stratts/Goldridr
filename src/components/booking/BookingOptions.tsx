@@ -87,7 +87,7 @@ function OptionItem( {
       <div className="mb-1 md:mb-3 size-20 flex items-center justify-center transition-transform duration-300 group-hover:-translate-y-1">
         { icon }
       </div>
-      <h3 className="mb-1 font-sans font-medium text-white max-md:text-sm group-hover:text-gold transition-colors">
+      <h3 className="mb-1 font-sans font-medium text-white text-lg group-hover:text-gold transition-colors">
         { title }
       </h3>
       <p className="text-white font-sans text-xs md:text-sm text-balance font-light opacity-80 group-hover:opacity-100 transition-opacity">

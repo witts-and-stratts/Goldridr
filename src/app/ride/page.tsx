@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Suburban } from "@/components/home/Suburban";
+import { Button } from "@/components/ui/button";
 
 export default function RidePage() {
   const [ isBookingOpen, setIsBookingOpen ] = useState( false );
@@ -46,12 +47,14 @@ export default function RidePage() {
               Experience the pinnacle of chauffeured services. Where every journey
               is crafted with precision, comfort, and elegance.
             </p></div>
-          <button
+          <Button
             onClick={ () => setIsBookingOpen( true ) }
-            className="border border-white/20 px-6 py-2 font-wide text-sm tracking-[0.2em] hover:bg-white/10 transition-colors absolute bottom-20 left-1/2 -translate-x-1/2 min-w-[280px]"
+            size={ 'lg' }
+            variant={ 'outline' }
+            className="bg-black/20 px-6 py-2 font-wide text-sm tracking-[0.2em] transition-colors absolute bottom-20 left-1/2 -translate-x-1/2 min-w-[280px]"
           >
             BOOK YOUR RIDE
-          </button>
+          </Button>
         </div>
       </section>
 
@@ -212,7 +215,7 @@ function StandardItem( {
 } ) {
   return (
     <div className="flex flex-col items-start">
-      <div className="mb-6 text-gold">
+      <div className="flex mb-6 text-gold size-20 items-end">
         <Image src={ src } alt="" width={ 48 } height={ 48 } className={ cn( `size-14`, className ) } />
       </div>
       <h4 className="text-gold font-medium text-xl mb-3">{ title }</h4>

@@ -22,10 +22,10 @@ export function InfoSection() {
         </p>
         <Button
           onClick={ () => setIsAirportOverlayOpen( true ) }
-          className="uppercase bg-transparent border-px border-white/20 p-4 hover:bg-white/10"
+          size={ 'lg' }
           variant='outline'
         >
-          See All Airport Locations
+          SEE ALL AIRPORT LOCATIONS
         </Button>
       </div>
       <AirportsOverlay

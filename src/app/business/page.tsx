@@ -6,15 +6,8 @@ import Link from "next/link";
 import { Header } from "@/components/home/Header";
 import { Footer } from "@/components/home/Footer";
 import { BookingOverlay } from "@/components/booking/BookingOverlay";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  Building2,
-  MapPin,
-  FileText,
-  CalendarDays,
-  Briefcase,
-  BadgeCheck
-} from "lucide-react";
 
 export default function BusinessPage() {
   const [ isBookingOpen, setIsBookingOpen ] = useState( false );
@@ -24,136 +17,170 @@ export default function BusinessPage() {
       <Header onBookNow={ () => setIsBookingOpen( true ) } />
 
       {/* Hero Section */ }
-      <section className="relative h-[60vh] md:h-[70vh] w-full flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 z-0">
+      <section className="relative h-screen w-full flex justify-center overflow-hidden -mt-40">
+        <div className="absolute inset-0">
           <Image
-            src="/assets/images/1e141ce887d3a30045b7dceb10747c1658343708.png" // Using a sleek car image for business context
+            src="/assets/images/event-chauffeur.jpg"
             alt="Corporate Transportation"
             fill
-            className="object-cover opacity-50"
+            className="object-cover h-full w-full"
+            quality={ 100 }
             priority
           />
-          <div className="absolute inset-0 bg-linear-to-r from-black/80 via-black/40 to-transparent" />
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-linear-to-t from-black/50 to-transparent" />
         </div>
 
-        <div className="relative z-10 w-full max-w-7xl mx-auto px-8">
-          <div className="max-w-2xl">
-            <h1 className="font-serif text-5xl md:text-7xl mb-6 tracking-wide leading-tight">
-              HOUSTON&apos;S <br />PREMIER <br />CORPORATE TRAVEL
+        <div className="relative z-10 text-center px-4 mx-auto mt-50">
+          <div className="flex flex-col items-center">
+            <h1 className="font-serif text-4xl font-medium tracking-wide text-white md:text-5xl">
+              ARRIVE IN STYLE, <br /> EVERY TIME
             </h1>
-            <p className="font-sans text-gray-200 text-lg md:text-xl font-light tracking-wide mb-8">
+            <p className="font-light text-base leading-7 mt-4 mb-12 max-w-[600px] mx-auto">
               Efficiency, reliability, and precision for your business needs.
               Manage your Houston corporate transportation with a partner you can trust.
             </p>
-            <div className="flex gap-4">
-              <Link href="/contact">
-                <Button
-                  size="lg"
-                  className="bg-gold hover:bg-gold/90 text-black font-bold px-8 py-6 text-lg tracking-wider"
-                >
-                  OPEN CORPORATE ACCOUNT
-                </Button>
-              </Link>
-            </div>
           </div>
+          <Button
+            onClick={ () => setIsBookingOpen( true ) }
+            size={ 'lg' }
+            variant={ 'outline' }
+            className="bg-black/20 px-6 py-2 font-wide text-sm tracking-[0.2em] transition-colors absolute bottom-20 left-1/2 -translate-x-1/2 min-w-[280px]"
+          >
+            GET STARTED
+          </Button>
         </div>
       </section>
 
-      {/* Value Proposition */ }
-      <section className="py-20 md:py-32 bg-zinc-950">
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="grid md:grid-cols-3 gap-12">
-            <BenefitCard
-              icon={ <BadgeCheck className="w-12 h-12 text-gold" /> }
+      {/* Corporate Services */ }
+      <section className="py-20 md:py-24 px-8 md:px-16 max-w-[1440px] mx-auto w-full">
+        <h2 className="font-serif text-4xl md:text-[38px] uppercase leading-[52px] mb-8 md:mb-16">
+          CORPORATE SERVICES
+        </h2>
+        <p className="font-light text-base leading-7 max-w-[725px] mb-16">
+          From executive transfers to company-wide logistics, we deliver
+          dependable corporate transportation designed to keep your business
+          moving seamlessly across Houston and beyond.
+        </p>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          <ServiceCard
+            iconSrc="/assets/images/icon/airplane.svg"
+            title="EXECUTIVE TRANSFERS"
+            description="Punctual, discreet service for C-suite executives and VIP clients. Flight tracking ensures we are there when you land."
+            className="size-18"
+          />
+          <ServiceCard
+            iconSrc="/assets/images/icon/city.svg"
+            title="MEETINGS & EVENTS"
+            description="Comprehensive logistics support for roadshows, conferences, and company events across all of Houston."
+          />
+          <ServiceCard
+            iconSrc="/assets/images/icon/clock.svg"
+            title="EMPLOYEE COMMUTES"
+            description="Safe, reliable shuttle services to keep your workforce moving efficiently between Sugar Land, The Woodlands, and Downtown."
+          />
+          <ServiceCard
+            iconSrc="/assets/svg/star.svg"
+            title="RIDES FOR YOUR CUSTOMERS"
+            description="Impress your clients with VIP transport. We handle the logistics so you can focus on the relationship."
+          />
+          <ServiceCard
+            iconSrc="/assets/images/icon/luggage.svg"
+            title="DELIVERY AND LOGISTICS"
+            description="Secure and timely delivery of important documents, packages, and sensitive materials across Houston."
+          />
+        </div>
+      </section>
+
+      {/* Why Partner With Us — Light Section */ }
+      <section className="relative bg-[#d9d9d9]">
+        <div className="relative top-0 left-0 right-0 min-h-[50vh]">
+          <Image
+            src="/assets/images/business-man-in-suburban.jpg"
+            alt="Corporate Partnership"
+            fill
+            className="object-cover"
+          />
+          <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-linear-to-t from-black/50 to-transparent">
+            <h2 className="font-serif text-4xl md:text-5xl uppercase text-white px-8 md:px-12 absolute bottom-8">
+              WHY PARTNER
+              <br />
+              WITH US
+            </h2>
+          </div>
+        </div>
+
+        <div className="relative z-10 px-8 md:px-16 max-w-[1440px] mx-auto">
+          <p className="font-light font-sans text-base leading-7 text-black max-w-[725px] py-8 mb-20">
+            We go beyond transportation. Our corporate program is built around
+            accountability, transparency, and the kind of personal attention that
+            only an owner-operated service can deliver.
+          </p>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-20 md:mb-40">
+            <StandardItem
+              src="/assets/svg/shield.svg"
               title="Duty of Care"
               description="Safety is non-negotiable. Our rigorous vetting process and insurance standards provide total peace of mind for your team."
             />
-            <BenefitCard
-              icon={ <MapPin className="w-12 h-12 text-gold" /> }
+            <StandardItem
+              src="/assets/svg/map.svg"
               title="Local Mastery"
-              description="Deep knowledge of Houston's traffic patterns, airports, and business districts ensures punctual and efficient travel within the city and surrounding areas."
+              description="Deep knowledge of Houston's traffic patterns, airports, and business districts ensures punctual and efficient travel."
+              className="size-17"
             />
-            <BenefitCard
-              icon={ <FileText className="w-12 h-12 text-gold" /> }
+            <StandardItem
+              src="/assets/svg/bill.svg"
               title="Streamlined Billing"
               description="Centralized management, detailed reporting, and flexible billing options designed to integrate with your expense platforms."
+              className="size-18"
             />
-          </div>
-        </div>
-      </section>
-
-      {/* Corporate Solutions */ }
-      <section className="py-20 md:py-32 px-8 max-w-7xl mx-auto w-full">
-        <div className="grid md:grid-cols-2 gap-16 items-center">
-          <div className="order-2 md:order-1 space-y-8">
-            <div>
-              <h2 className="font-serif text-3xl md:text-5xl uppercase mb-6">Tailored Solutions</h2>
-              <div className="w-16 h-1 bg-gold mb-6" />
-              <p className="text-gray-300 font-light leading-relaxed text-lg">
-                From daily commutes to roadshows, we adapt to your business schedule.
-              </p>
-            </div>
-
-            <div className="grid gap-6">
-              <SolutionItem
-                icon={ <Briefcase className="w-6 h-6 text-gold" /> }
-                title="Executive Transfers"
-                description="Punctual, discreet service for C-suite executives and VIP clients."
-              />
-              <SolutionItem
-                icon={ <CalendarDays className="w-6 h-6 text-gold" /> }
-                title="Meetings & Events"
-                description="Comprehensive logistics support for roadshows, conferences, and company events."
-              />
-              <SolutionItem
-                icon={ <Building2 className="w-6 h-6 text-gold" /> }
-                title="Employee Commutes"
-                description="Safe, reliable shuttle services to keep your workforce moving efficiently between Sugar Land, The Woodlands, and Downtown."
-              />
-            </div>
-
-            <Link href="/contact" className="inline-block pt-4">
-              <Button variant="outline" className="border-gold text-gold hover:bg-gold hover:text-black">
-                INQUIRE ABOUT SOLUTIONS
-              </Button>
-            </Link>
-          </div>
-          <div className="order-1 md:order-2 relative h-[600px] w-full rounded-lg overflow-hidden border border-white/10">
-            <Image
-              src="/assets/images/143afa3113977d626f0cf3527546c88feec3a2c0.svg" // Abstract or tech-looking svg for "solutions" feeling
-              alt="Corporate Solutions"
-              fill
-              className="object-cover p-20 opacity-80"
+            <StandardItem
+              src="/assets/svg/support.svg"
+              title="Dedicated Support"
+              description="A single point of contact for your account. We adapt to your schedule, preferences, and evolving business needs."
+              className="size-18"
             />
-            <div className="absolute inset-0 bg-linear-to-t from-black via-transparent to-transparent opacity-80" />
           </div>
         </div>
       </section>
 
       {/* CTA */ }
-      <section className="py-20 bg-gold/10 border-y border-gold/20">
-        <div className="max-w-4xl mx-auto px-8 text-center">
-          <h2 className="font-serif text-3xl md:text-4xl mb-6">READY TO ELEVATE YOUR CORPORATE TRAVEL?</h2>
-          <p className="text-gray-300 mb-8 font-light">
-            Contact our specialized corporate team to discuss your specific requirements and set up your account.
-          </p>
-          <div className="flex flex-col md:flex-row gap-4 justify-center">
-            <Link href="/contact">
+      <section className="py-20 md:py-32 px-8 md:px-16 max-w-[1440px] mx-auto w-full">
+        <div className="grid md:grid-cols-2 gap-16 items-start">
+          <div>
+            <h2 className="font-serif text-4xl uppercase leading-tight tracking-wide mb-6">
+              Ready to Elevate
+              <br />
+              Your Corporate Travel?
+            </h2>
+            <p className="font-light text-base leading-7 text-gray-300 max-w-[500px] mb-10">
+              Contact our specialized corporate team to discuss your specific
+              requirements and set up your account. We&apos;ll tailor a solution
+              that fits your business.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Link href="/contact">
+                <Button variant={ 'outline' } size={ 'lg' }>
+                  GET STARTED
+                </Button>
+              </Link>
               <Button
-                size="lg"
-                className="bg-gold hover:bg-gold/90 text-black font-bold min-w-[200px]"
+                onClick={ () => setIsBookingOpen( true ) }
+                size={ 'lg' }
+                variant={ 'outline' }
+              // className="border border-gold/40 text-gold px-6 py-2 font-wide text-sm tracking-[0.2em] hover:bg-gold/10 transition-colors min-w-[220px]"
               >
-                CONTACT SALES
+                BOOK A RIDE NOW
               </Button>
-            </Link>
-            <Button
-              onClick={ () => setIsBookingOpen( true ) }
-              size="lg"
-              variant="outline"
-              className="bg-transparent border-white text-white hover:bg-white hover:text-black min-w-[200px]"
-            >
-              BOOK A RIDE NOW
-            </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <StatItem number="24/7" label="Availability" />
+            <StatItem number="100%" label="Flight Tracking" />
+            <StatItem number="6" label="Passenger Capacity" />
+            <StatItem number="1" label="Point of Contact" />
           </div>
         </div>
       </section>
@@ -164,28 +191,59 @@ export default function BusinessPage() {
   );
 }
 
-function BenefitCard( { icon, title, description }: { icon: React.ReactNode, title: string, description: string; } ) {
+function ServiceCard( {
+  iconSrc,
+  title,
+  description,
+  className,
+}: {
+  iconSrc: string;
+  title: string;
+  description: string;
+  className?: string;
+} ) {
   return (
-    <div className="flex flex-col items-start">
-      <div className="mb-6 p-4 bg-white/5 rounded-full border border-white/10">
-        { icon }
+    <div className="bg-[#090909] p-8 pt-12">
+      <div className="size-24">
+        <div className={ cn( `mb-8 size-14 relative`, className ) }>
+          <Image src={ iconSrc } alt="" fill className="object-contain" />
+        </div>
       </div>
-      <h3 className="text-2xl font-serif text-white mb-4">{ title }</h3>
-      <p className="text-gray-400 font-light leading-relaxed">
-        { description }
-      </p>
+      <h3 className="font-wide text-xl tracking-widest text-white mb-3">
+        { title }
+      </h3>
+      <p className="font-light text-base leading-6 text-white">{ description }</p>
     </div>
   );
 }
 
-function SolutionItem( { icon, title, description }: { icon: React.ReactNode, title: string, description: string; } ) {
+function StandardItem( {
+  title,
+  description,
+  src,
+  className,
+}: {
+  title: string;
+  description: string;
+  src: string;
+  className?: string;
+} ) {
   return (
-    <div className="flex gap-4 p-4 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
-      <div className="mt-1 shrink-0 bg-black p-2 rounded-lg h-fit border border-white/10">{ icon }</div>
-      <div>
-        <h4 className="text-white font-medium mb-1 text-lg">{ title }</h4>
-        <p className="text-gray-400 text-sm font-light">{ description }</p>
+    <div className="flex flex-col items-start">
+      <div className="mb-6 text-gold size-20 flex items-end">
+        <Image src={ src } alt="" width={ 48 } height={ 48 } className={ cn( `size-14`, className ) } />
       </div>
+      <h4 className="text-gold font-medium text-xl mb-3">{ title }</h4>
+      <p className="text-black text-base font-light leading-6">{ description }</p>
+    </div>
+  );
+}
+
+function StatItem( { number, label }: { number: string; label: string; } ) {
+  return (
+    <div className="border border-white/10 p-8 flex flex-col items-start">
+      <span className="font-serif text-4xl text-gold mb-2">{ number }</span>
+      <span className="font-wide text-sm tracking-[0.2em] text-gray-400 uppercase">{ label }</span>
     </div>
   );
 }
