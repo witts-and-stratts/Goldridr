@@ -67,6 +67,10 @@ export const metadata: Metadata = {
   description: "Experience the ultimate in luxury transportation.",
 };
 
+import { BookingOverlayWrapper } from "@/components/booking/BookingContext";
+
+// ... existing imports
+
 export default function RootLayout( {
   children,
 }: Readonly<{
@@ -77,7 +81,9 @@ export default function RootLayout( {
       <body
         className={ `${ epilogue.variable } ${ engry.variable } ${ engravers.variable } antialiased font-sans` }
       >
-        { children }
+        <BookingOverlayWrapper>
+          { children }
+        </BookingOverlayWrapper>
         <Toaster position="top-right" richColors />
         <Script
           src={ `https://maps.googleapis.com/maps/api/js?key=${ process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }&libraries=places` }

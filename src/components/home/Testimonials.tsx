@@ -1,8 +1,8 @@
 export function Testimonials() {
   return (
-    <section className="bg-[#E5E5E5] px-4 py-24 text-black md:px-16 lg:py-64">
+    <section className="bg-[#E5E5E5] px-4 py-4 text-black md:px-16 lg:py-64">
       <div className="mx-auto max-w-7xl">
-        <h2 className="mb-16 max-w-2xl font-serif text-3xl uppercase leading-tight tracking-wide md:text-4xl">
+        <h2 className="mb-16 max-w-2xl font-serif text-2xl uppercase leading-tight tracking-wide md:text-4xl">
           Everyone is talking about the experience
         </h2>
 

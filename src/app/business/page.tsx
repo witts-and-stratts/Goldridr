@@ -1,23 +1,23 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Header } from "@/components/home/Header";
 import { Footer } from "@/components/home/Footer";
-import { BookingOverlay } from "@/components/booking/BookingOverlay";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
+import { useBookingOverlay } from "@/components/booking/BookingContext";
+
 export default function BusinessPage() {
-  const [ isBookingOpen, setIsBookingOpen ] = useState( false );
+  const { setIsOpen } = useBookingOverlay();
 
   return (
     <main className="flex min-h-screen flex-col bg-black text-white">
-      <Header onBookNow={ () => setIsBookingOpen( true ) } />
+      <Header />
 
       {/* Hero Section */ }
-      <section className="relative h-screen w-full flex justify-center overflow-hidden -mt-40">
+      <section className="relative h-screen w-full flex justify-center overflow-hidden -mt-40 max-md:h-[120vh]">
         <div className="absolute inset-0">
           <Image
             src="/assets/images/event-chauffeur.jpg"
@@ -31,18 +31,18 @@ export default function BusinessPage() {
           <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-linear-to-t from-black/50 to-transparent" />
         </div>
 
-        <div className="relative z-10 text-center px-4 mx-auto mt-50">
+        <div className="relative z-10 text-center px-2 md:px-4 mx-auto mt-50">
           <div className="flex flex-col items-center">
-            <h1 className="font-serif text-4xl font-medium tracking-wide text-white md:text-5xl">
-              ARRIVE IN STYLE, <br /> EVERY TIME
+            <h1 className="font-serif text-3xl font-medium tracking-wide text-white md:text-5xl">
+              ARRIVE IN STYLE, <br className="max-md:hidden" /> EVERY TIME
             </h1>
-            <p className="font-light text-base leading-7 mt-4 mb-12 max-w-[600px] mx-auto">
+            <p className="font-light text-sm leading-6 md:text-base md:leading-7 mt-4 mb-12 max-w-[600px] mx-auto">
               Efficiency, reliability, and precision for your business needs.
               Manage your Houston corporate transportation with a partner you can trust.
             </p>
           </div>
           <Button
-            onClick={ () => setIsBookingOpen( true ) }
+            onClick={ () => setIsOpen( true ) }
             size={ 'lg' }
             variant={ 'outline' }
             className="bg-black/20 px-6 py-2 font-wide text-sm tracking-[0.2em] transition-colors absolute bottom-20 left-1/2 -translate-x-1/2 min-w-[280px]"
@@ -54,7 +54,7 @@ export default function BusinessPage() {
 
       {/* Corporate Services */ }
       <section className="py-20 md:py-24 px-8 md:px-16 max-w-[1440px] mx-auto w-full">
-        <h2 className="font-serif text-4xl md:text-[38px] uppercase leading-[52px] mb-8 md:mb-16">
+        <h2 className="font-serif text-3xl md:text-[38px] uppercase md:leading-[52px] mb-8 md:mb-16">
           CORPORATE SERVICES
         </h2>
         <p className="font-light text-base leading-7 max-w-[725px] mb-16">
@@ -103,7 +103,7 @@ export default function BusinessPage() {
             className="object-cover"
           />
           <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-linear-to-t from-black/50 to-transparent">
-            <h2 className="font-serif text-4xl md:text-5xl uppercase text-white px-8 md:px-12 absolute bottom-8">
+            <h2 className="font-serif text-3xl md:text-5xl uppercase text-white px-8 md:px-12 absolute bottom-8">
               WHY PARTNER
               <br />
               WITH US
@@ -147,10 +147,10 @@ export default function BusinessPage() {
       </section>
 
       {/* CTA */ }
-      <section className="py-20 md:py-32 px-8 md:px-16 max-w-[1440px] mx-auto w-full">
+      <section className="py-12 md:py-32 px-8 md:px-16 max-w-[1440px] mx-auto w-full">
         <div className="grid md:grid-cols-2 gap-16 items-start">
           <div>
-            <h2 className="font-serif text-4xl uppercase leading-tight tracking-wide mb-6">
+            <h2 className="font-serif text-3xl md:text-4xl uppercase leading-tight tracking-wide mb-6">
               Ready to Elevate
               <br />
               Your Corporate Travel?
@@ -160,16 +160,17 @@ export default function BusinessPage() {
               requirements and set up your account. We&apos;ll tailor a solution
               that fits your business.
             </p>
-            <div className="flex flex-wrap gap-4">
-              <Link href="/contact">
-                <Button variant={ 'outline' } size={ 'lg' }>
+            <div className="flex flex-wrap gap-4 max-md:w-full">
+              <Link href="/contact" className="max-md:w-full">
+                <Button variant={ 'outline' } size={ 'lg' } className={ 'max-md:w-full' }>
                   GET STARTED
                 </Button>
               </Link>
               <Button
-                onClick={ () => setIsBookingOpen( true ) }
+                onClick={ () => setIsOpen( true ) }
                 size={ 'lg' }
                 variant={ 'outline' }
+                className={ 'max-md:w-full' }
               // className="border border-gold/40 text-gold px-6 py-2 font-wide text-sm tracking-[0.2em] hover:bg-gold/10 transition-colors min-w-[220px]"
               >
                 BOOK A RIDE NOW
@@ -186,7 +187,6 @@ export default function BusinessPage() {
       </section>
 
       <Footer />
-      <BookingOverlay isOpen={ isBookingOpen } onClose={ () => setIsBookingOpen( false ) } />
     </main>
   );
 }
@@ -241,8 +241,8 @@ function StandardItem( {
 
 function StatItem( { number, label }: { number: string; label: string; } ) {
   return (
-    <div className="border border-white/10 p-8 flex flex-col items-start">
-      <span className="font-serif text-4xl text-gold mb-2">{ number }</span>
+    <div className="border border-white/10 p-4 md:p-8 flex flex-col items-start">
+      <span className="font-serif text-3xl md:text-4xl text-gold mb-2">{ number }</span>
       <span className="font-wide text-sm tracking-[0.2em] text-gray-400 uppercase">{ label }</span>
     </div>
   );

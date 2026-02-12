@@ -3,11 +3,8 @@
 import { useState } from "react";
 import { Header } from "@/components/home/Header";
 import { Footer } from "@/components/home/Footer";
-import { BookingOverlay } from "@/components/booking/BookingOverlay";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { SuperField } from "@/components/ui/super-field";
 import {
   MapPin,
   Mail,
@@ -24,12 +21,41 @@ EMAIL:concierge@goldridr.com
 ADR;TYPE=WORK:;;Houston, TX;United States
 END:VCARD`;
 
+import { useForm } from "@tanstack/react-form";
+import { zodValidator } from "@tanstack/zod-form-adapter";
+import { z } from "zod";
+
+const contactSchema = z.object( {
+  firstName: z.string().min( 1, "First name is required" ),
+  lastName: z.string().min( 1, "Last name is required" ),
+  email: z.email( "Invalid email address" ),
+  phone: z.string().min( 10, "Phone number must be at least 10 characters" ),
+  message: z.string().min( 10, "Message must be at least 10 characters" ),
+} );
+
 export default function ContactPage() {
-  const [ isBookingOpen, setIsBookingOpen ] = useState( false );
+  const form = useForm( {
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      message: "",
+    },
+    validators: {
+      onChange: contactSchema,
+    },
+    onSubmit: async ( { value } ) => {
+      // Handle submission
+      console.log( value );
+      await new Promise( ( resolve ) => setTimeout( resolve, 1000 ) );
+      alert( "Message sent!" );
+    },
+  } );
 
   return (
     <main className="flex min-h-screen flex-col bg-black text-white">
-      <Header onBookNow={ () => setIsBookingOpen( true ) } />
+      <Header />
 
       <div className="flex-1 w-full max-w-7xl mx-auto px-8 py-12 md:py-24">
         <div className="grid md:grid-cols-2 gap-16 lg:gap-24">
@@ -37,7 +63,7 @@ export default function ContactPage() {
           {/* Contact Information */ }
           <div className="space-y-12">
             <div>
-              <h1 className="font-serif text-4xl md:text-5xl text-white mb-6">
+              <h1 className="font-serif text-3xl md:text-5xl text-white mb-6">
                 GET IN TOUCH
               </h1>
               <p className="text-gray-400 font-light text-lg leading-relaxed max-w-md">
@@ -48,7 +74,7 @@ export default function ContactPage() {
 
             <div className="space-y-8">
               <div className="flex items-start gap-4">
-                <div className="p-3 rounded-full bg-white/5 border border-white/10 text-gold">
+                <div className="text-gold">
                   <Phone className="size-6" strokeWidth={ 1 } />
                 </div>
                 <div>
@@ -59,25 +85,24 @@ export default function ContactPage() {
               </div>
 
               <div className="flex items-start gap-4">
-                <div className="p-3 rounded-full bg-white/5 border border-white/10 text-gold">
+                <div className="text-gold">
                   <Mail className="size-6" strokeWidth={ 1 } />
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-white mb-1">Email</h3>
                   <p className="text-gray-400 font-light">concierge@goldridr.com</p>
-                  <p className="text-gray-500 text-sm mt-1">Depending on the volume, we will do our best to answer your email within 24 hours.</p>
+                  <p className="text-gray-500 text-sm mt-1 text-balance">Depending on the volume, we will do our best to answer your email within 24 hours.</p>
                 </div>
               </div>
 
               <div className="flex items-start gap-4">
-                <div className="p-3 rounded-full bg-white/5 border border-white/10 text-gold">
+                <div className="text-gold">
                   <MapPin className="size-6" strokeWidth={ 1 } />
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-white mb-1">Office</h3>
                   <p className="text-gray-400 font-light">
-                    Houston, TX<br />
-                    United States
+                    Houston, TX, United States
                   </p>
                 </div>
               </div>
@@ -97,60 +122,117 @@ export default function ContactPage() {
           </div>
 
           {/* Contact Form */ }
-          <div className="bg-white/5 border border-white/10 p-8 md:p-10 rounded-2xl">
+          <div className="md:bg-white/5 md:border md:border-white/10 md:p-10 rounded-2xl">
             <h2 className="text-2xl font-wide text-white mb-6 uppercase tracking-widest">Send us a Message</h2>
-            <form className="space-y-6">
+            <form
+              onSubmit={ ( e ) => {
+                e.preventDefault();
+                e.stopPropagation();
+                form.handleSubmit();
+              } }
+              className="space-y-6"
+            >
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="first-name" className="text-gray-400">First name</Label>
-                  <Input
-                    id="first-name"
-                    placeholder="First name"
-                    className="bg-black/50 border-white/20 text-white placeholder:text-gray-600 focus:border-gold focus:ring-gold"
+                <form.Field
+                  name="firstName"
+                  children={ ( field ) => (
+                    <SuperField
+                      id="first-name"
+                      type="text"
+                      label="First name"
+                      placeholder="First name"
+                      labelClassName="text-gray-400"
+                      fieldClassName="bg-black/50 border-white/20 text-white placeholder:text-gray-600 focus:border-gold focus:ring-gold"
+                      value={ field.state.value }
+                      onChange={ ( e ) => field.handleChange( e.target.value ) }
+                      onBlur={ field.handleBlur }
+                      error={ field.state.meta.errors ? field.state.meta.errors.join( ", " ) : undefined }
+                    />
+                  ) }
+                />
+
+                <form.Field
+                  name="lastName"
+                  children={ ( field ) => (
+                    <SuperField
+                      id="last-name"
+                      type="text"
+                      label="Last name"
+                      placeholder="Last name"
+                      labelClassName="text-gray-400"
+                      fieldClassName="bg-black/50 border-white/20 text-white placeholder:text-gray-600 focus:border-gold focus:ring-gold"
+                      value={ field.state.value }
+                      onChange={ ( e ) => field.handleChange( e.target.value ) }
+                      onBlur={ field.handleBlur }
+                      error={ field.state.meta.errors ? field.state.meta.errors.join( ", " ) : undefined }
+                    />
+                  ) }
+                />
+              </div>
+
+              <form.Field
+                name="email"
+                children={ ( field ) => (
+                  <SuperField
+                    id="email"
+                    type="email"
+                    label="Email"
+                    placeholder="you@company.com"
+                    labelClassName="text-gray-400"
+                    fieldClassName="bg-black/50 border-white/20 text-white placeholder:text-gray-600 focus:border-gold focus:ring-gold"
+                    value={ field.state.value }
+                    onChange={ ( e ) => field.handleChange( e.target.value ) }
+                    onBlur={ field.handleBlur }
+                    error={ field.state.meta.errors ? field.state.meta.errors.join( ", " ) : undefined }
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="last-name" className="text-gray-400">Last name</Label>
-                  <Input
-                    id="last-name"
-                    placeholder="Last name"
-                    className="bg-black/50 border-white/20 text-white placeholder:text-gray-600 focus:border-gold focus:ring-gold"
+                ) }
+              />
+
+              <form.Field
+                name="phone"
+                children={ ( field ) => (
+                  <SuperField
+                    id="phone"
+                    type="tel"
+                    label="Phone number"
+                    placeholder="+1 (555) 000-0000"
+                    labelClassName="text-gray-400"
+                    fieldClassName="bg-black/50 border-white/20 text-white placeholder:text-gray-600 focus:border-gold focus:ring-gold"
+                    value={ field.state.value }
+                    onChange={ ( e ) => field.handleChange( e.target.value ) }
+                    onBlur={ field.handleBlur }
+                    error={ field.state.meta.errors ? field.state.meta.errors.join( ", " ) : undefined }
                   />
-                </div>
-              </div>
+                ) }
+              />
 
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-400">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@company.com"
-                  className="bg-black/50 border-white/20 text-white placeholder:text-gray-600 focus:border-gold focus:ring-gold"
-                />
-              </div>
+              <form.Field
+                name="message"
+                children={ ( field ) => (
+                  <SuperField
+                    id="message"
+                    type="textarea"
+                    label="Message"
+                    placeholder="Tell us how we can help..."
+                    labelClassName="text-gray-400"
+                    rows={ 5 }
+                    fieldClassName="min-h-[150px] bg-black/50 border-white/20 text-white placeholder:text-gray-600 focus:border-gold focus:ring-gold"
+                    value={ field.state.value }
+                    onChange={ ( e ) => field.handleChange( e.target.value ) }
+                    onBlur={ field.handleBlur }
+                    error={ field.state.meta.errors ? field.state.meta.errors.join( ", " ) : undefined }
+                  />
+                ) }
+              />
 
-              <div className="space-y-2">
-                <Label htmlFor="phone" className="text-gray-400">Phone number</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+1 (555) 000-0000"
-                  className="bg-black/50 border-white/20 text-white placeholder:text-gray-600 focus:border-gold focus:ring-gold"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="message" className="text-gray-400">Message</Label>
-                <Textarea
-                  id="message"
-                  placeholder="Tell us how we can help..."
-                  className="min-h-[150px] bg-black/50 border-white/20 text-white placeholder:text-gray-600 focus:border-gold focus:ring-gold"
-                />
-              </div>
-
-              <Button type="submit" size={ 'lg' } variant={ 'outline' } className="w-full">
-                SEND MESSAGE
-              </Button>
+              <form.Subscribe
+                selector={ ( state ) => [ state.canSubmit, state.isSubmitting ] }
+                children={ ( [ canSubmit, isSubmitting ] ) => (
+                  <Button type="submit" size={ 'lg' } variant={ 'outline' } className="w-full" disabled={ !canSubmit }>
+                    { isSubmitting ? 'SENDING...' : 'SEND MESSAGE' }
+                  </Button>
+                ) }
+              />
             </form>
           </div>
 
@@ -158,7 +240,6 @@ export default function ContactPage() {
       </div>
 
       <Footer />
-      <BookingOverlay isOpen={ isBookingOpen } onClose={ () => setIsBookingOpen( false ) } />
-    </main >
+    </main>
   );
 }

@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Header } from "@/components/home/Header";
 import { Footer } from "@/components/home/Footer";
-import { BookingOverlay } from "@/components/booking/BookingOverlay";
 import {
   ShieldCheck,
   UserCheck,
@@ -15,15 +14,17 @@ import { cn } from "@/lib/utils";
 import { Suburban } from "@/components/home/Suburban";
 import { Button } from "@/components/ui/button";
 
+import { useBookingOverlay } from "@/components/booking/BookingContext";
+
 export default function RidePage() {
-  const [ isBookingOpen, setIsBookingOpen ] = useState( false );
+  const { setIsOpen } = useBookingOverlay();
 
   return (
     <main className="flex min-h-screen flex-col bg-black text-white">
-      <Header onBookNow={ () => setIsBookingOpen( true ) } />
+      <Header />
 
       {/* Hero Section */ }
-      <section className="relative h-screen w-full flex justify-center overflow-hidden -mt-40">
+      <section className="relative h-screen w-full flex justify-center overflow-hidden -mt-40 max-md:h-[110vh]">
         <div className="absolute inset-0">
           <Image
             src="/images/ce01f6e595c1c6b99ab43fd61cf48705c434161f.png"
@@ -38,17 +39,17 @@ export default function RidePage() {
 
         <div className="relative z-10 text-center px-4 mx-auto mt-50">
           <div className="flex flex-col items-between h-full relative">
-            <h1 className="font-serif text-4xl font-medium tracking-wide text-white md:text-5xl">
+            <h1 className="font-serif text-3xl font-medium tracking-wide text-white md:text-5xl">
               your personal
               <br />
               chauffeur
             </h1>
-            <p className="font-light text-base leading-7 mt-4 mb-12 max-w-[600px] mx-auto">
+            <p className="font-light text-sm leading-6 md:text-base md:leading-7 mt-4 mb-12 max-w-[600px] mx-auto">
               Experience the pinnacle of chauffeured services. Where every journey
               is crafted with precision, comfort, and elegance.
             </p></div>
           <Button
-            onClick={ () => setIsBookingOpen( true ) }
+            onClick={ () => setIsOpen( true ) }
             size={ 'lg' }
             variant={ 'outline' }
             className="bg-black/20 px-6 py-2 font-wide text-sm tracking-[0.2em] transition-colors absolute bottom-20 left-1/2 -translate-x-1/2 min-w-[280px]"
@@ -59,8 +60,8 @@ export default function RidePage() {
       </section>
 
       {/* Our Services */ }
-      <section className="py-20 md:py-24 px-8 md:px-16 max-w-[1440px] mx-auto w-full">
-        <h2 className="font-serif text-4xl md:text-[38px] uppercase leading-[52px] mb-8 md:mb-16">
+      <section className="py-10 md:py-24 px-8 md:px-16 max-w-[1440px] mx-auto w-full">
+        <h2 className="font-serif text-3xl md:text-5xl uppercase leading-[52px] mb-8 md:mb-16">
           OUR SERVICES
         </h2>
         <p className="font-light text-base leading-7 max-w-[725px] mb-16">
@@ -103,7 +104,7 @@ export default function RidePage() {
             className="object-cover"
           />
           <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-linear-to-t from-black/50 to-transparent" >
-            <h2 className="font-serif text-4xl md:text-5xl uppercase text-white px-8 md:px-12 absolute bottom-8">
+            <h2 className="font-serif text-2xl md:text-5xl uppercase text-white px-8 md:px-12 absolute bottom-8">
               UNCOMPROMISING
               <br />
               STANDARDS
@@ -147,10 +148,6 @@ export default function RidePage() {
       </section>
 
       <Footer />
-      <BookingOverlay
-        isOpen={ isBookingOpen }
-        onClose={ () => setIsBookingOpen( false ) }
-      />
     </main>
   );
 }

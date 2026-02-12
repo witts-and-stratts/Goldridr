@@ -83,11 +83,11 @@ export default function FaqPage() {
   return (
     <>
       <Header />
-      <Image src="/assets/images/goldridr-chaffeur.png" width={ 1600 } height={ 1600 } alt="Goldridr Chaffeur" className="absolute -mt-40 opacity-50" />
+      <Image src="/assets/images/goldridr-chaffeur.png" width={ 1600 } height={ 1600 } alt="Goldridr Chaffeur" className="absolute -mt-40 opacity-50 max-md:h-[70vh] max-md:object-cover" />
       <div className="min-h-screen text-white selection:bg-gold/30 relative mt-20 md:mt-20 lg:mt-80">
         {/* Header Section */ }
         <div className="container mx-auto px-4 pt-32 pb-16">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-6 text-center font-serif">
+          <h1 className="text-2xl md:text-4xl font-bold tracking-tight mb-6 text-center font-serif">
             Frequently Asked <span className="text-gold">Questions</span>
           </h1>
           <p className="text-xl text-gray-400 text-center max-w-2xl mx-auto mb-12">
@@ -117,13 +117,13 @@ export default function FaqPage() {
           {/* Contact CTA */ }
           <div className="mt-24 text-center">
             <h3 className="text-2xl font-bold mb-4 font-sans">Still have questions?</h3>
-            <p className="text-gray-400 mb-8">
+            <p className="text-gray-400 mb-8 text-balance">
               Our support team is available 24/7 to assist you.
             </p>
             <Link href="/contact">
               <Button
                 size="lg"
-                className="bg-gold text-black hover:bg-gold/80 font-semibold px-8"
+                className="bg-gold text-black hover:bg-gold/80 font-semibold px-8 uppercase"
               >
                 Contact Support
               </Button>

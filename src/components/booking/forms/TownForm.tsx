@@ -436,7 +436,7 @@ export function TownForm( { onBack }: TownFormProps ) {
         <ArrowLeft className="size-4" />
       </Button>
 
-      <div className="flex flex-col items-center justify-center gap-2 w-full mb-6 py-12">
+      <div className="flex flex-col items-center justify-center gap-2 w-full md:mb-6 py-8 md:py-12">
         <Image src="/assets/images/icon/city.svg" alt="Around Town" width={ 48 } height={ 48 } />
         <h2 className="font-widest font-wide uppercase tracking-[5px] text-2xl text-white">Around Town</h2>
       </div>

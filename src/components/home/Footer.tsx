@@ -27,7 +27,7 @@ export function Footer() {
           <Link href="#" className="hover:text-gray-400 transition-colors">Privacy Policy</Link>
           <Link href="#" className="hover:text-gray-400 transition-colors">Terms & Conditions</Link>
         </div>
-        <div>
+        <div className="max-md:text-xs">
           © Goldridr Technology LLC 2024. All rights reserved.
         </div>
       </div>

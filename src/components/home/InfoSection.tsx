@@ -1,4 +1,5 @@
-import Link from "next/link";
+'use client';
+
 import { useState } from "react";
 import { Button } from "../ui/button";
 import { AirportsOverlay } from "./AirportsOverlay";
@@ -7,9 +8,9 @@ export function InfoSection() {
   const [ isAirportOverlayOpen, setIsAirportOverlayOpen ] = useState( false );
 
   return (
-    <section className="bg-black px-4 py-24 text-white md:px-16 lg:py-32">
+    <section className="bg-black px-4 py-10 text-white md:px-16 lg:py-32">
       <div className="mx-auto max-w-7xl">
-        <h2 className="mb-6 font-serif text-4xl uppercase leading-tight tracking-wide">
+        <h2 className="mb-6 font-serif text-3xl md:text-4xl uppercase leading-tight tracking-wide">
           Available Everywhere
           <br />
           and Anytime in Houston

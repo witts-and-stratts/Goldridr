@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Plane } from "lucide-react";
+import { useBookingOverlay } from "@/components/booking/BookingContext";
 
 interface AirportsOverlayProps {
   isOpen: boolean;
@@ -43,6 +44,14 @@ const HOUSTON_AIRPORTS = [
 ];
 
 export function AirportsOverlay( { isOpen, onClose }: AirportsOverlayProps ) {
+  const { setIsOpen: setBookingOpen } = useBookingOverlay();
+
+  const handleBookTransfer = () => {
+    onClose();
+    // Small delay to allow potential exit animations or state updates to settle
+    setTimeout( () => setBookingOpen( true ), 100 );
+  };
+
   return (
     <Dialog open={ isOpen } onOpenChange={ onClose }>
       <DialogContent className="bg-zinc-950 border-white/10 text-white sm:max-w-2xl">
@@ -81,7 +90,7 @@ export function AirportsOverlay( { isOpen, onClose }: AirportsOverlayProps ) {
 
         <div className="mt-6 pt-6 border-t border-white/10 flex justify-center">
           <Button
-            onClick={ onClose }
+            onClick={ handleBookTransfer }
             className="bg-gold hover:bg-gold/90 text-black font-bold w-full sm:w-auto min-w-[200px]"
           >
             BOOK A TRANSFER

@@ -31,7 +31,7 @@ export function BookingOptions( { onSelect }: BookingOptionsProps ) {
         <h2 className="font-serif text-2xl font-bold text-center text-white uppercase tracking-widest">
           BOOK A RIDE
         </h2>
-        <p className="font-sans font-light text-white mt-2">
+        <p className="font-sans font-light text-white mt-2 max-md:text-balance">
           Experience premium chauffeured services, in Houston and beyond
         </p>
       </motion.div>
@@ -82,7 +82,7 @@ function OptionItem( {
       whileHover={ { scale: 1.05 } }
       whileTap={ { scale: 0.95 } }
       onClick={ onClick }
-      className="flex flex-1 flex-col items-center text-center px-4 md:px-10 md:border-r border-white/20 last-of-type:border-r-0 focus:outline-none group"
+      className="flex flex-1 flex-col items-center text-center px-10 md:px-10 md:border-r border-white/20 last-of-type:border-r-0 focus:outline-none group"
     >
       <div className="mb-1 md:mb-3 size-20 flex items-center justify-center transition-transform duration-300 group-hover:-translate-y-1">
         { icon }
