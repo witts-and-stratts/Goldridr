@@ -22,7 +22,7 @@ ADR;TYPE=WORK:;;Houston, TX;United States
 END:VCARD`;
 
 import { useForm } from "@tanstack/react-form";
-import { zodValidator } from "@tanstack/zod-form-adapter";
+// zodValidator import removed
 import { z } from "zod";
 
 const contactSchema = z.object( {
@@ -43,7 +43,7 @@ export default function ContactPage() {
       message: "",
     },
     validators: {
-      onChange: contactSchema,
+      onChange: contactSchema
     },
     onSubmit: async ( { value } ) => {
       // Handle submission
