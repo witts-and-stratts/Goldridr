@@ -1,0 +1,77 @@
+/*
+ * Admin overrides — resets the luxury frontend theme back to
+ * standard shadcn/ui defaults so the admin looks like a fresh project.
+ *
+ * Scoped to .admin-dashboard so nothing bleeds into the public site.
+ */
+
+.admin-dashboard {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  /* ── Typography ──────────────────────────────────── */
+  /* Override the luxury Epilogue / Engravers fonts */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  /* Custom font aliases from the frontend */
+  --font-wide: var(--font-sans);
+  --font-widest: var(--font-sans);
+  --font-engravers: var(--font-sans);
+  --font-epilogue: var(--font-sans);
+  --font-engry: var(--font-sans);
+
+  font-family: var(--font-sans);
+
+  /* ── Gold → neutral white ────────────────────────── */
+  /* The shared Button uses text-gold / hover:bg-gold everywhere.
+     Remapping --gold to near-white makes it look like standard shadcn. */
+  --gold: oklch(0.922 0 0);
+
+  /* ── Radius ──────────────────────────────────────── */
+  /* Frontend uses --radius: 0 (sharp corners). shadcn default is 0.625rem */
+  --radius: 0.5rem;
+
+  /* ── Colour scale — shadcn dark defaults (zinc) ─── */
+  --background:          oklch(0.145 0 0);
+  --foreground:          oklch(0.985 0 0);
+
+  --card:                oklch(0.205 0 0);
+  --card-foreground:     oklch(0.985 0 0);
+
+  --popover:             oklch(0.205 0 0);
+  --popover-foreground:  oklch(0.985 0 0);
+
+  --primary:             oklch(0.922 0 0);
+  --primary-foreground:  oklch(0.205 0 0);
+
+  --secondary:           oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+
+  --muted:               oklch(0.269 0 0);
+  --muted-foreground:    oklch(0.708 0 0);
+
+  --accent:              oklch(0.269 0 0);
+  --accent-foreground:   oklch(0.985 0 0);
+
+  --destructive:         oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border:              oklch(1 0 0 / 10%);
+  --input:               oklch(1 0 0 / 15%);
+  --ring:                oklch(0.556 0 0);
+
+  /* ── Sidebar ─────────────────────────────────────── */
+  --sidebar:                      oklch(0.180 0 0);
+  --sidebar-foreground:           oklch(0.985 0 0);
+  --sidebar-primary:              oklch(0.922 0 0);
+  --sidebar-primary-foreground:   oklch(0.205 0 0);
+  --sidebar-accent:               oklch(0.240 0 0);
+  --sidebar-accent-foreground:    oklch(0.985 0 0);
+  --sidebar-border:               oklch(1 0 0 / 8%);
+  --sidebar-ring:                 oklch(0.556 0 0);
+}

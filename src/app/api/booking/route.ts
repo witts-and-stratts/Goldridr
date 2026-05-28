@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import z from "zod/v4";
+import { saveBooking, checkBookingClash, checkBlockedClash, findAvailableChauffeur } from "@/lib/db";
 
 // ============================================================================
 // Configuration
@@ -281,13 +282,6 @@ function buildCalBookingRequest(
 export async function POST( req: Request ) {
   const apiKey = process.env.CAL_API_KEY;
 
-  if ( !apiKey ) {
-    return NextResponse.json(
-      { success: false, error: "Cal.com API key is not configured" },
-      { status: 500 }
-    );
-  }
-
   try {
     const body = await req.json();
 
@@ -308,8 +302,42 @@ export async function POST( req: Request ) {
 
     const input = parseResult.data;
 
-    // Check availability if eventTypeId provided
-    if ( input.eventTypeId ) {
+    const durationMinutes = input.duration ?? 60;
+
+    // 1. Check for administrative calendar blocks / scheduling clashes in SQLite database by finding a free chauffeur
+    const assignedChauffeur = findAvailableChauffeur( input.date, input.time, durationMinutes );
+    if ( !assignedChauffeur ) {
+      const alternatives: string[] = [];
+      const requestedDate = new Date( `${ input.date }T${ input.time }:00` );
+      if ( !isNaN( requestedDate.getTime() ) ) {
+        const offsets = [ -30, -60, -90, -120, 30, 60, 90, 120, 150, 180, 210, 240 ];
+        for ( const offset of offsets ) {
+          const testDate = new Date( requestedDate.getTime() + offset * 60 * 1000 );
+          const hours = String( testDate.getHours() ).padStart( 2, "0" );
+          const minutes = String( testDate.getMinutes() ).padStart( 2, "0" );
+          const testTime = `${ hours }:${ minutes }`;
+          
+          const testChauffeur = findAvailableChauffeur( input.date, testTime, durationMinutes );
+          if ( testChauffeur ) {
+            alternatives.push( testTime );
+            if ( alternatives.length >= 4 ) break;
+          }
+        }
+      }
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "clash",
+          message: "No chauffeurs are available for the requested time slot. They are either fully booked or locked out.",
+          alternativeSlots: alternatives,
+        },
+        { status: 409 }
+      );
+    }
+
+    // Check availability if eventTypeId provided and apiKey is configured
+    if ( input.eventTypeId && apiKey ) {
       const localDateTime = new Date( `${ input.date }T${ input.time }:00` );
       const startDateStr = localDateTime.toISOString().split( "T" )[ 0 ];
       const endDate = new Date( localDateTime );
@@ -341,39 +369,63 @@ export async function POST( req: Request ) {
       }
     }
 
-    // Generate booking reference and build request
+    // Generate booking reference
     const bookingReference = generateBookingReference();
-    const calRequest = buildCalBookingRequest( input, bookingReference );
 
-    // Debug logging
-    console.log( "Booking request:", JSON.stringify( {
-      attendee: calRequest.attendee,
-      bookingFieldsResponses: calRequest.bookingFieldsResponses,
-    }, null, 2 ) );
+    // Save to SQLite database
+    const sqliteBooking = saveBooking( {
+      reference: bookingReference,
+      tripType: input.tripType || "airport",
+      date: input.date,
+      time: input.time,
+      duration: input.duration ?? 60,
+      name: input.attendee.name,
+      email: input.attendee.email,
+      phone: input.attendee.phone || "",
+      notes: input.notes || "",
+      status: "pending",
+      tripDetails: JSON.stringify( input.tripDetails || {} ),
+      chauffeurId: assignedChauffeur ? assignedChauffeur.id : null,
+    } );
 
-    // Create the booking
-    const result = await createCalBooking( calRequest, apiKey );
+    let calBookingId = null;
+    let calBookingUid = null;
+    let calBookingStatus = "pending";
 
-    if ( result.success ) {
-      return NextResponse.json( {
-        success: true,
-        booking: {
-          id: result.data.id,
-          uid: result.data.uid,
-          reference: bookingReference,
-          status: result.data.status,
-          start: result.data.start,
-          end: result.data.end,
-          title: result.data.title,
-        },
-        message: "Booking confirmed successfully",
-      } );
+    // Create the booking in Cal.com if API key is present
+    if ( apiKey ) {
+      try {
+        const calRequest = buildCalBookingRequest( input, bookingReference );
+        console.log( "Booking request to Cal.com:", JSON.stringify( {
+          attendee: calRequest.attendee,
+          bookingFieldsResponses: calRequest.bookingFieldsResponses,
+        }, null, 2 ) );
+
+        const result = await createCalBooking( calRequest, apiKey );
+        if ( result.success ) {
+          calBookingId = result.data.id;
+          calBookingUid = result.data.uid;
+          calBookingStatus = result.data.status;
+        }
+      } catch ( calErr ) {
+        console.error( "Cal.com creation failed but booking saved to SQLite:", calErr );
+      }
     }
 
-    return NextResponse.json(
-      { success: false, error: result.error },
-      { status: 400 }
-    );
+    return NextResponse.json( {
+      success: true,
+      booking: {
+        id: sqliteBooking.id,
+        reference: bookingReference,
+        status: sqliteBooking.status,
+        date: sqliteBooking.date,
+        time: sqliteBooking.time,
+        calBookingId,
+        calBookingUid,
+      },
+      message: "Booking confirmed successfully",
+    } );
+
   } catch ( error: unknown ) {
     console.error( "Booking error:", error );
     const message = error instanceof Error ? error.message : "Failed to process booking";
