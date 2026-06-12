@@ -6,7 +6,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, CalendarDays, Users, BookOpen,
-  ShieldCheck, ChevronRight, ChevronDown, Check,
+  ShieldCheck, ChevronRight, LogOut, Bell, Settings,
+  TestTube2, CreditCard, TicketPercent,
 } from "lucide-react"
 import {
   Collapsible,
@@ -28,18 +29,10 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback } from "@/components/admin-ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/admin-ui/dropdown-menu"
 import { useAdmin } from "@/app/admin/context"
-import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/admin-ui/button"
 
 const navSections = [
   {
@@ -47,6 +40,9 @@ const navSections = [
     defaultOpen: true,
     items: [
       { label: "Dashboard", icon: LayoutDashboard, href: "/admin" },
+      { label: "Notifications", icon: Bell, href: "/admin/notifications" },
+      { label: "Settings", icon: Settings, href: "/admin/settings" },
+      { label: "Testing", icon: TestTube2, href: "/admin/testing", adminOnly: true },
     ],
   },
   {
@@ -55,6 +51,8 @@ const navSections = [
     items: [
       { label: "Bookings", icon: BookOpen,     href: "/admin/bookings"  },
       { label: "Calendar", icon: CalendarDays, href: "/admin/calendar"  },
+      { label: "Payments", icon: CreditCard, href: "/admin/payments", adminOnly: true },
+      { label: "Discounts", icon: TicketPercent, href: "/admin/discounts", adminOnly: true },
     ],
   },
   {
@@ -85,80 +83,39 @@ function initials(name: string) {
   return name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()
 }
 
-function RoleSwitcher() {
-  const { chauffeurs, currentRole, setCurrentRole } = useAdmin()
-  const isAdmin = currentRole.type === "admin"
-  const label   = isAdmin ? "General Dispatcher" : currentRole.name!
+function AccountSummary() {
+  const { session } = useAdmin()
+  const isAdmin = session.role === "admin"
+  const label = session.name
   const avatarColor = isAdmin ? "bg-primary/15 text-primary" : colorFor(label)
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors hover:bg-sidebar-accent focus:outline-none focus:ring-2 focus:ring-sidebar-ring"
-        >
-          <Avatar className="h-7 w-7 shrink-0">
-            <AvatarFallback className={cn("text-[10px] font-semibold", avatarColor)}>
-              {isAdmin ? <ShieldCheck className="size-3.5" /> : initials(label)}
-            </AvatarFallback>
-          </Avatar>
-          <span className="flex-1 text-left text-sm font-medium text-sidebar-foreground truncate">
-            {label}
-          </span>
-          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-        </button>
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent className="w-56" align="start" side="right">
-        <DropdownMenuLabel className="text-xs">Switch workspace</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem className="gap-2.5" onClick={() => {
-            setCurrentRole({ type: "admin" })
-            toast.success("Viewing as General Dispatcher")
-          }}>
-            <Avatar className="h-7 w-7 shrink-0">
-              <AvatarFallback className="bg-primary/15 text-primary">
-                <ShieldCheck className="size-3.5" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col min-w-0">
-              <span className="font-medium text-sm">General Dispatcher</span>
-              <span className="text-[10px] text-muted-foreground">Admin — full access</span>
-            </div>
-            {isAdmin && <Check className="ml-auto size-4 shrink-0" />}
-          </DropdownMenuItem>
-
-          {chauffeurs.length > 0 && <DropdownMenuSeparator />}
-
-          {chauffeurs.map(c => (
-            <DropdownMenuItem key={c.id} className="gap-2.5" onClick={() => {
-              setCurrentRole({ type: "chauffeur", id: c.id, name: c.name })
-              toast.success(`Viewing as ${c.name}`)
-            }}>
-              <Avatar className="h-7 w-7 shrink-0">
-                <AvatarFallback className={cn("text-[10px] font-semibold", colorFor(c.name))}>
-                  {initials(c.name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col min-w-0">
-                <span className="font-medium text-sm truncate">{c.name}</span>
-                <span className="text-[10px] text-muted-foreground">Chauffeur</span>
-              </div>
-              {currentRole.type === "chauffeur" && currentRole.id === c.id && (
-                <Check className="ml-auto size-4 shrink-0" />
-              )}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex w-full items-center gap-2 px-2 py-2">
+      <Avatar className="h-7 w-7 shrink-0">
+        <AvatarFallback className={cn("text-[10px] font-semibold", avatarColor)}>
+          {isAdmin ? <ShieldCheck className="size-3.5" /> : initials(label)}
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1 leading-tight">
+        <p className="truncate text-sm font-medium text-sidebar-foreground">{label}</p>
+        <p className="truncate text-[10px] text-muted-foreground">
+          {isAdmin ? "Administrator" : "Chauffeur"}
+        </p>
+      </div>
+    </div>
   )
 }
 
 export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { session } = useAdmin()
+
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" })
+    router.replace("/login")
+    router.refresh()
+  }
 
   return (
     <Sidebar {...props}>
@@ -184,14 +141,16 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
             priority
           />
         </div>
-        <RoleSwitcher />
+        <AccountSummary />
       </SidebarHeader>
 
       <SidebarSeparator />
 
       {/* Navigation */}
       <SidebarContent className="gap-0">
-        {navSections.map(section => (
+        {navSections
+          .filter(section => session.role === "admin" || section.label !== "Management")
+          .map(section => (
           <Collapsible
             key={section.label}
             defaultOpen={section.defaultOpen}
@@ -209,7 +168,9 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
               <CollapsibleContent>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {section.items.map(item => {
+                    {section.items
+                      .filter(item => !("adminOnly" in item) || session.role === "admin")
+                      .map(item => {
                       const isActive =
                         item.href === "/admin"
                           ? pathname === "/admin"
@@ -239,13 +200,10 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
 
       {/* Footer */}
       <SidebarFooter>
-        <div className="flex items-center justify-between px-2 py-1">
-          <div className="flex flex-col leading-tight">
-            <span className="text-xs font-medium text-sidebar-foreground">Online</span>
-            <span className="text-[10px] text-muted-foreground">System active</span>
-          </div>
-          <div className="size-2 rounded-full bg-green-500 animate-pulse" title="Online" />
-        </div>
+        <Button variant="ghost" className="w-full justify-start text-sidebar-foreground" onClick={logout}>
+          <LogOut className="size-4" />
+          <span className="group-data-[collapsible=icon]:hidden">Sign out</span>
+        </Button>
       </SidebarFooter>
 
       <SidebarRail />

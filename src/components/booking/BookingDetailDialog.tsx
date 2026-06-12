@@ -1,13 +1,18 @@
 "use client";
 
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   CheckCircle2, XCircle, Clock, Trash2,
-  Mail, Phone, MapPin, Plane, Users, Navigation,
+  Mail, Phone, MapPin, Plane, Users, Navigation, Send,
 } from "lucide-react";
 import { Button } from "@/components/admin-ui/button";
 import { Badge } from "@/components/admin-ui/badge";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/admin-ui/dialog";
 import { ChauffeurPicker } from "@/components/admin-ui/chauffeur-picker";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/admin-ui/input";
+import { Checkbox } from "@/components/admin-ui/checkbox";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export interface BookingDetail {
@@ -78,11 +83,41 @@ export function BookingDetailDialog({
   onDelete,
   onChauffeurChange,
 }: BookingDetailDialogProps) {
+  const [ messageSubject, setMessageSubject ] = useState( "" );
+  const [ messageBody, setMessageBody ] = useState( "" );
+  const [ messageChannels, setMessageChannels ] = useState( [ "email" ] );
+  const [ sending, setSending ] = useState( false );
   if (!booking) return null;
 
   const fare    = booking.tripDetails?.estimatedTotal || booking.tripDetails?.estimatedPrice || 0;
   const pickup  = booking.tripDetails?.pickupLocation || booking.tripDetails?.pickup || "—";
   const dropoff = booking.tripDetails?.dropoffLocation || booking.tripDetails?.destination || "—";
+
+  const sendMessage = async () => {
+    setSending( true );
+    try {
+      const response = await fetch( "/api/admin/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify( {
+          kind: "booking",
+          reference: booking.reference,
+          subject: messageSubject,
+          message: messageBody,
+          channels: messageChannels,
+        } ),
+      } );
+      const data = await response.json();
+      if ( !data.success ) throw new Error( data.error );
+      setMessageSubject( "" );
+      setMessageBody( "" );
+      toast.success( "Passenger message queued" );
+    } catch ( error ) {
+      toast.error( error instanceof Error ? error.message : "Unable to queue message" );
+    } finally {
+      setSending( false );
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -92,147 +127,114 @@ export function BookingDetailDialog({
           <DialogDescription>Booking details and management</DialogDescription>
         </div>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">{booking.reference}</span>
-            <span className="text-muted-foreground/40">·</span>
-            <span className="text-xs text-muted-foreground capitalize flex items-center gap-1">
-              {booking.tripType === "airport" ? <Plane className="size-3" /> :
-               booking.tripType === "hourly"  ? <Clock className="size-3" /> :
-               <Navigation className="size-3" />}
-              {booking.tripType}
-            </span>
-          </div>
-          <StatusBadge status={booking.status} />
-        </div>
-
-        {/* Body */}
-        <div className="divide-y divide-border max-h-[65vh] overflow-y-auto">
-
-          {/* Passenger */}
-          <div className="grid grid-cols-[120px_1fr] px-5 py-4 gap-4">
-            <p className="text-xs text-muted-foreground pt-0.5">Passenger</p>
+        <section className="booking-detail">
+          <header className="booking-detail-head">
             <div>
-              <p className="text-sm font-medium">{booking.name}</p>
-              <a href={`mailto:${booking.email}`} className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 mt-1">
-                <Mail className="size-3 shrink-0" />{booking.email}
-              </a>
-              {booking.phone && (
-                <a href={`tel:${booking.phone}`} className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 mt-0.5">
-                  <Phone className="size-3 shrink-0" />{booking.phone}
-                </a>
-              )}
-            </div>
-          </div>
-
-          {/* Date & time */}
-          <div className="grid grid-cols-[120px_1fr] px-5 py-4 gap-4">
-            <p className="text-xs text-muted-foreground pt-0.5">Date & time</p>
-            <div className="flex items-center gap-3 text-sm">
-              <span className="font-medium">
-                {new Date(booking.date).toLocaleDateString("en-US", {
-                  weekday: "short", month: "short", day: "numeric", year: "numeric",
-                })}
-              </span>
-              <span className="text-muted-foreground">{booking.time}</span>
-            </div>
-          </div>
-
-          {/* Route */}
-          <div className="grid grid-cols-[120px_1fr] px-5 py-4 gap-4">
-            <p className="text-xs text-muted-foreground pt-0.5">Route</p>
-            <div className="space-y-1.5 text-sm">
-              <div className="flex items-start gap-2">
-                <MapPin className="size-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                <span className="font-medium">{pickup}</span>
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-sm font-medium tracking-tight">{booking.reference}</span>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground capitalize">
+                  {booking.tripType === "airport" ? <Plane className="size-3" /> : booking.tripType === "hourly" ? <Clock className="size-3" /> : <Navigation className="size-3" />}
+                  {booking.tripType}
+                </span>
               </div>
-              {booking.tripType !== "hourly" && (
-                <div className="flex items-start gap-2">
-                  <MapPin className="size-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                  <span className="text-muted-foreground">{dropoff}</span>
+              <p className="booking-detail-fare">{formatPrice(fare)}</p>
+            </div>
+            <div className="booking-detail-meta">
+              <StatusBadge status={booking.status} />
+              <span className="text-xs text-muted-foreground">{new Date(booking.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })} · {booking.time}</span>
+            </div>
+          </header>
+          <div className="booking-detail-body">
+            <div className="booking-detail-section">
+              <p className="booking-detail-section-head">Contact</p>
+              <div className="booking-detail-rows">
+                <div className="booking-detail-row">
+                  <p className="booking-detail-row-label">Passenger</p>
+                  <div>
+                    <p className="text-sm font-medium">{booking.name}</p>
+                    <a href={`mailto:${booking.email}`} className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 mt-0.5"><Mail className="size-3 shrink-0" />{booking.email}</a>
+                    {booking.phone && <a href={`tel:${booking.phone}`} className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 mt-0.5"><Phone className="size-3 shrink-0" />{booking.phone}</a>}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-
-          {/* Trip details */}
-          {(booking.tripDetails?.passengers || booking.tripDetails?.flightNumber || booking.tripDetails?.durationHours) && (
-            <div className="grid grid-cols-[120px_1fr] px-5 py-4 gap-4">
-              <p className="text-xs text-muted-foreground pt-0.5">Details</p>
-              <div className="flex flex-wrap gap-4 text-sm">
-                {booking.tripDetails.passengers && (
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <Users className="size-3.5" />{booking.tripDetails.passengers} passengers
-                  </span>
+            <div className="booking-detail-section">
+              <p className="booking-detail-section-head">Trip</p>
+              <div className="booking-detail-rows">
+                <div className="booking-detail-row">
+                  <p className="booking-detail-row-label">Route</p>
+                  <div className="text-sm">
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex flex-col items-center shrink-0 pt-[5px]">
+                        <span className="size-2 rounded-full bg-foreground/70 block" />
+                        {booking.tripType !== "hourly" && <span className="w-px h-4 bg-border block my-0.5" />}
+                      </div>
+                      <span className="font-medium leading-snug pb-1">{pickup}</span>
+                    </div>
+                    {booking.tripType !== "hourly" && <div className="flex items-start gap-2.5"><MapPin className="size-3.5 text-muted-foreground/70 shrink-0 mt-0.5" /><span className="text-muted-foreground">{dropoff}</span></div>}
+                  </div>
+                </div>
+                {(booking.tripDetails?.passengers || booking.tripDetails?.flightNumber || booking.tripDetails?.durationHours) && (
+                  <div className="booking-detail-row">
+                    <p className="booking-detail-row-label">Details</p>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      {booking.tripDetails.passengers && <span className="flex items-center gap-1.5 text-muted-foreground"><Users className="size-3.5" />{booking.tripDetails.passengers} passengers</span>}
+                      {booking.tripDetails.flightNumber && <span className="flex items-center gap-1.5 text-muted-foreground"><Plane className="size-3.5" />{booking.tripDetails.flightNumber}</span>}
+                      {booking.tripDetails.durationHours && <span className="flex items-center gap-1.5 text-muted-foreground"><Clock className="size-3.5" />{booking.tripDetails.durationHours}h</span>}
+                    </div>
+                  </div>
                 )}
-                {booking.tripDetails.flightNumber && (
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <Plane className="size-3.5" />{booking.tripDetails.flightNumber}
-                  </span>
-                )}
-                {booking.tripDetails.durationHours && (
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <Clock className="size-3.5" />{booking.tripDetails.durationHours}h
-                  </span>
+                {booking.notes && (
+                  <div className="booking-detail-row">
+                    <p className="booking-detail-row-label">Notes</p>
+                    <p className="text-sm text-foreground/80 leading-relaxed">{booking.notes}</p>
+                  </div>
                 )}
               </div>
             </div>
-          )}
-
-          {/* Fare */}
-          <div className="grid grid-cols-[120px_1fr] px-5 py-4 gap-4">
-            <p className="text-xs text-muted-foreground pt-0.5">Fare</p>
-            <p className="text-sm font-semibold">{formatPrice(fare)}</p>
-          </div>
-
-          {/* Notes */}
-          {booking.notes && (
-            <div className="grid grid-cols-[120px_1fr] px-5 py-4 gap-4">
-              <p className="text-xs text-muted-foreground pt-0.5">Notes</p>
-              <p className="text-sm text-muted-foreground">{booking.notes}</p>
+            {role === "admin" && (
+              <div className="booking-detail-section">
+                <p className="booking-detail-section-head">Assignment</p>
+                <div className="booking-detail-rows">
+                  <div className="booking-detail-row">
+                    <p className="booking-detail-row-label">Chauffeur</p>
+                    <ChauffeurPicker chauffeurs={chauffeurs} value={booking.chauffeurId} onChange={(newId) => onChauffeurChange?.(booking.reference, newId)} />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="booking-detail-section">
+              <p className="booking-detail-section-head">Message passenger</p>
+              <div className="space-y-3">
+                <Input value={messageSubject} onChange={event => setMessageSubject(event.target.value)} placeholder="Subject" />
+                <Textarea value={messageBody} onChange={event => setMessageBody(event.target.value)} placeholder="Write a concise passenger update" rows={3} />
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex gap-4 text-xs text-muted-foreground">
+                    {["email", "sms"].map(channel => (
+                      <label key={channel} className="flex items-center gap-2">
+                        <Checkbox checked={messageChannels.includes(channel)} onCheckedChange={checked => setMessageChannels(current => checked ? [...current, channel] : current.filter(value => value !== channel))} />
+                        {channel.toUpperCase()}
+                      </label>
+                    ))}
+                  </div>
+                  <Button size="sm" onClick={sendMessage} disabled={sending || !messageSubject || !messageBody || messageChannels.length === 0}>
+                    <Send className="size-3.5" />{sending ? "Queueing..." : "Send"}
+                  </Button>
+                </div>
+              </div>
             </div>
-          )}
-
-          {/* Chauffeur (admin only) */}
+          </div>
           {role === "admin" && (
-            <div className="grid grid-cols-[120px_1fr] px-5 py-4 gap-4">
-              <p className="text-xs text-muted-foreground pt-0.5">Chauffeur</p>
-              <ChauffeurPicker
-                chauffeurs={chauffeurs}
-                value={booking.chauffeurId}
-                onChange={(newId) => onChauffeurChange?.(booking.reference, newId)}
-              />
-            </div>
+            <footer className="booking-detail-foot">
+              <Button variant="ghost" size="sm" onClick={() => onDelete?.(booking.reference)} className="text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="size-3.5" /> Delete</Button>
+              <div className="flex gap-2">
+                {booking.status === "pending" && (<><Button variant="outline" size="sm" onClick={() => onStatusChange?.(booking.reference, "rejected")}>Reject</Button><Button size="sm" onClick={() => onStatusChange?.(booking.reference, "confirmed")}>Confirm</Button></>)}
+                {(booking.status === "confirmed" || booking.status === "accepted") && <Button variant="destructive" size="sm" onClick={() => onStatusChange?.(booking.reference, "cancelled")}>Cancel</Button>}
+                {(booking.status === "cancelled" || booking.status === "rejected") && <Button size="sm" onClick={() => onStatusChange?.(booking.reference, "confirmed")}>Restore</Button>}
+              </div>
+            </footer>
           )}
-        </div>
-
-        {/* Footer (admin only) */}
-        {role === "admin" && (
-          <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-border">
-            <Button
-              variant="ghost" size="sm"
-              onClick={() => onDelete?.(booking.reference)}
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-            >
-              <Trash2 className="size-3.5" /> Delete
-            </Button>
-            <div className="flex gap-2">
-              {booking.status === "pending" && (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => onStatusChange?.(booking.reference, "rejected")}>Reject</Button>
-                  <Button size="sm" onClick={() => onStatusChange?.(booking.reference, "confirmed")}>Confirm</Button>
-                </>
-              )}
-              {(booking.status === "confirmed" || booking.status === "accepted") && (
-                <Button variant="destructive" size="sm" onClick={() => onStatusChange?.(booking.reference, "cancelled")}>Cancel booking</Button>
-              )}
-              {(booking.status === "cancelled" || booking.status === "rejected") && (
-                <Button size="sm" onClick={() => onStatusChange?.(booking.reference, "confirmed")}>Re-confirm</Button>
-              )}
-            </div>
-          </div>
-        )}
+        </section>
       </DialogContent>
     </Dialog>
   );

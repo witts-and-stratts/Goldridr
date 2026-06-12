@@ -89,7 +89,10 @@ export default function RootLayout( {
           src={ `https://maps.googleapis.com/maps/api/js?key=${ process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }&libraries=places` }
           strategy="lazyOnload"
         />
-      </body>
+      {/* impeccable-live-start */}
+<script src="http://localhost:8401/live.js"></script>
+{/* impeccable-live-end */}
+</body>
     </html>
   );
 }

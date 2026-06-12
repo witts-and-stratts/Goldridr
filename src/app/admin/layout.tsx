@@ -1,71 +1,16 @@
-"use client"
-
 import React from "react"
-import { usePathname } from "next/navigation"
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
-import { Separator } from "@/components/admin-ui/separator"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { AdminSidebar } from "@/components/admin-sidebar"
+import { redirect } from "next/navigation"
+import { getSession } from "@/lib/auth"
 import { AdminProvider } from "./context"
+import { AdminShell } from "./admin-shell"
 import "./admin.css"
 
-function AdminShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-  const segments = pathname.replace(/^\/admin\/?/, "").split("/").filter(Boolean)
-  const crumb = segments.length > 0
-    ? segments[segments.length - 1].charAt(0).toUpperCase() + segments[segments.length - 1].slice(1)
-    : null
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const session = await getSession()
+  if (!session) redirect("/login")
 
   return (
-    <div className="admin-dashboard">
-      <SidebarProvider>
-        <AdminSidebar />
-        <SidebarInset>
-          {/* Top bar */}
-          <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin">Admin</BreadcrumbLink>
-                </BreadcrumbItem>
-                {crumb && (
-                  <>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                      <BreadcrumbPage>{crumb}</BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </>
-                )}
-              </BreadcrumbList>
-            </Breadcrumb>
-          </header>
-
-          {/* Page content */}
-          <main className="flex-1 overflow-hidden min-h-0">
-            {children}
-          </main>
-        </SidebarInset>
-      </SidebarProvider>
-    </div>
-  )
-}
-
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <AdminProvider>
+    <AdminProvider session={session}>
       <AdminShell>{children}</AdminShell>
     </AdminProvider>
   )

@@ -1,5 +1,6 @@
 // Shared Zod v4 schemas for booking forms
 import z from "zod/v4";
+import { isBookingTimeInFuture } from "@/lib/booking-time";
 
 // ============================================================================
 // Common Field Schemas
@@ -19,6 +20,22 @@ export const FlightNumberSchema = z.string().min( 2, "Flight number is required"
 
 export const DurationSchema = z.string().min( 1, "Duration is required" );
 
+function hasFuturePickup( data: { date: Date; time: string } ): boolean {
+  if ( Number.isNaN( data.date.getTime() ) || !TimeSchema.safeParse( data.time ).success ) {
+    return true;
+  }
+
+  const year = data.date.getFullYear();
+  const month = String( data.date.getMonth() + 1 ).padStart( 2, "0" );
+  const day = String( data.date.getDate() ).padStart( 2, "0" );
+  return isBookingTimeInFuture( `${ year }-${ month }-${ day }`, data.time );
+}
+
+const FuturePickupValidation = {
+  message: "Pickup date and time must be in the future",
+  path: [ "time" ],
+};
+
 // ============================================================================
 // Contact Form Schema (shared across all forms)
 // ============================================================================
@@ -28,6 +45,8 @@ export const ContactFormSchema = z.object( {
   email: z.email( "Valid email is required" ),
   phone: z.string().min( 10, "Phone number is required" ),
   notes: z.string(),
+  discountCode: z.string().trim().max( 32, "Discount code is too long" ),
+  smsOptIn: z.boolean(),
 } );
 
 export type ContactFormData = z.infer<typeof ContactFormSchema>;
@@ -62,7 +81,7 @@ export const AirportFormSchema = z.object( {
   dropoffLocation: LocationSchema,
   date: DateSchema,
   time: TimeSchema,
-} );
+} ).refine( hasFuturePickup, FuturePickupValidation );
 
 export type AirportFormData = z.infer<typeof AirportFormSchema>;
 
@@ -75,7 +94,7 @@ export const TownFormSchema = z.object( {
   dropoffLocation: LocationSchema,
   date: DateSchema,
   time: TimeSchema,
-} );
+} ).refine( hasFuturePickup, FuturePickupValidation );
 
 export type TownFormData = z.infer<typeof TownFormSchema>;
 
@@ -88,7 +107,7 @@ export const HourlyFormSchema = z.object( {
   duration: DurationSchema,
   date: DateSchema,
   time: TimeSchema,
-} );
+} ).refine( hasFuturePickup, FuturePickupValidation );
 
 export type HourlyFormData = z.infer<typeof HourlyFormSchema>;
 

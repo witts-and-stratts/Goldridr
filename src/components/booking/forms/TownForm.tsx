@@ -16,9 +16,11 @@ import { toast } from "sonner";
 
 // Shared imports
 import { TownFormSchema, ContactFormSchema, getFieldErrorMessage, type TownFormData } from "@/lib/form-schemas";
+import { getMinimumBookingDate } from "@/lib/booking-time";
 import { SuperField } from "@/components/ui/super-field";
 import { BookingSummary } from "@/components/booking/BookingSummary";
 import { MapOverlay } from "@/components/booking/MapOverlay";
+import { showBookingErrorToast } from "@/components/booking/booking-errors";
 
 interface TownFormProps {
   onBack: () => void;
@@ -62,6 +64,8 @@ export function TownForm( { onBack }: TownFormProps ) {
       email: "",
       phone: "",
       notes: "",
+      discountCode: "",
+      smsOptIn: false,
     },
     validators: {
       onChange: ContactFormSchema,
@@ -88,6 +92,9 @@ export function TownForm( { onBack }: TownFormProps ) {
               phone: value.phone,
             },
             notes: value.notes,
+            discountCode: value.discountCode?.trim() || undefined,
+            smsOptIn: value.smsOptIn,
+            smsConsentVersion: "2026-01",
             tripType: "city",
             tripDetails: {
               pickupLocation: bookingData?.pickupLocation,
@@ -106,8 +113,12 @@ export function TownForm( { onBack }: TownFormProps ) {
             description: `Your booking reference is ${ data.booking?.reference || "" }. We'll send you a confirmation email shortly.`,
           } );
         } else {
-          toast.error( "Booking failed", {
-            description: data.error || "Please try again or contact us directly.",
+          showBookingErrorToast( data, ( slot ) => {
+            setBookingData( ( current ) => current ? {
+              ...current,
+              date: new Date( `${ slot.date }T00:00:00` ),
+              time: slot.time,
+            } : current );
           } );
         }
       } catch ( error ) {
@@ -254,6 +265,21 @@ export function TownForm( { onBack }: TownFormProps ) {
                     onBlur={ field.handleBlur }
                     error={ getFieldErrorMessage( field.state.meta.errors ) }
                     className="min-h-[100px]"
+                  />
+                ) }
+              />
+              <contactForm.Field
+                name="discountCode"
+                children={ ( field ) => (
+                  <SuperField
+                    type="text"
+                    id={ field.name }
+                    label="Discount Code (Optional)"
+                    placeholder="SAVE10"
+                    value={ field.state.value }
+                    onChange={ ( e ) => field.handleChange( e.target.value ) }
+                    onBlur={ field.handleBlur }
+                    error={ getFieldErrorMessage( field.state.meta.errors ) }
                   />
                 ) }
               />
@@ -490,6 +516,7 @@ export function TownForm( { onBack }: TownFormProps ) {
                   type="datepicker"
                   id={ field.name }
                   label="Date"
+                  minDate={ getMinimumBookingDate() }
                   value={ field.state.value }
                   onChange={ ( val ) => field.handleChange( val ?? field.state.value ) }
                   onBlur={ field.handleBlur }

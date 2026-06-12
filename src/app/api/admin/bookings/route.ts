@@ -1,9 +1,24 @@
 import { NextResponse } from "next/server";
-import { getAllBookings, updateBookingStatus, updateBookingChauffeur, deleteBooking } from "@/lib/db";
+import { getSession, isAdmin } from "@/lib/auth";
+import { PastBookingTimeError } from "@/lib/booking-time";
+import {
+  deleteBooking,
+  getAllBookings,
+  getBookingsForChauffeur,
+  updateBookingChauffeur,
+  updateBookingSchedule,
+  updateBookingStatus,
+} from "@/lib/db";
 
 export async function GET() {
   try {
-    const bookings = getAllBookings();
+    const session = await getSession();
+    if ( !session ) {
+      return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
+    }
+    const bookings = session.role === "admin"
+      ? getAllBookings()
+      : getBookingsForChauffeur( session.chauffeurId! );
     
     // Parse the JSON string from tripDetails into objects
     const parsedBookings = bookings.map( booking => {
@@ -34,7 +49,15 @@ export async function GET() {
 
 export async function PATCH( req: Request ) {
   try {
-    const { reference, status, chauffeurId } = await req.json();
+    const session = await getSession();
+    if ( !session ) {
+      return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
+    }
+    if ( !isAdmin( session ) ) {
+      return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
+    }
+
+    const { reference, status, chauffeurId, date, time, duration } = await req.json();
 
     if ( !reference ) {
       return NextResponse.json(
@@ -54,6 +77,20 @@ export async function PATCH( req: Request ) {
       updated = updateBookingChauffeur( reference, chauffeurId );
     }
 
+    if ( date !== undefined || time !== undefined || duration !== undefined ) {
+      if ( typeof date !== "string" || typeof time !== "string" ) {
+        return NextResponse.json(
+          { success: false, error: "Both date and time are required when rescheduling" },
+          { status: 400 }
+        );
+      }
+      updated = updateBookingSchedule( reference, {
+        date,
+        time,
+        duration: duration === undefined ? undefined : Number( duration ),
+      } ) || updated;
+    }
+
     if ( updated ) {
       return NextResponse.json( {
         success: true,
@@ -66,6 +103,12 @@ export async function PATCH( req: Request ) {
       );
     }
   } catch ( error: unknown ) {
+    if ( error instanceof PastBookingTimeError ) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 400 }
+      );
+    }
     console.error( "Error updating booking details:", error );
     const message = error instanceof Error ? error.message : "Failed to update booking";
     return NextResponse.json( { success: false, error: message }, { status: 500 } );
@@ -74,6 +117,14 @@ export async function PATCH( req: Request ) {
 
 export async function DELETE( req: Request ) {
   try {
+    const session = await getSession();
+    if ( !session ) {
+      return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
+    }
+    if ( !isAdmin( session ) ) {
+      return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
+    }
+
     const { searchParams } = new URL( req.url );
     const reference = searchParams.get( "reference" );
 

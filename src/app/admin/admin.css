@@ -1,16 +1,15 @@
 /*
  * Admin overrides — resets the luxury frontend theme back to
- * standard shadcn/ui defaults so the admin looks like a fresh project.
+ * standard shadcn/ui defaults (neutral dark) so the admin looks like
+ * a fresh project.
  *
- * Scoped to .admin-dashboard so nothing bleeds into the public site.
+ * Tokens live on body:has(.admin-dashboard) so they also reach Radix
+ * portals (dialogs, dropdowns, toasts), which render as direct children
+ * of <body>, outside .admin-dashboard. The selector never matches on
+ * the public site, so nothing bleeds.
  */
 
-.admin-dashboard {
-  height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-
+body:has(.admin-dashboard) {
   /* ── Typography ──────────────────────────────────── */
   /* Override the luxury Epilogue / Engravers fonts */
   --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
@@ -34,9 +33,9 @@
 
   /* ── Radius ──────────────────────────────────────── */
   /* Frontend uses --radius: 0 (sharp corners). shadcn default is 0.625rem */
-  --radius: 0.5rem;
+  --radius: 0.625rem;
 
-  /* ── Colour scale — shadcn dark defaults (zinc) ─── */
+  /* ── Colour scale — stock shadcn dark (neutral) ──── */
   --background:          oklch(0.145 0 0);
   --foreground:          oklch(0.985 0 0);
 
@@ -66,12 +65,134 @@
   --ring:                oklch(0.556 0 0);
 
   /* ── Sidebar ─────────────────────────────────────── */
-  --sidebar:                      oklch(0.180 0 0);
+  --sidebar:                      oklch(0.205 0 0);
   --sidebar-foreground:           oklch(0.985 0 0);
   --sidebar-primary:              oklch(0.922 0 0);
   --sidebar-primary-foreground:   oklch(0.205 0 0);
-  --sidebar-accent:               oklch(0.240 0 0);
+  --sidebar-accent:               oklch(0.269 0 0);
   --sidebar-accent-foreground:    oklch(0.985 0 0);
-  --sidebar-border:               oklch(1 0 0 / 8%);
+  --sidebar-border:               oklch(1 0 0 / 10%);
   --sidebar-ring:                 oklch(0.556 0 0);
+}
+
+.admin-dashboard {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/*
+ * The shared luxury components (src/components/ui) hardcode rounded-none
+ * and text-xs. Restore stock shadcn corners and sizing wherever they are
+ * used inside the admin. admin.css is unlayered, so these win over
+ * Tailwind's layered utilities.
+ */
+body:has(.admin-dashboard) :is(
+  [data-slot="button"],
+  [data-slot="input"],
+  [data-slot="textarea"],
+  [data-slot="select-trigger"],
+  [data-sidebar="menu-button"],
+  [data-sidebar="menu-sub-button"]
+) {
+  border-radius: calc(var(--radius) - 2px);
+}
+
+body:has(.admin-dashboard) [data-slot="button"] {
+  font-size: 0.875rem;
+}
+
+body:has(.admin-dashboard) :is(
+  [data-slot="select-content"],
+  [data-slot="dialog-content"]
+) {
+  border-radius: var(--radius);
+}
+
+body:has(.admin-dashboard) [data-slot="select-item"] {
+  border-radius: calc(var(--radius) - 4px);
+}
+
+body:has(.admin-dashboard) [data-slot="scroll-area-thumb"] {
+  border-radius: 9999px;
+}
+
+/* ── BookingDetailDialog ledger layout ────────────────────────────────── */
+.booking-detail {
+  display: flex;
+  flex-direction: column;
+  max-height: 75vh;
+}
+
+.booking-detail-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.booking-detail-fare {
+  font-size: 1.875rem;
+  font-weight: 500;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+  margin-top: 0.5rem;
+}
+
+.booking-detail-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.booking-detail-body {
+  overflow-y: auto;
+}
+
+.booking-detail-section {
+  padding: 1.125rem 1.25rem 1.25rem;
+}
+
+.booking-detail-section + .booking-detail-section {
+  border-top: 1px solid var(--border);
+}
+
+.booking-detail-section-head {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin-bottom: 0.875rem;
+}
+
+.booking-detail-rows {
+  display: grid;
+  gap: 1rem;
+}
+
+.booking-detail-row {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.booking-detail-row-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  padding-top: 0.125rem;
+}
+
+.booking-detail-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  border-top: 1px solid var(--border);
 }

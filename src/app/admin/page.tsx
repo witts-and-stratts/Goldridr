@@ -5,8 +5,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   BookOpen, Clock, CheckCircle2, DollarSign, ArrowRight,
-  Smartphone, Copy, Check, CalendarIcon, Loader2, RefreshCw,
-  Mail, Plane, Navigation, TrendingUp,
+  Smartphone, Globe, Copy, Check, CalendarIcon, Loader2, RefreshCw,
+  Mail, Plane, Navigation,
 } from "lucide-react";
 import { Button } from "@/components/admin-ui/button";
 import { Badge } from "@/components/admin-ui/badge";
@@ -126,62 +126,60 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Stats ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {loading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}><CardContent className="p-6"><Skeleton className="h-8 w-20 mb-2" /><Skeleton className="h-4 w-28" /></CardContent></Card>
-          ))
-        ) : (
-          <>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardDescription>Total Bookings</CardDescription>
-                <BookOpen className="size-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{stats.total}</div>
+      <Card className="overflow-hidden">
+        <div className="grid grid-cols-2 divide-x divide-y lg:grid-cols-4 lg:divide-y-0 divide-border">
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="p-5 space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-7 w-12" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            ))
+          ) : (
+            <>
+              <div className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</span>
+                  <BookOpen className="size-3.5 text-muted-foreground/50" />
+                </div>
+                <div className="text-3xl font-bold tabular-nums">{stats.total}</div>
                 <p className="text-xs text-muted-foreground mt-1">All time</p>
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardDescription>Pending</CardDescription>
-                <Clock className="size-4 text-yellow-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-yellow-500 flex items-center gap-2">
+              <div className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pending</span>
+                  <Clock className="size-3.5 text-yellow-500/70" />
+                </div>
+                <div className="text-3xl font-bold tabular-nums text-yellow-500 flex items-center gap-2">
                   {stats.pending}
                   {stats.pending > 0 && <span className="size-2 rounded-full bg-yellow-500 animate-ping inline-flex" />}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Awaiting review</p>
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardDescription>Confirmed</CardDescription>
-                <CheckCircle2 className="size-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-green-500">{stats.confirmed}</div>
+              <div className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Confirmed</span>
+                  <CheckCircle2 className="size-3.5 text-green-500/70" />
+                </div>
+                <div className="text-3xl font-bold tabular-nums text-green-500">{stats.confirmed}</div>
                 <p className="text-xs text-muted-foreground mt-1">Ready for dispatch</p>
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardDescription>Booked Value</CardDescription>
-                <TrendingUp className="size-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatPrice(stats.revenue)}</div>
+              <div className="p-5 bg-primary/5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Booked Value</span>
+                  <DollarSign className="size-3.5 text-muted-foreground/50" />
+                </div>
+                <div className="text-2xl font-bold tabular-nums">{formatPrice(stats.revenue)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Excl. cancellations</p>
-              </CardContent>
-            </Card>
-          </>
-        )}
-      </div>
+              </div>
+            </>
+          )}
+        </div>
+      </Card>
 
       {/* ── Recent bookings ── */}
       <Card>
@@ -218,8 +216,14 @@ export default function DashboardPage() {
               ))
             ) : recent.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-muted-foreground text-sm">
-                  No bookings yet
+                <TableCell colSpan={5}>
+                  <div className="flex flex-col items-center gap-3 py-16 text-center">
+                    <BookOpen className="size-8 text-muted-foreground/25" />
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">No bookings yet</p>
+                      <p className="text-xs text-muted-foreground/60 mt-0.5">Reservations will appear here once clients book.</p>
+                    </div>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (
@@ -271,11 +275,11 @@ export default function DashboardPage() {
         <CardContent className="pt-4">
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
-              <a href={links.webcal}><Smartphone className="size-3.5" /> Subscribe on iOS</a>
+              <a href={links.webcal}><Smartphone className="size-3.5" /> Apple Calendar</a>
             </Button>
             <Button variant="outline" size="sm" asChild>
               <a href={links.google} target="_blank" rel="noopener noreferrer">
-                <Smartphone className="size-3.5" /> Add to Google
+                <Globe className="size-3.5" /> Google Calendar
               </a>
             </Button>
             <Button variant="outline" size="sm" onClick={copyFeed}>

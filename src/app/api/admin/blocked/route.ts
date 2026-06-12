@@ -1,14 +1,25 @@
 import { NextResponse } from "next/server";
-import { saveBlockedSlot, getAllBlockedSlots, deleteBlockedSlot } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import {
+  saveBlockedSlot, getAllBlockedSlots, getBlockedSlotsForChauffeur,
+  deleteBlockedSlot, deleteChauffeurBlockedSlot,
+} from "@/lib/db";
 
 // GET all blocked slots
 export async function GET() {
   try {
-    const blocks = getAllBlockedSlots();
+    const session = await getSession();
+    if ( !session ) {
+      return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
+    }
+    const blocks = session.role === "admin"
+      ? getAllBlockedSlots()
+      : getBlockedSlotsForChauffeur( session.chauffeurId! );
     return NextResponse.json( { success: true, blocks } );
-  } catch ( err: any ) {
+  } catch ( err: unknown ) {
+    const message = err instanceof Error ? err.message : "Failed to load blocked slots";
     return NextResponse.json( 
-      { success: false, error: err.message || "Failed to load blocked slots" },
+      { success: false, error: message },
       { status: 500 }
     );
   }
@@ -17,6 +28,10 @@ export async function GET() {
 // POST create a new blocked slot
 export async function POST( request: Request ) {
   try {
+    const session = await getSession();
+    if ( !session ) {
+      return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
+    }
     const body = await request.json();
     const { title, date, endDate, isFullDay, time, duration, recurring, chauffeurId } = body;
 
@@ -54,13 +69,18 @@ export async function POST( request: Request ) {
       time: blockTime,
       duration: blockDuration,
       recurring: recurring || "none",
-      chauffeurId: chauffeurId !== undefined && chauffeurId !== "" && chauffeurId !== null ? parseInt( chauffeurId ) : null
+      chauffeurId: session.role === "chauffeur"
+        ? session.chauffeurId
+        : chauffeurId !== undefined && chauffeurId !== "" && chauffeurId !== null
+          ? parseInt( chauffeurId )
+          : null
     } );
 
     return NextResponse.json( { success: true, block: saved } );
-  } catch ( err: any ) {
+  } catch ( err: unknown ) {
+    const message = err instanceof Error ? err.message : "Failed to create blocked slot";
     return NextResponse.json( 
-      { success: false, error: err.message || "Failed to create blocked slot" },
+      { success: false, error: message },
       { status: 500 }
     );
   }
@@ -69,6 +89,10 @@ export async function POST( request: Request ) {
 // DELETE a blocked slot
 export async function DELETE( request: Request ) {
   try {
+    const session = await getSession();
+    if ( !session ) {
+      return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
+    }
     const { searchParams } = new URL( request.url );
     const idStr = searchParams.get( "id" );
 
@@ -87,7 +111,9 @@ export async function DELETE( request: Request ) {
       );
     }
 
-    const deleted = deleteBlockedSlot( id );
+    const deleted = session.role === "admin"
+      ? deleteBlockedSlot( id )
+      : deleteChauffeurBlockedSlot( id, session.chauffeurId! );
     if ( !deleted ) {
       return NextResponse.json( 
         { success: false, error: "Blocked slot not found or already deleted" },
@@ -96,9 +122,10 @@ export async function DELETE( request: Request ) {
     }
 
     return NextResponse.json( { success: true } );
-  } catch ( err: any ) {
+  } catch ( err: unknown ) {
+    const message = err instanceof Error ? err.message : "Failed to delete blocked slot";
     return NextResponse.json( 
-      { success: false, error: err.message || "Failed to delete blocked slot" },
+      { success: false, error: message },
       { status: 500 }
     );
   }

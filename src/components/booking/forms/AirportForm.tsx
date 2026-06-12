@@ -21,8 +21,10 @@ interface AirportFormProps {
 // Shared imports
 import { BookingSummary } from "@/components/booking/BookingSummary";
 import { MapOverlay } from "@/components/booking/MapOverlay";
+import { showBookingErrorToast } from "@/components/booking/booking-errors";
 import { SuperField } from "@/components/ui/super-field";
 import { AirportFormSchema, ContactFormSchema, getFieldErrorMessage, type AirportFormData } from "@/lib/form-schemas";
+import { getMinimumBookingDate } from "@/lib/booking-time";
 
 type BookingData = AirportFormData & {
   flightDetails: {
@@ -106,6 +108,8 @@ export function AirportForm( { onBack }: AirportFormProps ) {
       email: "",
       phone: "",
       notes: "",
+      discountCode: "",
+      smsOptIn: false,
     } as z.infer<typeof ContactFormSchema>,
     validators: {
       onSubmit: ContactFormSchema,
@@ -132,6 +136,9 @@ export function AirportForm( { onBack }: AirportFormProps ) {
               phone: value.phone,
             },
             notes: value.notes,
+            discountCode: value.discountCode?.trim() || undefined,
+            smsOptIn: value.smsOptIn,
+            smsConsentVersion: "2026-01",
             tripType: "airport",
             tripDetails: {
               flightNumber: bookingData?.flightNumber,
@@ -154,8 +161,12 @@ export function AirportForm( { onBack }: AirportFormProps ) {
             description: `Your booking reference is ${ data.booking?.reference || "" }. We'll send you a confirmation email shortly.`,
           } );
         } else {
-          toast.error( "Booking failed", {
-            description: data.error || "Please try again or contact us directly.",
+          showBookingErrorToast( data, ( slot ) => {
+            setBookingData( ( current ) => current ? {
+              ...current,
+              date: new Date( `${ slot.date }T00:00:00` ),
+              time: slot.time,
+            } : current );
           } );
         }
       } catch ( error ) {
@@ -442,6 +453,22 @@ export function AirportForm( { onBack }: AirportFormProps ) {
                     />
                   ) }
                 />
+
+                <contactForm.Field
+                  name="discountCode"
+                  children={ ( field ) => (
+                    <SuperField
+                      type="text"
+                      id={ field.name }
+                      label="Discount Code (Optional)"
+                      placeholder="SAVE10"
+                      value={ field.state.value }
+                      onChange={ ( e ) => field.handleChange( e.target.value ) }
+                      onBlur={ field.handleBlur }
+                      error={ getFieldErrorMessage( field.state.meta.errors ) }
+                    />
+                  ) }
+                />
               </form>
             </div>
 
@@ -699,6 +726,7 @@ export function AirportForm( { onBack }: AirportFormProps ) {
                     type="datepicker"
                     id={ field.name }
                     label="Date"
+                    minDate={ getMinimumBookingDate() }
                     value={ field.state.value }
                     onChange={ ( val ) => field.handleChange( val ?? field.state.value ) }
                     onBlur={ field.handleBlur }

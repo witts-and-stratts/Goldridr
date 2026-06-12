@@ -8,7 +8,7 @@ import { HourLabels } from "../primitives/HourLabels";
 import { GridLines } from "../primitives/GridLines";
 import { TimelineEvent } from "../primitives/TimelineEvent";
 import { TimelineBlockout } from "../primitives/TimelineBlockout";
-import { calcPos, currentTimePct, TIMELINE_HEIGHT_PX } from "../utils";
+import { calcPos, computeOverlapLayout, currentTimePct, timeToMinutes, TIMELINE_HEIGHT_PX } from "../utils";
 
 export function DayView() {
   const {
@@ -22,6 +22,16 @@ export function DayView() {
   const dayBlocks = getBlockoutsForDate(ds);
   const isToday = isSameDay(currentDate, new Date());
   const nowPct = currentTimePct(now);
+
+  const placedEvents = dayEvents
+    .map((event) => ({ event, pos: calcPos(event.time, event.duration ?? 60) }))
+    .filter(({ pos }) => pos.visible);
+  const overlapSlots = computeOverlapLayout(
+    placedEvents.map(({ event }) => {
+      const start = timeToMinutes(event.time);
+      return { start, end: start + (event.duration ?? 60) };
+    }),
+  );
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -69,15 +79,22 @@ export function DayView() {
                 );
               })}
               <AnimatePresence mode="popLayout">
-                {dayEvents.map((event) => {
-                  const pos = calcPos(event.time, event.duration ?? 60);
-                  if (!pos.visible) return null;
+                {placedEvents.map(({ event, pos }, index) => {
+                  const { col, cols } = overlapSlots[index];
+                  const widthPct = 100 / cols;
                   return (
                     <TimelineEvent
                       key={event.id}
                       event={event}
                       view="day"
-                      style={{ top: pos.top, height: pos.height }}
+                      style={{
+                        top: pos.top,
+                        height: pos.height,
+                        ...(cols > 1 && {
+                          left: `calc(${col * widthPct}% + 2px)`,
+                          width: `calc(${widthPct}% - 4px)`,
+                        }),
+                      }}
                       renderContent={renderEvent ? (e) => renderEvent(e, "day") : undefined}
                       onClick={onEventClick}
                     />

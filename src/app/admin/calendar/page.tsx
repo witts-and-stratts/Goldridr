@@ -1,19 +1,52 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { ChauffeurCalendar, type Booking } from "@/components/booking/ChauffeurCalendar";
 import { BookingDetailDialog } from "@/components/booking/BookingDetailDialog";
 import { useAdmin } from "../context";
+import { Button } from "@/components/admin-ui/button";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/admin-ui/select";
+
+interface BlockedSlot {
+  id: number;
+  title: string;
+  date: string;
+  endDate?: string;
+  isFullDay: number;
+  time: string;
+  duration: number;
+  recurring: string;
+  chauffeurId?: number | null;
+}
 
 export default function CalendarPage() {
-  const { chauffeurs, currentRole } = useAdmin();
+  const searchParams = useSearchParams();
+  const {
+    chauffeurs,
+    currentRole,
+    selectedChauffeurId,
+    setSelectedChauffeurId,
+  } = useAdmin();
   const [bookings, setBookings]    = useState<Booking[]>([]);
-  const [blockedSlots, setBlocked] = useState<any[]>([]);
+  const [blockedSlots, setBlocked] = useState<BlockedSlot[]>([]);
   const [loading, setLoading]      = useState(true);
   const [selected, setSelected]    = useState<Booking | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+
+  useEffect(() => {
+    if (currentRole.type !== "admin") return;
+    const chauffeurParam = searchParams.get("chauffeur");
+    if (!chauffeurParam) return;
+    const chauffeurId = Number(chauffeurParam);
+    if (Number.isInteger(chauffeurId) && chauffeurId > 0) {
+      setSelectedChauffeurId(chauffeurId);
+    }
+  }, [currentRole.type, searchParams, setSelectedChauffeurId]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -96,13 +129,20 @@ export default function CalendarPage() {
   };
 
   const activeBookings = bookings.filter((b) =>
-    currentRole.type === "chauffeur" ? b.chauffeurId === currentRole.id : true
+    currentRole.type === "chauffeur"
+      ? b.chauffeurId === currentRole.id
+      : selectedChauffeurId === null || b.chauffeurId === selectedChauffeurId
   );
   const activeBlocks = blockedSlots.filter((b) =>
     currentRole.type === "chauffeur"
       ? b.chauffeurId === currentRole.id || b.chauffeurId == null
-      : true
+      : selectedChauffeurId === null
+        ? true
+        : b.chauffeurId === selectedChauffeurId || b.chauffeurId == null
   );
+  const visibleChauffeurs = currentRole.type === "admin" && selectedChauffeurId !== null
+    ? chauffeurs.filter((chauffeur) => chauffeur.id === selectedChauffeurId)
+    : chauffeurs;
 
   if (loading) {
     return (
@@ -114,12 +154,46 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="h-full overflow-hidden p-4 flex flex-col">
+    <div className="h-full overflow-hidden p-4 flex flex-col gap-3">
+      <div className="flex shrink-0 items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Calendar</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {selectedChauffeurId === null
+              ? "All chauffeur schedules"
+              : `${chauffeurs.find((chauffeur) => chauffeur.id === selectedChauffeurId)?.name ?? "Chauffeur"} schedule`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {currentRole.type === "admin" && (
+            <Select
+              value={selectedChauffeurId === null ? "__all__" : String(selectedChauffeurId)}
+              onValueChange={(value) => setSelectedChauffeurId(value === "__all__" ? null : Number(value))}
+            >
+              <SelectTrigger className="h-9 w-52 text-sm">
+                <SelectValue placeholder="All chauffeurs" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All chauffeurs</SelectItem>
+                {chauffeurs.map((chauffeur) => (
+                  <SelectItem key={chauffeur.id} value={String(chauffeur.id)}>
+                    {chauffeur.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
+            {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            Refresh
+          </Button>
+        </div>
+      </div>
       <ChauffeurCalendar
         className="flex-1 min-h-0"
         bookings={activeBookings}
         blockedSlots={activeBlocks}
-        chauffeurs={chauffeurs}
+        chauffeurs={visibleChauffeurs}
         onSelectBooking={(booking) => {
           setSelected(booking);
           setDetailOpen(true);

@@ -58,6 +58,10 @@ function isValidDate( date: Date | undefined ) {
   return !isNaN( date.getTime() );
 }
 
+function startOfDay( date: Date ): Date {
+  return new Date( date.getFullYear(), date.getMonth(), date.getDate() );
+}
+
 export const DatePickerInput = ( {
   id,
   value,
@@ -100,7 +104,9 @@ export const DatePickerInput = ( {
     const newValue = e.target.value;
     setInputValue( newValue );
     const date = new Date( newValue );
-    if ( isValidDate( date ) ) {
+    const beforeMinimum = minDate && startOfDay( date ) < startOfDay( minDate );
+    const afterMaximum = maxDate && startOfDay( date ) > startOfDay( maxDate );
+    if ( isValidDate( date ) && !beforeMinimum && !afterMaximum ) {
       lastEmittedDateRef.current = date;
       onChange?.( date );
       setMonth( date );
@@ -123,6 +129,8 @@ export const DatePickerInput = ( {
   };
 
   const handleSelect = ( date: Date | undefined ) => {
+    if ( date && minDate && startOfDay( date ) < startOfDay( minDate ) ) return;
+    if ( date && maxDate && startOfDay( date ) > startOfDay( maxDate ) ) return;
     onChange?.( date );
     if ( date ) {
       setInputValue( formatDateValue( date, dateFormat, locale ) );
@@ -177,8 +185,8 @@ export const DatePickerInput = ( {
                 onSelect={ handleSelect }
                 captionLayout="dropdown"
                 disabled={ ( date ) => {
-                  if ( minDate && date < minDate ) return true;
-                  if ( maxDate && date > maxDate ) return true;
+                  if ( minDate && startOfDay( date ) < startOfDay( minDate ) ) return true;
+                  if ( maxDate && startOfDay( date ) > startOfDay( maxDate ) ) return true;
                   return false;
                 } }
               />

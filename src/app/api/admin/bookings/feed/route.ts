@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAllBookings } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import { getAllBookings, getBookingsForChauffeur } from "@/lib/db";
 
 // Helper to format date strings to RFC 5545 iCal format: YYYYMMDDTHHMMSSZ
 function formatICalDate( dateStr: string, timeStr: string, offsetHours = 0 ): string {
@@ -13,7 +14,7 @@ function formatICalDate( dateStr: string, timeStr: string, offsetHours = 0 ): st
       combined.setHours( combined.getHours() + offsetHours );
     }
     return combined.toISOString().replace( /[-:]/g, "" ).split( "." )[ 0 ] + "Z";
-  } catch ( err ) {
+  } catch {
     return dateStr.replace( /-/g, "" ) + "T000000Z";
   }
 }
@@ -31,14 +32,20 @@ function escapeICalText( text?: string ): string {
 
 export async function GET() {
   try {
-    const bookings = getAllBookings();
+    const session = await getSession();
+    if ( !session ) {
+      return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
+    }
+    const bookings = session.role === "admin"
+      ? getAllBookings()
+      : getBookingsForChauffeur( session.chauffeurId! );
 
     // Filter out cancelled and rejected bookings
     const activeBookings = bookings.filter( 
       b => b.status !== "cancelled" && b.status !== "rejected" 
     );
 
-    let icsContent = [
+    const icsContent = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
       "PRODID:-//Goldridr//Chauffeur Operations Feed//EN",
@@ -50,7 +57,7 @@ export async function GET() {
     ];
 
     for ( const booking of activeBookings ) {
-      let details: any = {};
+      let details: Record<string, string | number> = {};
       try {
         if ( booking.tripDetails ) {
           details = JSON.parse( booking.tripDetails );
@@ -59,11 +66,11 @@ export async function GET() {
         console.error( "JSON parsing failed for booking feed:", e );
       }
 
-      const pickup = details.pickupLocation || details.pickup || "N/A";
-      const dropoff = details.dropoffLocation || details.destination || "N/A";
-      const flightNumber = details.flightNumber || "";
-      const passengers = details.passengers || "1";
-      const durationHours = details.durationHours || 1;
+      const pickup = String( details.pickupLocation || details.pickup || "N/A" );
+      const dropoff = String( details.dropoffLocation || details.destination || "N/A" );
+      const flightNumber = String( details.flightNumber || "" );
+      const passengers = String( details.passengers || "1" );
+      const durationHours = Number( details.durationHours ) || 1;
 
       // Format description block with clear details for mobile calendars
       const descriptionLines = [

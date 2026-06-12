@@ -1,22 +1,20 @@
 import { NextResponse } from "next/server";
 import z from "zod/v4";
-import { saveBooking, checkBookingClash, checkBlockedClash, findAvailableChauffeur } from "@/lib/db";
-
-// ============================================================================
-// Configuration
-// ============================================================================
-
-const CAL_API_BASE = "https://api.cal.com/v2";
-const CAL_API_VERSION = "2024-08-13";
-const DEFAULT_EVENT_TYPE_SLUG = process.env.BOOKING_EVENT_TYPE_SLUG;
-const DEFAULT_USERNAME = process.env.BOOKING_USERNAME;
-
-// Cal.com allowed durations
-const ALLOWED_DURATIONS = [ 5, 10, 15, 20, 25, 30, 40, 45, 50, 60, 75, 80, 90, 120, 150, 180, 240, 300, 360, 420, 480 ] as const;
-
-// ============================================================================
-// Zod Schemas
-// ============================================================================
+import {
+  checkBlockedClash,
+  checkBookingClash,
+  findAvailableChauffeur,
+  DiscountCodeError,
+  saveBooking,
+} from "@/lib/db";
+import { bookingRecordToBookingData } from "@/lib/booking-data";
+import { getNotificationTimeZone } from "@/lib/admin-settings";
+import {
+  assertFutureBookingTime,
+  isBookingTimeInFuture,
+  PastBookingTimeError,
+} from "@/lib/booking-time";
+import { zonedDateTimeToDate } from "@/lib/notifications/time";
 
 const AttendeeSchema = z.object( {
   name: z.string().min( 1, "Attendee name is required" ),
@@ -35,449 +33,249 @@ const TripDetailsSchema = z.object( {
   estimatedPrice: z.number().optional(),
   estimatedTotal: z.number().optional(),
   estimatedDuration: z.string().optional(),
+  estimatedDurationMinutes: z.number().optional(),
   passengers: z.union( [ z.string(), z.number() ] ).optional(),
   flightNumber: z.string().optional(),
-} ).loose(); // Allow additional fields
+} ).loose();
 
 const BookingRequestSchema = z.object( {
-  // Event type identification
-  eventTypeId: z.number().optional(),
-  eventTypeSlug: z.string().optional(),
-  username: z.string().optional(),
-
-  // Required booking details
-  date: z.string().min( 1, "Date is required" ),
-  time: z.string().min( 1, "Time is required" ),
-  duration: z.number().optional().default( 60 ),
-
-  // Attendee (required)
+  date: z.iso.date( "A valid date is required" ),
+  time: z.string().regex( /^(?:[01]\d|2[0-3]):[0-5]\d$/, "A valid time is required" ),
+  duration: z.number().int().positive().max( 24 * 60 ).optional().default( 60 ),
   attendee: AttendeeSchema,
-
-  // Optional fields
   notes: z.string().optional(),
+  smsOptIn: z.boolean().optional().default( false ),
+  smsConsentVersion: z.string().optional().default( "2026-01" ),
   tripType: z.enum( [ "airport", "city", "hourly" ] ).optional().default( "airport" ),
   tripDetails: TripDetailsSchema.optional(),
+  discountCode: z.string().trim().optional().default( "" ),
 } );
 
 type BookingRequestInput = z.infer<typeof BookingRequestSchema>;
 
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-/**
- * Generate a unique booking reference in format GR-XXXXXXXX
- */
 function generateBookingReference(): string {
   const timestamp = Date.now().toString( 36 ).toUpperCase();
   const random = Math.random().toString( 36 ).substring( 2, 6 ).toUpperCase();
   return `GR-${ timestamp.slice( -4 ) }${ random }`;
 }
 
-/**
- * Sanitize metadata to comply with Cal.com limits:
- * - Max 50 keys
- * - Each key up to 40 characters
- * - String values up to 500 characters
- */
-function sanitizeMetadata( obj: Record<string, unknown> ): Record<string, string> {
-  const result: Record<string, string> = {};
-  let keyCount = 0;
-
-  const flatten = ( data: Record<string, unknown>, prefix = "" ) => {
-    if ( keyCount >= 50 ) return;
-
-    for ( const key of Object.keys( data ) ) {
-      if ( keyCount >= 50 ) break;
-
-      const fullKey = prefix ? `${ prefix }_${ key }` : key;
-      const truncatedKey = fullKey.slice( 0, 40 );
-      const value = data[ key ];
-
-      if ( value === null || value === undefined ) {
-        continue;
-      } else if ( typeof value === "object" && !Array.isArray( value ) ) {
-        flatten( value as Record<string, unknown>, truncatedKey );
-      } else {
-        const stringValue = Array.isArray( value )
-          ? value.join( ", " )
-          : String( value );
-        result[ truncatedKey ] = stringValue.slice( 0, 500 );
-        keyCount++;
-      }
-    }
-  };
-
-  flatten( obj );
-  return result;
+function formatTimeInZone( date: Date ): string {
+  return new Intl.DateTimeFormat( "en-GB", {
+    timeZone: getNotificationTimeZone(),
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  } ).format( date );
 }
 
-/**
- * Format phone number to E.164 format for US numbers only
- */
-function formatPhoneNumber( phone?: string ): string | undefined {
-  if ( !phone ) return undefined;
-  const digits = phone.replace( /\D/g, "" );
-  if ( digits.length === 10 ) return `+1${ digits }`;
-  if ( digits.length === 11 && digits.startsWith( "1" ) ) return `+${ digits }`;
-  return undefined; // Skip non-US phone numbers
+interface AlternativeSlot {
+  date: string;
+  time: string;
 }
 
-/**
- * Find the nearest allowed Cal.com duration
- */
-function getNearestAllowedDuration( requested: number ): number {
-  return ALLOWED_DURATIONS.reduce( ( prev, curr ) =>
-    Math.abs( curr - requested ) < Math.abs( prev - requested ) ? curr : prev
-  );
+const MAX_ALTERNATIVES = 4;
+
+function shiftDateString( date: string, days: number ): string {
+  const base = new Date( `${ date }T12:00:00` );
+  base.setDate( base.getDate() + days );
+  const year = base.getFullYear();
+  const month = String( base.getMonth() + 1 ).padStart( 2, "0" );
+  const day = String( base.getDate() ).padStart( 2, "0" );
+  return `${ year }-${ month }-${ day }`;
 }
 
-/**
- * Convert local date/time to UTC ISO string
- */
-function toUTCISO( date: string, time: string ): string {
-  const localDateTime = new Date( `${ date }T${ time }:00` );
-  return localDateTime.toISOString().replace( ".000Z", "Z" );
-}
-
-// ============================================================================
-// Cal.com API Functions
-// ============================================================================
-
-interface CalBookingRequest {
-  eventTypeId?: number;
-  eventTypeSlug?: string;
-  username?: string;
-  start: string;
-  lengthInMinutes: number;
-  attendee: {
-    name: string;
-    email: string;
-    timeZone: string;
-    phoneNumber?: string;
-    language?: string;
-  };
-  metadata?: Record<string, string>;
-  bookingFieldsResponses?: Record<string, string>;
-}
-
-async function checkSlotAvailability(
-  eventTypeId: number,
-  startDate: string,
-  endDate: string,
-  apiKey: string
-): Promise<{ available: boolean; slots: string[] }> {
-  const url = new URL( `${ CAL_API_BASE }/slots` );
-  url.searchParams.set( "eventTypeId", eventTypeId.toString() );
-  url.searchParams.set( "start", startDate );
-  url.searchParams.set( "end", endDate );
-  url.searchParams.set( "timeZone", "America/Chicago" );
-
-  const response = await fetch( url.toString(), {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "cal-api-version": CAL_API_VERSION,
-      Authorization: `Bearer ${ apiKey }`,
-    },
-  } );
-
-  const data = await response.json();
-
-  if ( data.status === "success" && data.data?.slots ) {
-    const availableSlots: string[] = [];
-    for ( const date of Object.keys( data.data.slots ) ) {
-      availableSlots.push( ...data.data.slots[ date ] );
-    }
-    return { available: availableSlots.length > 0, slots: availableSlots };
+function isSlotFree( date: string, time: string, durationMinutes: number, chauffeurId?: number | null ): boolean {
+  if ( !isBookingTimeInFuture( date, time, new Date(), getNotificationTimeZone() ) ) {
+    return false;
   }
 
-  return { available: false, slots: [] };
+  return chauffeurId !== undefined && chauffeurId !== null
+    ? !( checkBookingClash( date, time, durationMinutes, chauffeurId ).clash || checkBlockedClash( date, time, durationMinutes, chauffeurId ).clash )
+    : !!findAvailableChauffeur( date, time, durationMinutes );
 }
 
-async function createCalBooking(
-  request: CalBookingRequest,
-  apiKey: string
-): Promise<{ success: boolean; data?: any; error?: string }> {
-  console.log( "Cal.com request body:", JSON.stringify( request, null, 2 ) );
+function getAlternativeSlots( date: string, time: string, durationMinutes: number, chauffeurId?: number | null ): AlternativeSlot[] {
+  const alternatives: AlternativeSlot[] = [];
+  const timeZone = getNotificationTimeZone();
+  const requestedDate = zonedDateTimeToDate( date, time, timeZone );
 
-  const response = await fetch( `${ CAL_API_BASE }/bookings`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "cal-api-version": CAL_API_VERSION,
-      Authorization: `Bearer ${ apiKey }`,
-    },
-    body: JSON.stringify( request ),
-  } );
+  if ( Number.isNaN( requestedDate.getTime() ) ) return alternatives;
 
-  const data = await response.json();
+  // Nearby times on the requested day.
+  const offsets = [ -30, -60, -90, -120, 30, 60, 90, 120, 150, 180, 210, 240 ];
 
-  if ( data.status === "success" ) {
-    return { success: true, data: data.data };
+  for ( const offset of offsets ) {
+    const testDate = new Date( requestedDate.getTime() + offset * 60 * 1000 );
+    const testTime = formatTimeInZone( testDate );
+    if ( isSlotFree( date, testTime, durationMinutes, chauffeurId ) ) {
+      alternatives.push( { date, time: testTime } );
+      if ( alternatives.length >= MAX_ALTERNATIVES ) return alternatives;
+    }
   }
 
-  return {
-    success: false,
-    error: data.error?.message || "Failed to create booking",
-  };
+  // Same time on the following days.
+  for ( let dayOffset = 1; dayOffset <= 3; dayOffset++ ) {
+    const testDate = shiftDateString( date, dayOffset );
+    if ( isSlotFree( testDate, time, durationMinutes, chauffeurId ) ) {
+      alternatives.push( { date: testDate, time } );
+      if ( alternatives.length >= MAX_ALTERNATIVES ) return alternatives;
+    }
+  }
+
+  return alternatives;
 }
 
-// ============================================================================
-// Request Builders
-// ============================================================================
-
-function buildCalBookingRequest(
-  input: BookingRequestInput,
-  bookingReference: string
-): CalBookingRequest {
-  const tripDetails = input.tripDetails || {};
-  const pickupLocation = tripDetails.pickupLocation || tripDetails.pickup || "";
-  const dropoffLocation = tripDetails.dropoffLocation || tripDetails.destination || "";
-
-  const estimatedPrice = tripDetails.estimatedPrice ?? tripDetails.estimatedTotal ?? 0;
-  const formattedTotal = Intl.NumberFormat( "en-US", {
-    style: "currency",
-    currency: "USD",
-  } ).format( estimatedPrice );
+function checkSlotAvailability(
+  date: string,
+  time: string,
+  durationMinutes: number,
+  chauffeurId?: number | null
+): { available: boolean; alternativeSlots: AlternativeSlot[]; bookingClash: ReturnType<typeof checkBookingClash>; blockedClash: ReturnType<typeof checkBlockedClash> } {
+  const bookingClash = checkBookingClash( date, time, durationMinutes, chauffeurId );
+  const blockedClash = checkBlockedClash( date, time, durationMinutes, chauffeurId );
+  const available = chauffeurId !== undefined && chauffeurId !== null
+    ? !( bookingClash.clash || blockedClash.clash )
+    : !!findAvailableChauffeur( date, time, durationMinutes );
 
   return {
-    eventTypeId: input.eventTypeId,
-    eventTypeSlug: input.eventTypeSlug || DEFAULT_EVENT_TYPE_SLUG,
-    username: input.username || DEFAULT_USERNAME,
-    start: toUTCISO( input.date, input.time ),
-    lengthInMinutes: getNearestAllowedDuration( input.duration ?? 60 ),
-    attendee: {
-      name: input.attendee.name,
-      email: input.attendee.email,
-      timeZone: "America/Chicago",
-      phoneNumber: formatPhoneNumber( input.attendee.phone ),
-      language: "en",
-    },
-    metadata: sanitizeMetadata( {
-      tripType: input.tripType,
-      ...tripDetails,
-      bookingReference,
-      source: "goldridr_website",
-    } ),
-    bookingFieldsResponses: {
-      pickup: pickupLocation,
-      destination: dropoffLocation,
-      booking_type: input.tripType || "airport",
-      estimated_distance: `${ tripDetails.estimatedDistance ?? "0" } miles`,
-      estimated_price: String( tripDetails.estimatedPrice ?? "0" ),
-      estimated_total: formattedTotal,
-      passengers: String( tripDetails.passengers ?? "1" ),
-      flight_number: tripDetails.flightNumber || "",
-      duration: tripDetails.estimatedDuration || ( input.duration ? `${ input.duration } mins` : "" ),
-      booking_reference: bookingReference,
-    },
+    available,
+    alternativeSlots: available ? [] : getAlternativeSlots( date, time, durationMinutes, chauffeurId ),
+    bookingClash,
+    blockedClash,
   };
 }
-
-// ============================================================================
-// API Route Handlers
-// ============================================================================
 
 export async function POST( req: Request ) {
-  const apiKey = process.env.CAL_API_KEY;
-
   try {
     const body = await req.json();
-
-    // Validate request with Zod
     const parseResult = BookingRequestSchema.safeParse( body );
 
     if ( !parseResult.success ) {
-      const errors = z.prettifyError( parseResult.error );
       return NextResponse.json(
         {
           success: false,
           error: "Validation failed",
-          details: errors,
+          details: z.prettifyError( parseResult.error ),
         },
         { status: 400 }
       );
     }
 
-    const input = parseResult.data;
-
+    const input: BookingRequestInput = parseResult.data;
     const durationMinutes = input.duration ?? 60;
-
-    // 1. Check for administrative calendar blocks / scheduling clashes in SQLite database by finding a free chauffeur
+    assertFutureBookingTime( input.date, input.time, new Date(), getNotificationTimeZone() );
     const assignedChauffeur = findAvailableChauffeur( input.date, input.time, durationMinutes );
-    if ( !assignedChauffeur ) {
-      const alternatives: string[] = [];
-      const requestedDate = new Date( `${ input.date }T${ input.time }:00` );
-      if ( !isNaN( requestedDate.getTime() ) ) {
-        const offsets = [ -30, -60, -90, -120, 30, 60, 90, 120, 150, 180, 210, 240 ];
-        for ( const offset of offsets ) {
-          const testDate = new Date( requestedDate.getTime() + offset * 60 * 1000 );
-          const hours = String( testDate.getHours() ).padStart( 2, "0" );
-          const minutes = String( testDate.getMinutes() ).padStart( 2, "0" );
-          const testTime = `${ hours }:${ minutes }`;
-          
-          const testChauffeur = findAvailableChauffeur( input.date, testTime, durationMinutes );
-          if ( testChauffeur ) {
-            alternatives.push( testTime );
-            if ( alternatives.length >= 4 ) break;
-          }
-        }
-      }
 
+    if ( !assignedChauffeur ) {
       return NextResponse.json(
         {
           success: false,
           error: "clash",
-          message: "No chauffeurs are available for the requested time slot. They are either fully booked or locked out.",
-          alternativeSlots: alternatives,
+          message: "All of our chauffeurs are already reserved at that time.",
+          alternativeSlots: getAlternativeSlots( input.date, input.time, durationMinutes ),
         },
         { status: 409 }
       );
     }
 
-    // Check availability if eventTypeId provided and apiKey is configured
-    if ( input.eventTypeId && apiKey ) {
-      const localDateTime = new Date( `${ input.date }T${ input.time }:00` );
-      const startDateStr = localDateTime.toISOString().split( "T" )[ 0 ];
-      const endDate = new Date( localDateTime );
-      endDate.setDate( endDate.getDate() + 1 );
-      const endDateStr = endDate.toISOString().split( "T" )[ 0 ];
-
-      const availability = await checkSlotAvailability(
-        input.eventTypeId,
-        startDateStr,
-        endDateStr,
-        apiKey
-      );
-
-      const requestedSlot = toUTCISO( input.date, input.time );
-      const isSlotAvailable = availability.slots.some(
-        ( slot ) => new Date( slot ).getTime() === new Date( requestedSlot ).getTime()
-      );
-
-      if ( !isSlotAvailable ) {
-        return NextResponse.json(
-          {
-            success: false,
-            available: false,
-            error: "Requested time slot is not available",
-            availableSlots: availability.slots.slice( 0, 10 ),
-          },
-          { status: 409 }
-        );
-      }
-    }
-
-    // Generate booking reference
     const bookingReference = generateBookingReference();
-
-    // Save to SQLite database
     const sqliteBooking = saveBooking( {
       reference: bookingReference,
       tripType: input.tripType || "airport",
       date: input.date,
       time: input.time,
-      duration: input.duration ?? 60,
+      duration: durationMinutes,
       name: input.attendee.name,
       email: input.attendee.email,
       phone: input.attendee.phone || "",
       notes: input.notes || "",
       status: "pending",
       tripDetails: JSON.stringify( input.tripDetails || {} ),
-      chauffeurId: assignedChauffeur ? assignedChauffeur.id : null,
+      discountCode: input.discountCode || null,
+      chauffeurId: assignedChauffeur.id,
+      smsConsentVersion: input.smsOptIn && input.attendee.phone ? input.smsConsentVersion : null,
+      smsConsentedAt: input.smsOptIn && input.attendee.phone ? new Date().toISOString() : null,
     } );
-
-    let calBookingId = null;
-    let calBookingUid = null;
-    let calBookingStatus = "pending";
-
-    // Create the booking in Cal.com if API key is present
-    if ( apiKey ) {
-      try {
-        const calRequest = buildCalBookingRequest( input, bookingReference );
-        console.log( "Booking request to Cal.com:", JSON.stringify( {
-          attendee: calRequest.attendee,
-          bookingFieldsResponses: calRequest.bookingFieldsResponses,
-        }, null, 2 ) );
-
-        const result = await createCalBooking( calRequest, apiKey );
-        if ( result.success ) {
-          calBookingId = result.data.id;
-          calBookingUid = result.data.uid;
-          calBookingStatus = result.data.status;
-        }
-      } catch ( calErr ) {
-        console.error( "Cal.com creation failed but booking saved to SQLite:", calErr );
-      }
-    }
 
     return NextResponse.json( {
       success: true,
-      booking: {
-        id: sqliteBooking.id,
-        reference: bookingReference,
-        status: sqliteBooking.status,
-        date: sqliteBooking.date,
-        time: sqliteBooking.time,
-        calBookingId,
-        calBookingUid,
-      },
+      booking: bookingRecordToBookingData( sqliteBooking ),
+      bookingId: sqliteBooking.id,
       message: "Booking confirmed successfully",
     } );
-
   } catch ( error: unknown ) {
+    if ( error instanceof DiscountCodeError ) {
+      return NextResponse.json(
+        { success: false, error: "discount_code", message: error.message },
+        { status: 400 }
+      );
+    }
+    if ( error instanceof PastBookingTimeError ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "past_time",
+          message: error.message,
+        },
+        { status: 400 }
+      );
+    }
     console.error( "Booking error:", error );
     const message = error instanceof Error ? error.message : "Failed to process booking";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
+    return NextResponse.json( { success: false, error: message }, { status: 500 } );
   }
 }
 
-// GET endpoint to check availability
 export async function GET( req: Request ) {
-  const apiKey = process.env.CAL_API_KEY;
+  const { searchParams } = new URL( req.url );
+  const date = searchParams.get( "date" );
+  const time = searchParams.get( "time" );
+  const durationParam = searchParams.get( "duration" );
+  const chauffeurIdParam = searchParams.get( "chauffeurId" );
 
-  if ( !apiKey ) {
+  if ( !date || !time || !durationParam ) {
     return NextResponse.json(
-      { success: false, error: "Cal.com API key is not configured" },
-      { status: 500 }
+      { success: false, error: "Missing required params: date, time, duration" },
+      { status: 400 }
     );
   }
 
-  const { searchParams } = new URL( req.url );
-  const eventTypeId = searchParams.get( "eventTypeId" );
-  const startDate = searchParams.get( "start" );
-  const endDate = searchParams.get( "end" );
-
-  if ( !eventTypeId || !startDate || !endDate ) {
+  const duration = Number( durationParam );
+  if ( !Number.isFinite( duration ) || duration <= 0 ) {
     return NextResponse.json(
-      { success: false, error: "Missing required params: eventTypeId, start, end" },
+      { success: false, error: "Duration must be a positive number" },
+      { status: 400 }
+    );
+  }
+
+  const chauffeurId = chauffeurIdParam ? Number( chauffeurIdParam ) : undefined;
+  if ( chauffeurIdParam && !Number.isInteger( chauffeurId ) ) {
+    return NextResponse.json(
+      { success: false, error: "chauffeurId must be a whole number" },
       { status: 400 }
     );
   }
 
   try {
-    const availability = await checkSlotAvailability(
-      parseInt( eventTypeId ),
-      startDate,
-      endDate,
-      apiKey
-    );
+    assertFutureBookingTime( date, time );
+    const availability = checkSlotAvailability( date, time, duration, chauffeurId );
 
     return NextResponse.json( {
       success: true,
       available: availability.available,
-      slots: availability.slots,
+      alternativeSlots: availability.alternativeSlots,
+      bookingClash: availability.bookingClash,
+      blockedClash: availability.blockedClash,
     } );
   } catch ( error: unknown ) {
+    if ( error instanceof PastBookingTimeError ) {
+      return NextResponse.json(
+        { success: false, available: false, error: "past_time", message: error.message },
+        { status: 400 }
+      );
+    }
     console.error( "Availability check error:", error );
     const message = error instanceof Error ? error.message : "Failed to check availability";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
+    return NextResponse.json( { success: false, error: message }, { status: 500 } );
   }
 }

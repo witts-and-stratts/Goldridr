@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Search, Clock, CalendarIcon,
-  MapPin, Plane, Navigation, Loader2, RefreshCw,
-  Lock, Filter, MoreHorizontal, CheckCircle2, XCircle, Trash2,
+  Plane, Navigation, Loader2, RefreshCw,
+  Lock, Filter, MoreHorizontal, CheckCircle2, XCircle, Trash2, UserX,
 } from "lucide-react";
 import { Button } from "@/components/admin-ui/button";
 import { Input } from "@/components/admin-ui/input";
 import { Badge } from "@/components/admin-ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/admin-ui/card";
+import { Card, CardContent } from "@/components/admin-ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/admin-ui/table";
 import { Skeleton } from "@/components/admin-ui/skeleton";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/admin-ui/dialog";
@@ -18,7 +19,6 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/admin-ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/admin-ui/tabs";
-import { Separator } from "@/components/admin-ui/separator";
 import { Checkbox } from "@/components/admin-ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -27,8 +27,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/admin-ui/dropdown-menu";
-import { ChauffeurPicker } from "@/components/admin-ui/chauffeur-picker";
 import { BookingDetailDialog } from "@/components/booking/BookingDetailDialog";
+import { Avatar, AvatarFallback } from "@/components/admin-ui/avatar";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import { useAdmin } from "../context";
@@ -62,8 +62,39 @@ interface Booking {
   createdAt: string;
 }
 
+interface BlockedSlot {
+  id: number;
+  title: string;
+  date: string;
+  endDate?: string;
+  isFullDay: number;
+  time: string;
+  duration: number;
+  recurring: string;
+  chauffeurId?: number | null;
+}
+
 const formatPrice = (n?: number) =>
   Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
+
+const chauffeurColors = [
+  "bg-blue-500/20 text-blue-600",
+  "bg-purple-500/20 text-purple-600",
+  "bg-green-500/20 text-green-600",
+  "bg-orange-500/20 text-orange-600",
+  "bg-pink-500/20 text-pink-600",
+  "bg-teal-500/20 text-teal-600",
+];
+
+function chauffeurInitials(name: string) {
+  return name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase();
+}
+
+function chauffeurColor(name: string) {
+  let hash = 0;
+  for (const character of name) hash = (hash * 31 + character.charCodeAt(0)) & 0xffffffff;
+  return chauffeurColors[Math.abs(hash) % chauffeurColors.length];
+}
 
 function StatusBadge({ status }: { status: string }) {
   const s = status?.toLowerCase();
@@ -77,7 +108,13 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function BookingsPage() {
-  const { chauffeurs, currentRole } = useAdmin();
+  const searchParams = useSearchParams();
+  const {
+    chauffeurs,
+    currentRole,
+    selectedChauffeurId,
+    setSelectedChauffeurId,
+  } = useAdmin();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -87,7 +124,7 @@ export default function BookingsPage() {
   const [selected, setSelected] = useState<Booking | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
-  const [blockedSlots, setBlockedSlots] = useState<any[]>([]);
+  const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
 
   // Block form state
   const [blockTitle, setBlockTitle] = useState("");
@@ -98,6 +135,16 @@ export default function BookingsPage() {
   const [blockDuration, setBlockDuration] = useState(60);
   const [blockRecurring, setBlockRecurring] = useState("none");
   const [blockChauffeurId, setBlockChauffeurId] = useState("");
+
+  useEffect(() => {
+    if (currentRole.type !== "admin") return;
+    const chauffeurParam = searchParams.get("chauffeur");
+    if (!chauffeurParam) return;
+    const chauffeurId = Number(chauffeurParam);
+    if (Number.isInteger(chauffeurId) && chauffeurId > 0) {
+      setSelectedChauffeurId(chauffeurId);
+    }
+  }, [currentRole.type, searchParams, setSelectedChauffeurId]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -188,7 +235,9 @@ export default function BookingsPage() {
 
   // Filter bookings
   const active = bookings.filter((b) =>
-    currentRole.type === "chauffeur" ? b.chauffeurId === currentRole.id : true
+    currentRole.type === "chauffeur"
+      ? b.chauffeurId === currentRole.id
+      : selectedChauffeurId === null || b.chauffeurId === selectedChauffeurId
   );
 
   const filtered = active.filter((b) => {
@@ -234,6 +283,24 @@ export default function BookingsPage() {
           <p className="text-sm text-muted-foreground mt-0.5">{active.length} total reservations</p>
         </div>
         <div className="flex items-center gap-2">
+          {currentRole.type === "admin" && (
+            <Select
+              value={selectedChauffeurId === null ? "__all__" : String(selectedChauffeurId)}
+              onValueChange={(value) => setSelectedChauffeurId(value === "__all__" ? null : Number(value))}
+            >
+              <SelectTrigger className="h-9 w-52 text-sm">
+                <SelectValue placeholder="All chauffeurs" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All chauffeurs</SelectItem>
+                {chauffeurs.map((chauffeur) => (
+                  <SelectItem key={chauffeur.id} value={String(chauffeur.id)}>
+                    {chauffeur.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
             {loading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Refresh
@@ -317,6 +384,7 @@ export default function BookingsPage() {
               <TableHead>Service</TableHead>
               <TableHead>Pick-up</TableHead>
               <TableHead>Date & Time</TableHead>
+              <TableHead>Assigned to</TableHead>
               <TableHead>Value</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-12" />
@@ -326,14 +394,14 @@ export default function BookingsPage() {
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((_, j) => (
+                  {Array.from({ length: 8 }).map((_, j) => (
                     <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                   ))}
                 </TableRow>
               ))
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-16 text-center">
+                <TableCell colSpan={8} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2 text-muted-foreground">
                     <Search className="size-8 opacity-30" />
                     <p className="text-sm">No bookings match your filters</p>
@@ -344,6 +412,7 @@ export default function BookingsPage() {
               filtered.map((b) => {
                 const price = b.tripDetails?.estimatedTotal || b.tripDetails?.estimatedPrice || 0;
                 const pickup = b.tripDetails?.pickupLocation || b.tripDetails?.pickup || "—";
+                const assignedChauffeur = chauffeurs.find((chauffeur) => chauffeur.id === b.chauffeurId);
                 return (
                   <TableRow
                     key={b.reference}
@@ -373,6 +442,27 @@ export default function BookingsPage() {
                     <TableCell>
                       <p className="text-sm">{new Date(b.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
                       <p className="text-xs text-muted-foreground">{b.time}</p>
+                    </TableCell>
+                    <TableCell>
+                      {assignedChauffeur ? (
+                        <div className="flex items-center gap-2">
+                          <Avatar className="size-7">
+                            <AvatarFallback className={cn("text-[9px]", chauffeurColor(assignedChauffeur.name))}>
+                              {chauffeurInitials(assignedChauffeur.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="max-w-28 truncate text-xs font-medium">
+                            {assignedChauffeur.name}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <div className="flex size-7 items-center justify-center rounded-full border border-dashed border-muted-foreground/40">
+                            <UserX className="size-3" />
+                          </div>
+                          <span className="text-xs">Unassigned</span>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="font-semibold text-sm">{formatPrice(price)}</TableCell>
                     <TableCell><StatusBadge status={b.status} /></TableCell>

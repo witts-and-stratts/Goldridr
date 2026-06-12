@@ -8,10 +8,12 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { HourlyFormSchema, ContactFormSchema, getFieldErrorMessage, type HourlyFormData } from "@/lib/form-schemas";
+import { getMinimumBookingDate } from "@/lib/booking-time";
 import { SuperField } from "@/components/ui/super-field";
 import { BookingSummary } from "@/components/booking/BookingSummary";
 import { MapOverlay } from "@/components/booking/MapOverlay";
 import { ContactFormFields } from "@/components/booking/ContactFormFields";
+import { showBookingErrorToast } from "@/components/booking/booking-errors";
 
 interface HourlyFormProps {
   onBack: () => void;
@@ -50,6 +52,8 @@ export function HourlyForm( { onBack }: HourlyFormProps ) {
       email: "",
       phone: "",
       notes: "",
+      discountCode: "",
+      smsOptIn: false,
     },
     validators: {
       onChange: ContactFormSchema,
@@ -63,7 +67,13 @@ export function HourlyForm( { onBack }: HourlyFormProps ) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify( {
-            date: bookingData?.date,
+            date: bookingData?.date ? ( () => {
+              const d = new Date( bookingData.date );
+              const year = d.getFullYear();
+              const month = String( d.getMonth() + 1 ).padStart( 2, '0' );
+              const day = String( d.getDate() ).padStart( 2, '0' );
+              return `${ year }-${ month }-${ day }`;
+            } )() : "",
             time: bookingData?.time,
             duration: hours * 60, // Convert hours to minutes
             attendee: {
@@ -72,6 +82,9 @@ export function HourlyForm( { onBack }: HourlyFormProps ) {
               phone: value.phone,
             },
             notes: value.notes,
+            discountCode: value.discountCode?.trim() || undefined,
+            smsOptIn: value.smsOptIn,
+            smsConsentVersion: "2026-01",
             tripType: "hourly",
             tripDetails: {
               pickupLocation: bookingData?.pickupLocation,
@@ -88,8 +101,12 @@ export function HourlyForm( { onBack }: HourlyFormProps ) {
             description: `Your booking reference is ${ data.booking?.reference || "" }. We'll send you a confirmation email shortly.`,
           } );
         } else {
-          toast.error( "Booking failed", {
-            description: data.error || "Please try again or contact us directly.",
+          showBookingErrorToast( data, ( slot ) => {
+            setBookingData( ( current ) => current ? {
+              ...current,
+              date: new Date( `${ slot.date }T00:00:00` ),
+              time: slot.time,
+            } : current );
           } );
         }
       } catch ( error ) {
@@ -265,6 +282,7 @@ export function HourlyForm( { onBack }: HourlyFormProps ) {
                   type="datepicker"
                   id={ field.name }
                   label="Date"
+                  minDate={ getMinimumBookingDate() }
                   value={ field.state.value }
                   onChange={ ( val ) => field.handleChange( val ?? field.state.value ) }
                   onBlur={ field.handleBlur }

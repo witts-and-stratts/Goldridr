@@ -5,6 +5,7 @@ import { formatShortDate, formatTime, formatFullDate } from "@/lib/date-utils";
 import { getStatusColor, getStatusIcon } from "@/lib/booking-status";
 import { Plane, User } from "lucide-react";
 import { motion } from "motion/react";
+import QRCode from "react-qr-code";
 
 // Reusable divider component
 const Divider = () => (
@@ -39,6 +40,10 @@ export function BookingCard( { booking, routeMapUrl, onMapClick }: BookingCardPr
   const { responses, attendees, status, reference, start } = booking;
   const hasFlightNumber = !!responses?.flight_number;
   const hasLocations = responses?.pickup || responses?.destination;
+  // Scanned by the chauffeur app at pickup; also opens this page in a regular camera app
+  const ridePassValue = typeof window !== "undefined" && attendees?.[ 0 ]
+    ? `${ window.location.origin }/verify?reference=${ encodeURIComponent( reference ) }&email=${ encodeURIComponent( attendees[ 0 ].email ) }`
+    : null;
 
   return (
     <motion.div
@@ -205,6 +210,24 @@ export function BookingCard( { booking, routeMapUrl, onMapClick }: BookingCardPr
             </div>
           </div>
         </div>
+      ) }
+
+      {/* Ride Pass QR */ }
+      { ridePassValue && (
+        <>
+          <Divider />
+          <div className="p-5 pt-4 flex items-center gap-4">
+            <div className="bg-white p-2 rounded-lg flex-shrink-0">
+              <QRCode value={ ridePassValue } size={ 96 } />
+            </div>
+            <div>
+              <p className="font-bold text-white">Your Ride Pass</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Show this code to your chauffeur at pickup so they can confirm your trip details.
+              </p>
+            </div>
+          </div>
+        </>
       ) }
 
       {/* Notes */ }

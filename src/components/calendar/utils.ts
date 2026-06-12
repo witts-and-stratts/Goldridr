@@ -32,6 +32,62 @@ export function calcPos(timeStr: string, durationMins: number): TimelinePos {
   }
 }
 
+export function timeToMinutes(timeStr: string): number {
+  const [h = 0, m = 0] = timeStr.split(":").map(Number);
+  return h * 60 + m;
+}
+
+export interface OverlapSlot {
+  /** column index within the overlap cluster */
+  col: number;
+  /** total columns in the overlap cluster */
+  cols: number;
+}
+
+/**
+ * Assigns side-by-side columns to overlapping time ranges so concurrent
+ * events render next to each other instead of stacking. Returns one slot
+ * per input range, in the same order.
+ */
+export function computeOverlapLayout(ranges: { start: number; end: number }[]): OverlapSlot[] {
+  const slots = ranges.map<OverlapSlot>(() => ({ col: 0, cols: 1 }));
+  const order = ranges
+    .map((range, index) => ({
+      start: range.start,
+      end: Math.max(range.end, range.start + 1),
+      index,
+    }))
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+
+  let colEnds: number[] = [];
+  let members: number[] = [];
+  let clusterEnd = -Infinity;
+
+  const closeCluster = () => {
+    for (const index of members) slots[index].cols = colEnds.length;
+    colEnds = [];
+    members = [];
+    clusterEnd = -Infinity;
+  };
+
+  for (const item of order) {
+    if (members.length && item.start >= clusterEnd) closeCluster();
+    let col = colEnds.findIndex((end) => end <= item.start);
+    if (col === -1) {
+      col = colEnds.length;
+      colEnds.push(item.end);
+    } else {
+      colEnds[col] = item.end;
+    }
+    slots[item.index].col = col;
+    members.push(item.index);
+    clusterEnd = Math.max(clusterEnd, item.end);
+  }
+  if (members.length) closeCluster();
+
+  return slots;
+}
+
 export function currentTimePct(now: Date): string | null {
   const h = now.getHours();
   const m = now.getMinutes();

@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  getPriceByMileAirport,
+  getPriceByMileCity,
+  getPriceByMileHourly,
+} from "@/lib/admin-settings";
 
 export async function GET( request: Request ) {
   const { searchParams } = new URL( request.url );
@@ -23,13 +28,13 @@ export async function GET( request: Request ) {
   }
 
   // Get price per mile based on booking type
-  const pricePerMileMap: Record<string, string | undefined> = {
-    airport: process.env.PRICE_BY_MILE_AIRPORT,
-    hourly: process.env.PRICE_BY_MILE_HOURLY,
-    city: process.env.PRICE_BY_MILE_CITY,
+  const pricePerMileMap: Record<string, number> = {
+    airport: getPriceByMileAirport(),
+    hourly: getPriceByMileHourly(),
+    city: getPriceByMileCity(),
   };
 
-  const pricePerMile = parseFloat( pricePerMileMap[ type ] || "3.50" );
+  const pricePerMile = pricePerMileMap[ type ] ?? getPriceByMileAirport();
 
   try {
     // Call Google Maps Distance Matrix API
@@ -81,7 +86,7 @@ export async function GET( request: Request ) {
       destination_formatted: data.destination_addresses[ 0 ],
       booking_type: type,
     } );
-  } catch ( error: any ) {
+  } catch ( error: unknown ) {
     console.error( "Error calculating distance:", error );
     return NextResponse.json(
       { error: "Failed to calculate distance" },
