@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,13 +11,18 @@ import {
 } from "react-native";
 
 import SegmentedControl from "@expo/ui/community/segmented-control";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AgendaList } from "@/components/agenda-list";
 import { BlockRow } from "@/components/block-row";
 import { MonthGrid, type DayMarkers } from "@/components/month-grid";
-import { NativeButton, NativeSwitch, NativeTextField } from "@/components/native-controls";
+import {
+  NativeButton,
+  NativePicker,
+  NativeSwitch,
+  NativeTextField,
+} from "@/components/native-controls";
 import { NativeIconButton } from "@/components/native-icon";
 import { RideRow } from "@/components/ride-row";
 import { WeekTimeline } from "@/components/week-timeline";
@@ -37,7 +42,7 @@ import {
   weekDays,
   weekTitle,
 } from "@/lib/schedule";
-import type { BlockedSlot, DriverRide } from "@/lib/types";
+import type { AdminChauffeur, BlockedSlot, DriverRide } from "@/lib/types";
 
 type ScheduleView = "day" | "week" | "month" | "year" | "agenda";
 
@@ -68,21 +73,33 @@ const REPEATS = [
 interface BlockFormProps {
   date: string;
   isSaving: boolean;
+  isAdmin?: boolean;
+  chauffeurs?: AdminChauffeur[];
   onSubmit: ( block: {
     title: string;
+    endDate?: string;
     isFullDay: boolean;
     time: string;
     duration: number;
     recurring: string;
+    chauffeurId?: number | null;
   } ) => void;
 }
 
-export function BlockForm( { date, isSaving, onSubmit }: BlockFormProps ) {
+export function BlockForm( {
+  date,
+  isSaving,
+  isAdmin = false,
+  chauffeurs = [],
+  onSubmit,
+}: BlockFormProps ) {
   const [ title, setTitle ] = useState( "" );
   const [ isFullDay, setIsFullDay ] = useState( true );
   const [ time, setTime ] = useState( "09:00" );
   const [ duration, setDuration ] = useState( 120 );
   const [ recurring, setRecurring ] = useState( "none" );
+  const [ endDate, setEndDate ] = useState( "" );
+  const [ chauffeurId, setChauffeurId ] = useState( 0 );
 
   const valid = title.trim().length > 0 && ( isFullDay || /^\d{1,2}:\d{2}$/.test( time ) );
 
@@ -94,6 +111,33 @@ export function BlockForm( { date, isSaving, onSubmit }: BlockFormProps ) {
         placeholder="Reason (e.g. Day off)"
         returnKeyType="next"
       />
+
+      { isAdmin ? (
+        <>
+          <Text style={ styles.formRowLabel }>Block target</Text>
+          <NativePicker
+            options={ [
+              { label: "Global · all chauffeurs", value: 0 },
+              ...chauffeurs.map( chauffeur => ( { label: chauffeur.name, value: chauffeur.id } ) ),
+            ] }
+            selectedValue={ chauffeurId }
+            onValueChange={ setChauffeurId }
+          />
+        </>
+      ) : null }
+
+      { recurring === "none" ? (
+        <>
+          <Text style={ styles.formRowLabel }>End date (optional)</Text>
+          <NativeTextField
+            value={ endDate }
+            onChangeText={ setEndDate }
+            placeholder={ date }
+            autoCapitalize="none"
+            autoCorrect={ false }
+          />
+        </>
+      ) : null }
 
       <View style={ styles.formRow }>
         <Text style={ styles.formRowLabel }>All day</Text>
@@ -144,7 +188,15 @@ export function BlockForm( { date, isSaving, onSubmit }: BlockFormProps ) {
         disabled={ !valid || isSaving }
         onPress={ () => {
           const normalized = time.length === 4 ? `0${ time }` : time;
-          onSubmit( { title: title.trim(), isFullDay, time: normalized, duration, recurring } );
+          onSubmit( {
+            title: title.trim(),
+            endDate: endDate || undefined,
+            isFullDay,
+            time: normalized,
+            duration,
+            recurring,
+            chauffeurId: chauffeurId || null,
+          } );
         } }
       />
     </View>
@@ -153,7 +205,8 @@ export function BlockForm( { date, isSaving, onSubmit }: BlockFormProps ) {
 
 export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
-  const { token, chauffeur, signOut } = useAuth();
+  const params = useLocalSearchParams<{ chauffeur?: string }>();
+  const { token, chauffeur, isAdmin, signOut } = useAuth();
   const now = new Date();
   const todayKey = dateKey( now );
   const [ view, setView ] = useState<ScheduleView>( "month" );
@@ -167,16 +220,26 @@ export default function ScheduleScreen() {
   const [ isSaving, setIsSaving ] = useState( false );
   const [ formOpen, setFormOpen ] = useState( false );
   const [ error, setError ] = useState<string | null>( null );
+  const [ chauffeurs, setChauffeurs ] = useState<AdminChauffeur[]>( [] );
+  const [ selectedChauffeurId, setSelectedChauffeurId ] = useState(
+    Number( params.chauffeur ) || 0
+  );
+
+  useEffect( () => {
+    setSelectedChauffeurId( Number( params.chauffeur ) || 0 );
+  }, [ params.chauffeur ] );
 
   const load = useCallback( async () => {
     if ( !token ) return;
     try {
-      const [ ridesResult, blocksResult ] = await Promise.all( [
+      const [ ridesResult, blocksResult, chauffeursResult ] = await Promise.all( [
         api.getRides( token ),
         api.getBlockedSlots( token ),
+        isAdmin ? api.getAdminChauffeurs( token ) : Promise.resolve( { chauffeurs: [] } ),
       ] );
       setRides( ridesResult.rides );
       setBlocks( blocksResult.blocks );
+      setChauffeurs( chauffeursResult.chauffeurs );
       setError( null );
     } catch ( err ) {
       if ( err instanceof api.ApiError && err.status === 401 ) {
@@ -187,7 +250,7 @@ export default function ScheduleScreen() {
     } finally {
       setIsLoading( false );
     }
-  }, [ token, signOut ] );
+  }, [ token, isAdmin, signOut ] );
 
   useFocusEffect(
     useCallback( () => {
@@ -202,8 +265,20 @@ export default function ScheduleScreen() {
   };
 
   const visibleRides = useMemo(
-    () => rides.filter( ( r ) => !HIDDEN_STATUSES.includes( r.status ) ),
-    [ rides ]
+    () => rides.filter( ( ride ) =>
+      !HIDDEN_STATUSES.includes( ride.status )
+      && ( selectedChauffeurId === 0 || ride.chauffeurId === selectedChauffeurId )
+    ),
+    [ rides, selectedChauffeurId ]
+  );
+
+  const visibleBlocks = useMemo(
+    () => blocks.filter( ( block ) =>
+      selectedChauffeurId === 0
+      || block.chauffeurId == null
+      || block.chauffeurId === selectedChauffeurId
+    ),
+    [ blocks, selectedChauffeurId ]
   );
 
   // ── Month data ──────────────────────────────────────────────────────────
@@ -213,13 +288,13 @@ export default function ScheduleScreen() {
     const map: Record<string, DayMarkers> = {};
     for ( const key of keys ) {
       const dayRides = ridesForDate( visibleRides, key );
-      const dayBlocks = blocksForDate( blocks, key );
+      const dayBlocks = blocksForDate( visibleBlocks, key );
       if ( dayRides.length || dayBlocks.length ) {
         map[ key ] = { rides: dayRides.length, blocked: dayBlocks.length > 0 };
       }
     }
     return map;
-  }, [ visibleRides, blocks ] );
+  }, [ visibleRides, visibleBlocks ] );
 
   const monthMarkers = useMemo(
     () => markersFor( cells.map( ( c ) => c.key ) ),
@@ -234,10 +309,10 @@ export default function ScheduleScreen() {
     const blocksByDay: Record<string, BlockedSlot[]> = {};
     for ( const key of week ) {
       ridesByDay[ key ] = ridesForDate( visibleRides, key );
-      blocksByDay[ key ] = blocksForDate( blocks, key );
+      blocksByDay[ key ] = blocksForDate( visibleBlocks, key );
     }
     return { ridesByDay, blocksByDay };
-  }, [ week, visibleRides, blocks ] );
+  }, [ week, visibleRides, visibleBlocks ] );
 
   // ── Year data ───────────────────────────────────────────────────────────
   const yearMarkers = useMemo( () => {
@@ -253,10 +328,13 @@ export default function ScheduleScreen() {
 
   // ── Selected-day agenda (month view) ────────────────────────────────────
   const dayRides = useMemo(
-    () => ridesForDate( rides, selected ).sort( ( a, b ) => a.time.localeCompare( b.time ) ),
-    [ rides, selected ]
+    () => ridesForDate( visibleRides, selected ).sort( ( a, b ) => a.time.localeCompare( b.time ) ),
+    [ visibleRides, selected ]
   );
-  const dayBlocks = useMemo( () => blocksForDate( blocks, selected ), [ blocks, selected ] );
+  const dayBlocks = useMemo(
+    () => blocksForDate( visibleBlocks, selected ),
+    [ visibleBlocks, selected ]
+  );
 
   // ── Navigation ──────────────────────────────────────────────────────────
   const syncToKey = ( key: string ) => {
@@ -308,10 +386,12 @@ export default function ScheduleScreen() {
   // ── Mutations ───────────────────────────────────────────────────────────
   const submitBlock = async ( form: {
     title: string;
+    endDate?: string;
     isFullDay: boolean;
     time: string;
     duration: number;
     recurring: string;
+    chauffeurId?: number | null;
   } ) => {
     if ( !token ) return;
     setIsSaving( true );
@@ -376,12 +456,23 @@ export default function ScheduleScreen() {
           style={ styles.viewBar }
         />
 
+        { isAdmin ? (
+          <NativePicker
+            options={ [
+              { label: "All chauffeurs", value: 0 },
+              ...chauffeurs.map( item => ( { label: item.name, value: item.id } ) ),
+            ] }
+            selectedValue={ selectedChauffeurId }
+            onValueChange={ setSelectedChauffeurId }
+          />
+        ) : null }
+
         { error && <Text style={ styles.error }>{ error }</Text> }
       </View>
 
       <ScrollView
         style={ styles.body }
-        contentContainerStyle={ styles.content }
+        contentContainerStyle={ [ styles.content, { paddingBottom: insets.bottom + 70 } ] }
         refreshControl={
           <RefreshControl
             refreshing={ isRefreshing }
@@ -428,8 +519,8 @@ export default function ScheduleScreen() {
             from={ selected }
             today={ todayKey }
             rides={ visibleRides }
-            blocks={ blocks }
-            chauffeurId={ chauffeur?.id }
+            blocks={ visibleBlocks }
+            chauffeurId={ selectedChauffeurId || chauffeur?.id }
             onRemoveBlock={ removeBlock }
           />
         ) : (
@@ -450,28 +541,34 @@ export default function ScheduleScreen() {
             <View style={ styles.dayBar }>
               <Text style={ [ plate, styles.dayLabel ] }>{ formatRideDate( selected ) }</Text>
               <NativeButton
-                label={ formOpen ? "Cancel" : "Block time" }
+                label="Block time"
                 variant="text"
                 compact
-                onPress={ () => setFormOpen( ( open ) => !open ) }
+                onPress={ () => setFormOpen( true ) }
               />
             </View>
 
-            { formOpen && (
-              <BlockForm date={ selected } isSaving={ isSaving } onSubmit={ submitBlock } />
-            ) }
+            { formOpen ? (
+              <BlockForm
+                date={ selected }
+                isSaving={ isSaving }
+                isAdmin={ isAdmin }
+                chauffeurs={ chauffeurs }
+                onSubmit={ submitBlock }
+              />
+            ) : null }
 
             { dayBlocks.map( ( block ) => (
               <BlockRow
                 key={ block.id }
                 block={ block }
-                onRemove={ block.chauffeurId === chauffeur?.id ? removeBlock : undefined }
+                onRemove={ isAdmin || block.chauffeurId === chauffeur?.id ? removeBlock : undefined }
               />
             ) ) }
 
             <View style={ styles.rideList }>
               { dayRides.map( ( ride ) => (
-                <RideRow key={ ride.reference } ride={ ride } timeOnly />
+                <RideRow key={ ride.reference } ride={ ride } timeOnly flat />
               ) ) }
             </View>
 

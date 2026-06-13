@@ -1,8 +1,11 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 
+import { useAuth } from "@/lib/auth-context";
 import { colors } from "@/lib/colors";
 
 export default function TabsLayout() {
+  const { isAdmin } = useAuth();
+
   return (
     <NativeTabs
       backgroundColor={ colors.background }
@@ -36,6 +39,15 @@ export default function TabsLayout() {
         />
         <NativeTabs.Trigger.Label>Scan</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
+      { isAdmin ? (
+        <NativeTabs.Trigger name="manage">
+          <NativeTabs.Trigger.Icon
+            sf={ { default: "calendar.badge.checkmark", selected: "calendar.badge.checkmark" } }
+            md={ { default: "event_available", selected: "event_available" } }
+          />
+          <NativeTabs.Trigger.Label>Bookings</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+      ) : null }
     </NativeTabs>
   );
 }

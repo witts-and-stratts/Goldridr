@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Goldridr Driver",
+    "name": "Goldridr Chauffeur",
     "slug": "goldridr-driver",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "driverapp",
+    "scheme": "chauffeurapp",
     "userInterfaceStyle": "automatic",
     "android": {
       "adaptiveIcon": {
@@ -36,9 +36,16 @@
       ],
       "expo-secure-store",
       [
+        "expo-notifications",
+        {
+          "color": "#C29E66",
+          "defaultChannel": "default"
+        }
+      ],
+      [
         "expo-camera",
         {
-          "cameraPermission": "Goldridr Driver uses the camera to scan a rider's Ride Pass QR code and pull up their trip details."
+          "cameraPermission": "Goldridr Chauffeur uses the camera to scan a rider's Ride Pass QR code and pull up their trip details."
         }
       ]
     ],

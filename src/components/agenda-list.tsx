@@ -59,7 +59,7 @@ export function AgendaList( {
           ) ) }
           <View style={ styles.rideList }>
             { day.rides.map( ( ride ) => (
-              <RideRow key={ ride.reference } ride={ ride } timeOnly />
+              <RideRow key={ ride.reference } ride={ ride } timeOnly flat />
             ) ) }
           </View>
         </View>

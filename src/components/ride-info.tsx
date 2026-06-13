@@ -1,7 +1,6 @@
 import { Linking, StyleSheet, Text, View } from "react-native";
 
-import { NativeButton } from "@/components/native-controls";
-import { NativeIcon, type NativeSymbolName } from "@/components/native-icon";
+import { NativeIcon, NativeIconButton, type NativeSymbolName } from "@/components/native-icon";
 import { RouteLine } from "@/components/route-line";
 import { StatusText } from "@/components/status-text";
 import { colors, plate } from "@/lib/colors";
@@ -29,10 +28,9 @@ function Row( {
   );
 }
 
-export function RideInfo( { ride }: { ride: DriverRide } ) {
+export function RideSummary( { ride }: { ride: DriverRide } ) {
   return (
     <View>
-      {/* When and what state */ }
       <View style={ styles.header }>
         <Text style={ styles.time }>{ formatRideTime( ride.time ) }</Text>
         <Text style={ styles.date }>{ formatRideDate( ride.date ) }</Text>
@@ -44,9 +42,13 @@ export function RideInfo( { ride }: { ride: DriverRide } ) {
       <View style={ styles.section }>
         <RouteLine pickup={ ride.pickup } destination={ ride.destination } />
       </View>
+    </View>
+  );
+}
 
-      <View style={ styles.hairline } />
-
+export function RideDetails( { ride }: { ride: DriverRide } ) {
+  return (
+    <View>
       <View style={ styles.section }>
         <Row
           icon={ { ios: "car", android: "directions_car", web: "directions_car" } }
@@ -94,15 +96,26 @@ export function RideInfo( { ride }: { ride: DriverRide } ) {
           <Text style={ styles.rider }>{ ride.customerName }</Text>
         </View>
         { ride.customerPhone && (
-          <NativeButton
-            label="Call"
-            icon={ { ios: "phone.fill", android: "call", web: "call" } }
-            variant="outlined"
-            compact
+          <NativeIconButton
+            accessibilityLabel={ `Call ${ ride.customerName }` }
+            name={ { ios: "phone.fill", android: "call", web: "call" } }
+            color={ colors.gold }
+            size={ 26 }
+            style={ styles.callButton }
             onPress={ () => Linking.openURL( `tel:${ ride.customerPhone }` ) }
           />
         ) }
       </View>
+    </View>
+  );
+}
+
+export function RideInfo( { ride }: { ride: DriverRide } ) {
+  return (
+    <View>
+      <RideSummary ride={ ride } />
+      <View style={ styles.hairline } />
+      <RideDetails ride={ ride } />
     </View>
   );
 }
@@ -176,5 +189,13 @@ const styles = StyleSheet.create( {
     color: colors.ivory,
     fontSize: 17,
     fontWeight: "600",
+  },
+  callButton: {
+    width: 56,
+    height: 56,
+    backgroundColor: colors.raised,
+    borderWidth: 1,
+    borderColor: colors.hairlineStrong,
+    borderRadius: 28,
   },
 } );

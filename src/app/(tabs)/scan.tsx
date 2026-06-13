@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  ScrollView,
+  Platform,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { BottomSheet, BottomSheetScrollView } from "@expo/ui/community/bottom-sheet";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -79,6 +80,11 @@ export default function ScanScreen() {
     setState( { kind: "scanning" } );
   };
 
+  const openRide = ( reference: string ) => {
+    resetScanner();
+    router.push( `/ride/${ reference }` );
+  };
+
   if ( !permission ) {
     return <View style={ styles.container } />;
   }
@@ -101,35 +107,7 @@ export default function ScanScreen() {
     );
   }
 
-  if ( state.kind === "result" || state.kind === "error" ) {
-    return (
-      <ScrollView
-        style={ styles.container }
-        contentContainerStyle={ [ styles.result, { paddingTop: insets.top + 24 } ] }
-      >
-        { state.kind === "result" ? (
-          <>
-            <Text style={ [ plate, state.assignedToYou ? styles.resultYours : styles.resultOther ] }>
-              { state.assignedToYou ? "Your ride" : "Unassigned ride" }
-            </Text>
-            <RideInfo ride={ state.ride } />
-            { state.assignedToYou && (
-              <NativeButton
-                label="Open ride"
-                onPress={ () => router.push( `/ride/${ state.ride.reference }` ) }
-              />
-            ) }
-          </>
-        ) : (
-          <>
-            <Text style={ [ plate, styles.resultFailed ] }>Scan failed</Text>
-            <Text style={ styles.errorMessage }>{ state.message }</Text>
-          </>
-        ) }
-        <NativeButton label="Scan again" variant="outlined" onPress={ resetScanner } />
-      </ScrollView>
-    );
-  }
+  const sheetOpen = state.kind === "result" || state.kind === "error";
 
   return (
     <View style={ styles.container }>
@@ -154,6 +132,43 @@ export default function ScanScreen() {
         </Text>
         { state.kind === "loading" && <ActivityIndicator color={ colors.gold } /> }
       </View>
+
+      <BottomSheet
+        index={ sheetOpen ? 0 : -1 }
+        onDismiss={ resetScanner }
+        enablePanDownToClose
+        enableDynamicSizing
+        backgroundStyle={ styles.sheetBackground }
+      >
+        <BottomSheetScrollView
+          contentContainerStyle={ [
+            styles.sheetContent,
+            { paddingBottom: Math.max( insets.bottom, 12 ) },
+          ] }
+        >
+          { state.kind === "result" && (
+            <>
+              <Text style={ [ plate, state.assignedToYou ? styles.resultYours : styles.resultOther ] }>
+                { state.assignedToYou ? "Your ride" : "Unassigned ride" }
+              </Text>
+              <RideInfo ride={ state.ride } />
+              { state.assignedToYou && (
+                <NativeButton
+                  label="Open ride"
+                  onPress={ () => openRide( state.ride.reference ) }
+                />
+              ) }
+            </>
+          ) }
+          { state.kind === "error" && (
+            <>
+              <Text style={ [ plate, styles.resultFailed ] }>Scan failed</Text>
+              <Text style={ styles.errorMessage }>{ state.message }</Text>
+            </>
+          ) }
+          <NativeButton label="Scan again" variant="outlined" onPress={ resetScanner } />
+        </BottomSheetScrollView>
+      </BottomSheet>
     </View>
   );
 }
@@ -208,10 +223,15 @@ const styles = StyleSheet.create( {
     paddingVertical: 10,
     overflow: "hidden",
   },
-  result: {
+  sheetBackground: {
+    backgroundColor: Platform.OS === "android" ? colors.panel : "transparent",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  sheetContent: {
     paddingHorizontal: 20,
-    paddingBottom: 32,
-    gap: 8,
+    paddingTop: 4,
+    gap: 12,
   },
   resultYours: {
     color: colors.gold,
