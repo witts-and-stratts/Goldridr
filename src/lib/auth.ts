@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { getChauffeurById } from "@/lib/db";
 
 export const SESSION_COOKIE = "goldridr_session";
@@ -65,7 +65,17 @@ export function verifySessionToken( token?: string | null ): AuthSession | null 
 
 export async function getSession(): Promise<AuthSession | null> {
   const cookieStore = await cookies();
-  const session = verifySessionToken( cookieStore.get( SESSION_COOKIE )?.value );
+  let session = verifySessionToken( cookieStore.get( SESSION_COOKIE )?.value );
+
+  // The mobile app cannot send browser cookies — it authenticates with an
+  // `Authorization: Bearer <token>` header carrying the same signed payload.
+  if ( !session ) {
+    const header = ( await headers() ).get( "authorization" );
+    if ( header?.startsWith( "Bearer " ) ) {
+      session = verifySessionToken( header.slice( "Bearer ".length ).trim() );
+    }
+  }
+
   if ( session?.role === "chauffeur" && !getChauffeurById( session.chauffeurId! ) ) {
     return null;
   }

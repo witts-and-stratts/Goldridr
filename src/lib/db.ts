@@ -1,9 +1,8 @@
-import Database from "better-sqlite3";
-import path from "path";
 import { hashPassword } from "@/lib/password";
 import { assertFutureBookingTime } from "@/lib/booking-time";
 import { getNotificationTimeZone } from "@/lib/admin-settings";
 import { zonedDateTimeToDate } from "@/lib/notifications/time";
+import { getDatabase, type DatabaseLike } from "@/lib/db-client";
 import {
   enqueueBookingAssignmentChanged,
   enqueueBookingConflict,
@@ -13,16 +12,7 @@ import {
   enqueueBookingStatusChanged,
 } from "@/lib/notifications/store";
 
-const DB_PATH = path.join( process.cwd(), "bookings.db" );
-
-let dbInstance: Database.Database | null = null;
-
-export function getDb(): Database.Database {
-  if ( !dbInstance ) {
-    dbInstance = new Database( DB_PATH );
-    
-    // Create bookings, blocked slots, and chauffeurs tables
-    dbInstance.exec( `
+const SCHEMA_SQL = `
       CREATE TABLE IF NOT EXISTS bookings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         reference TEXT UNIQUE NOT NULL,
@@ -157,6 +147,17 @@ export function getDb(): Database.Database {
         updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS push_tokens (
+        token TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        platform TEXT NOT NULL,
+        createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_push_tokens_user
+        ON push_tokens(userId);
+
       CREATE TABLE IF NOT EXISTS discount_codes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT NOT NULL UNIQUE,
@@ -186,6 +187,17 @@ export function getDb(): Database.Database {
         FOREIGN KEY(bookingReference) REFERENCES bookings(reference) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS vehicles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        make TEXT NOT NULL,
+        model TEXT NOT NULL,
+        year INTEGER,
+        colour TEXT,
+        plate TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_notification_recipients_user
         ON notification_recipients(userId, id);
       CREATE INDEX IF NOT EXISTS idx_notification_deliveries_claim
@@ -198,68 +210,81 @@ export function getDb(): Database.Database {
         ON payments(bookingReference, createdAt DESC);
       CREATE INDEX IF NOT EXISTS idx_payments_status
         ON payments(status, createdAt DESC);
-    ` );
+    `;
 
-    // Alter table migrations to add columns safely if they do not exist
-    try {
-      dbInstance.exec( "ALTER TABLE blocked_slots ADD COLUMN endDate TEXT;" );
-    } catch {}
-    try {
-      dbInstance.exec( "ALTER TABLE blocked_slots ADD COLUMN isFullDay INTEGER DEFAULT 0;" );
-    } catch {}
-    try {
-      dbInstance.exec( "ALTER TABLE bookings ADD COLUMN chauffeurId INTEGER;" );
-    } catch {}
-    try {
-      dbInstance.exec( "ALTER TABLE blocked_slots ADD COLUMN chauffeurId INTEGER;" );
-    } catch {}
-    try {
-      dbInstance.exec( "ALTER TABLE chauffeurs ADD COLUMN passwordHash TEXT;" );
-    } catch {}
-    try {
-      dbInstance.exec( "ALTER TABLE bookings ADD COLUMN smsConsentVersion TEXT;" );
-    } catch {}
-    try {
-      dbInstance.exec( "ALTER TABLE bookings ADD COLUMN smsConsentedAt DATETIME;" );
-    } catch {}
+const ADDITIVE_MIGRATIONS = [
+  "ALTER TABLE blocked_slots ADD COLUMN endDate TEXT",
+  "ALTER TABLE blocked_slots ADD COLUMN isFullDay INTEGER DEFAULT 0",
+  "ALTER TABLE bookings ADD COLUMN chauffeurId INTEGER",
+  "ALTER TABLE blocked_slots ADD COLUMN chauffeurId INTEGER",
+  "ALTER TABLE chauffeurs ADD COLUMN passwordHash TEXT",
+  "ALTER TABLE bookings ADD COLUMN smsConsentVersion TEXT",
+  "ALTER TABLE bookings ADD COLUMN smsConsentedAt DATETIME",
+  "ALTER TABLE chauffeurs ADD COLUMN vehicleId INTEGER REFERENCES vehicles(id)",
+  "ALTER TABLE bookings ADD COLUMN pin TEXT",
+  "ALTER TABLE bookings ADD COLUMN pinConfirmedAt DATETIME",
+];
 
-    dbInstance.pragma( "journal_mode = WAL" );
-    dbInstance.pragma( "foreign_keys = ON" );
+let initialized = false;
+let initializing: Promise<void> | null = null;
 
-    // Auto-seed chauffeurs if empty
+export async function getDb(): Promise<DatabaseLike> {
+  const db = await getDatabase();
+  if ( !initialized ) {
+    initializing ??= initializeDb( db );
+    await initializing;
+  }
+  return db;
+}
+
+export async function initializeDb( db?: DatabaseLike ): Promise<void> {
+  db ??= await getDatabase();
+  if ( initialized ) return;
+  await db.exec( SCHEMA_SQL );
+  for ( const sql of ADDITIVE_MIGRATIONS ) {
     try {
-      const rowCount = dbInstance.prepare( "SELECT COUNT(*) as count FROM chauffeurs" ).get() as { count: number };
-      if ( rowCount.count === 0 ) {
-        const defaultPassword = process.env.CHAUFFEUR_DEFAULT_PASSWORD;
-        if ( !defaultPassword ) throw new Error( "CHAUFFEUR_DEFAULT_PASSWORD is not configured" );
-        const defaultPasswordHash = hashPassword(
-          defaultPassword
-        );
-        const insertChauffeur = dbInstance.prepare(
-          "INSERT INTO chauffeurs (name, email, phone, passwordHash) VALUES (?, ?, ?, ?)"
-        );
-        insertChauffeur.run( "James Mercer", "james@goldridr.com", "+1 (713) 555-0199", defaultPasswordHash );
-        insertChauffeur.run( "Sarah Connor", "sarah@goldridr.com", "+1 (713) 555-0211", defaultPasswordHash );
-        insertChauffeur.run( "Michael Vance", "michael@goldridr.com", "+1 (713) 555-0288", defaultPasswordHash );
-      }
+      await db.exec( sql );
+    } catch {}
+  }
+  try {
+    const rowCount = await db.prepare( "SELECT COUNT(*) as count FROM chauffeurs" ).get() as { count: number } | undefined;
+    const defaultPassword = process.env.CHAUFFEUR_DEFAULT_PASSWORD;
+    if ( rowCount?.count === 0 ) {
+      if ( !defaultPassword ) throw new Error( "CHAUFFEUR_DEFAULT_PASSWORD is not configured" );
+      const defaultPasswordHash = hashPassword( defaultPassword );
+      const insertChauffeur = await db.prepare(
+        "INSERT INTO chauffeurs (name, email, phone, passwordHash) VALUES (?, ?, ?, ?)"
+      );
+      await insertChauffeur.run( "James Mercer", "james@goldridr.com", "+1 (713) 555-0199", defaultPasswordHash );
+      await insertChauffeur.run( "Sarah Connor", "sarah@goldridr.com", "+1 (713) 555-0211", defaultPasswordHash );
+      await insertChauffeur.run( "Michael Vance", "michael@goldridr.com", "+1 (713) 555-0288", defaultPasswordHash );
+    }
 
-      const missingPasswords = dbInstance.prepare(
-        "SELECT id FROM chauffeurs WHERE passwordHash IS NULL OR passwordHash = ''"
-      ).all() as { id: number }[];
-      const setPassword = dbInstance.prepare( "UPDATE chauffeurs SET passwordHash = ? WHERE id = ?" );
-      for ( const chauffeur of missingPasswords ) {
-        const defaultPassword = process.env.CHAUFFEUR_DEFAULT_PASSWORD;
-        if ( !defaultPassword ) throw new Error( "CHAUFFEUR_DEFAULT_PASSWORD is not configured" );
-        setPassword.run(
-          hashPassword( defaultPassword ),
-          chauffeur.id
-        );
-      }
-    } catch ( e ) {
+    const missingPasswords = await db.prepare(
+      "SELECT id FROM chauffeurs WHERE passwordHash IS NULL OR passwordHash = ''"
+    ).all() as { id: number }[];
+    const setPassword = await db.prepare( "UPDATE chauffeurs SET passwordHash = ? WHERE id = ?" );
+    for ( const chauffeur of missingPasswords ) {
+      if ( !defaultPassword ) throw new Error( "CHAUFFEUR_DEFAULT_PASSWORD is not configured" );
+      await setPassword.run( hashPassword( defaultPassword ), chauffeur.id );
+    }
+  } catch ( e ) {
+    if ( !process.env.NODE_TEST_CONTEXT ) {
       console.error( "Failed to seed chauffeurs:", e );
     }
   }
-  return dbInstance;
+  initialized = true;
+}
+
+export interface VehicleRecord {
+  id: number;
+  make: string;
+  model: string;
+  year: number | null;
+  colour: string | null;
+  plate: string | null;
+  status: string;
+  createdAt?: string;
 }
 
 export interface ChauffeurRecord {
@@ -269,6 +294,8 @@ export interface ChauffeurRecord {
   phone: string;
   status: string;
   passwordHash?: string;
+  vehicleId?: number | null;
+  vehicle?: VehicleRecord | null;
 }
 
 export interface BookingRecord {
@@ -287,6 +314,8 @@ export interface BookingRecord {
   chauffeurId?: number | null;
   smsConsentVersion?: string | null;
   smsConsentedAt?: string | null;
+  pin?: string | null;
+  pinConfirmedAt?: string | null;
   createdAt: string;
 }
 
@@ -390,12 +419,12 @@ function calculateDiscountAmountCents( baseAmountCents: number, discount: Discou
   return Math.min( baseAmountCents, Math.max( 0, discount.value ) );
 }
 
-function claimDiscountCode(
-  db: Database.Database,
+async function claimDiscountCode(
+  db: DatabaseLike,
   code: string
-): DiscountCodeRecord {
+): Promise<DiscountCodeRecord> {
   const normalizedCode = normalizeDiscountCode( code );
-  const discount = db.prepare( "SELECT * FROM discount_codes WHERE code = ?" )
+  const discount = await db.prepare( "SELECT * FROM discount_codes WHERE code = ?" )
     .get( normalizedCode ) as DiscountCodeRecord | undefined;
 
   if ( !discount || !discount.active ) {
@@ -410,23 +439,53 @@ function claimDiscountCode(
     throw new DiscountCodeError( "Discount code has reached its redemption limit" );
   }
 
-  db.prepare( "UPDATE discount_codes SET redemptions = redemptions + 1, updatedAt = CURRENT_TIMESTAMP WHERE id = ?" )
+  await db.prepare( "UPDATE discount_codes SET redemptions = redemptions + 1, updatedAt = CURRENT_TIMESTAMP WHERE id = ?" )
     .run( discount.id );
   return { ...discount, redemptions: discount.redemptions + 1 };
 }
 
-export function getAllChauffeurs(): ChauffeurRecord[] {
-  const db = getDb();
-  return db.prepare(
-    "SELECT id, name, email, phone, status FROM chauffeurs WHERE status = 'active' ORDER BY name ASC"
-  ).all() as ChauffeurRecord[];
+const CHAUFFEUR_VEHICLE_SELECT = `
+  SELECT c.id, c.name, c.email, c.phone, c.status, c.vehicleId,
+         v.id AS v_id, v.make AS v_make, v.model AS v_model,
+         v.year AS v_year, v.colour AS v_colour, v.plate AS v_plate, v.status AS v_status
+  FROM chauffeurs c
+  LEFT JOIN vehicles v ON v.id = c.vehicleId
+`;
+
+function rowToChauffeur( row: Record<string, unknown> ): ChauffeurRecord {
+  const vehicle: VehicleRecord | null = row.v_id != null ? {
+    id: row.v_id as number,
+    make: row.v_make as string,
+    model: row.v_model as string,
+    year: row.v_year as number | null,
+    colour: row.v_colour as string | null,
+    plate: row.v_plate as string | null,
+    status: row.v_status as string,
+  } : null;
+  return {
+    id: row.id as number,
+    name: row.name as string,
+    email: row.email as string,
+    phone: row.phone as string,
+    status: row.status as string,
+    vehicleId: row.vehicleId as number | null ?? null,
+    vehicle,
+  };
 }
 
-export function createChauffeur(
+export async function getAllChauffeurs(): Promise<ChauffeurRecord[]> {
+  const db = await getDb();
+  const rows = await db.prepare(
+    `${ CHAUFFEUR_VEHICLE_SELECT } WHERE c.status = 'active' ORDER BY c.name ASC`
+  ).all() as Record<string, unknown>[];
+  return rows.map( rowToChauffeur );
+}
+
+export async function createChauffeur(
   chauffeur: Pick<ChauffeurRecord, "name" | "email" | "phone"> & { password: string }
-): ChauffeurRecord {
-  const db = getDb();
-  const existing = db.prepare(
+): Promise<ChauffeurRecord> {
+  const db = await getDb();
+  const existing = await db.prepare(
     "SELECT id FROM chauffeurs WHERE LOWER(email) = LOWER(?) AND status = 'active'"
   ).get( chauffeur.email ) as { id: number } | undefined;
 
@@ -434,74 +493,143 @@ export function createChauffeur(
     throw new Error( "A chauffeur with this email already exists" );
   }
 
-  const result = db.prepare(
+  const result = await db.prepare(
     "INSERT INTO chauffeurs (name, email, phone, status, passwordHash) VALUES (?, ?, ?, 'active', ?)"
   ).run( chauffeur.name, chauffeur.email, chauffeur.phone || null, hashPassword( chauffeur.password ) );
 
-  return db.prepare(
-    "SELECT id, name, email, phone, status FROM chauffeurs WHERE id = ?"
-  ).get( result.lastInsertRowid ) as ChauffeurRecord;
+  const row = await db.prepare(
+    `${ CHAUFFEUR_VEHICLE_SELECT } WHERE c.id = ?`
+  ).get( result.lastInsertRowid ) as Record<string, unknown>;
+  return rowToChauffeur( row );
 }
 
-export function getChauffeurByEmail( email: string ): ChauffeurRecord | undefined {
-  const db = getDb();
-  return db.prepare(
+export async function getChauffeurByEmail( email: string ): Promise<ChauffeurRecord | undefined> {
+  const db = await getDb();
+  return await db.prepare(
     "SELECT * FROM chauffeurs WHERE LOWER(email) = LOWER(?) AND status = 'active'"
   ).get( email ) as ChauffeurRecord | undefined;
 }
 
-export function getChauffeurById( id: number ): ChauffeurRecord | undefined {
-  const db = getDb();
-  return db.prepare(
-    "SELECT id, name, email, phone, status FROM chauffeurs WHERE id = ? AND status = 'active'"
-  ).get( id ) as ChauffeurRecord | undefined;
+export async function getChauffeurById( id: number ): Promise<ChauffeurRecord | undefined> {
+  const db = await getDb();
+  const row = await db.prepare(
+    `${ CHAUFFEUR_VEHICLE_SELECT } WHERE c.id = ? AND c.status = 'active'`
+  ).get( id ) as Record<string, unknown> | undefined;
+  return row ? rowToChauffeur( row ) : undefined;
 }
 
-export function getBookingsForChauffeur( chauffeurId: number ): BookingRecord[] {
-  const db = getDb();
-  return db.prepare(
+export async function getAllVehicles(): Promise<VehicleRecord[]> {
+  return await (await getDb()).prepare(
+    "SELECT * FROM vehicles ORDER BY make ASC, model ASC"
+  ).all() as VehicleRecord[];
+}
+
+export async function getVehicleById( id: number ): Promise<VehicleRecord | undefined> {
+  return await (await getDb()).prepare( "SELECT * FROM vehicles WHERE id = ?" ).get( id ) as VehicleRecord | undefined;
+}
+
+export async function createVehicle( input: Pick<VehicleRecord, "make" | "model"> & Partial<Pick<VehicleRecord, "year" | "colour" | "plate">> ): Promise<VehicleRecord> {
+  const db = await getDb();
+  const result = await db.prepare(
+    "INSERT INTO vehicles (make, model, year, colour, plate) VALUES (?, ?, ?, ?, ?)"
+  ).run( input.make.trim(), input.model.trim(), input.year ?? null, input.colour?.trim() || null, input.plate?.trim() || null );
+  return await db.prepare( "SELECT * FROM vehicles WHERE id = ?" ).get( result.lastInsertRowid ) as VehicleRecord;
+}
+
+export async function updateVehicle( id: number, updates: Partial<Pick<VehicleRecord, "make" | "model" | "year" | "colour" | "plate" | "status">> ): Promise<boolean> {
+  const db = await getDb();
+  const existing = await db.prepare( "SELECT * FROM vehicles WHERE id = ?" ).get( id ) as VehicleRecord | undefined;
+  if ( !existing ) return false;
+  const result = await db.prepare( `
+    UPDATE vehicles SET make = ?, model = ?, year = ?, colour = ?, plate = ?, status = ? WHERE id = ?
+  ` ).run(
+    updates.make?.trim() ?? existing.make,
+    updates.model?.trim() ?? existing.model,
+    updates.year !== undefined ? updates.year : existing.year,
+    updates.colour !== undefined ? updates.colour?.trim() || null : existing.colour,
+    updates.plate !== undefined ? updates.plate?.trim() || null : existing.plate,
+    updates.status ?? existing.status,
+    id
+  );
+  return result.changes > 0;
+}
+
+export async function deleteVehicle( id: number ): Promise<boolean> {
+  const db = await getDb();
+  await db.prepare( "UPDATE chauffeurs SET vehicleId = NULL WHERE vehicleId = ?" ).run( id );
+  const result = await db.prepare( "DELETE FROM vehicles WHERE id = ?" ).run( id );
+  return result.changes > 0;
+}
+
+export async function assignVehicleToChauffeur( chauffeurId: number | null, vehicleId: number ): Promise<boolean> {
+  const db = await getDb();
+  return await db.transaction( async () => {
+    const vehicle = await db.prepare( "SELECT id FROM vehicles WHERE id = ? AND status = 'active'" ).get( vehicleId );
+    if ( !vehicle ) throw new Error( "Vehicle not found or inactive" );
+    // Unassign from whoever currently has it
+    await db.prepare( "UPDATE chauffeurs SET vehicleId = NULL WHERE vehicleId = ?" ).run( vehicleId );
+    if ( chauffeurId !== null ) {
+      const result = await db.prepare( "UPDATE chauffeurs SET vehicleId = ? WHERE id = ? AND status = 'active'" )
+        .run( vehicleId, chauffeurId );
+      return result.changes > 0;
+    }
+    return true;
+  } )() as boolean;
+}
+
+export async function unassignVehicle( vehicleId: number ): Promise<void> {
+  await (await getDb()).prepare( "UPDATE chauffeurs SET vehicleId = NULL WHERE vehicleId = ?" ).run( vehicleId );
+}
+
+export async function getBookingsForChauffeur( chauffeurId: number ): Promise<BookingRecord[]> {
+  const db = await getDb();
+  return await db.prepare(
     "SELECT * FROM bookings WHERE chauffeurId = ? ORDER BY createdAt DESC"
   ).all( chauffeurId ) as BookingRecord[];
 }
 
-export function deleteChauffeur( id: number ): boolean {
-  const db = getDb();
-  const remove = db.transaction( () => {
-    const assignedBookings = db.prepare(
+export async function deleteChauffeur( id: number ): Promise<boolean> {
+  const db = await getDb();
+  const remove = db.transaction( async () => {
+    const assignedBookings = await db.prepare(
       "SELECT * FROM bookings WHERE chauffeurId = ?"
     ).all( id ) as BookingRecord[];
-    const result = db.prepare(
+    const result = await db.prepare(
       "UPDATE chauffeurs SET status = 'inactive' WHERE id = ? AND status = 'active'"
     ).run( id );
 
     if ( result.changes === 0 ) return false;
 
-    db.prepare( "UPDATE bookings SET chauffeurId = NULL WHERE chauffeurId = ?" ).run( id );
+    await db.prepare( "UPDATE bookings SET chauffeurId = NULL WHERE chauffeurId = ?" ).run( id );
     for ( const booking of assignedBookings ) {
-      enqueueBookingAssignmentChanged( db, { ...booking, chauffeurId: null }, id );
+      await enqueueBookingAssignmentChanged( db, { ...booking, chauffeurId: null }, id );
     }
-    db.prepare( "DELETE FROM blocked_slots WHERE chauffeurId = ?" ).run( id );
+    await db.prepare( "DELETE FROM blocked_slots WHERE chauffeurId = ?" ).run( id );
     return true;
   } );
 
-  return remove();
+  return await remove() as boolean;
 }
 
-export function saveBooking(
+function generateBookingPin(): string {
+  return String( Math.floor( Math.random() * 10000 ) ).padStart( 4, "0" );
+}
+
+export async function saveBooking(
   booking: Omit<BookingRecord, "id" | "createdAt"> & { discountCode?: string | null }
-): BookingRecord {
-  const db = getDb();
-  assertFutureBookingTime( booking.date, booking.time, new Date(), getNotificationTimeZone() );
-  const stmt = db.prepare( `
+): Promise<BookingRecord> {
+  const db = await getDb();
+  assertFutureBookingTime( booking.date, booking.time, new Date(), await getNotificationTimeZone() );
+  const stmt = await db.prepare( `
     INSERT INTO bookings (
       reference, tripType, date, time, duration, name, email, phone, notes, status, tripDetails, chauffeurId,
-      smsConsentVersion, smsConsentedAt
+      smsConsentVersion, smsConsentedAt, pin
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )
   ` );
 
-  const insert = db.transaction( () => {
+  const insert = db.transaction( async () => {
     const tripDetails = parseBookingTripDetails( booking.tripDetails );
     if ( booking.discountCode?.trim() ) {
       const baseAmountCents = Math.round(
@@ -510,7 +638,7 @@ export function saveBooking(
       if ( !Number.isFinite( baseAmountCents ) || baseAmountCents <= 0 ) {
         throw new DiscountCodeError( "Discount codes require a quoted booking total" );
       }
-      const discount = claimDiscountCode( db, booking.discountCode );
+      const discount = await claimDiscountCode( db, booking.discountCode );
       const discountAmountCents = calculateDiscountAmountCents( baseAmountCents, discount );
       const finalAmountCents = Math.max( 0, baseAmountCents - discountAmountCents );
       tripDetails.discountCode = discount.code;
@@ -526,7 +654,8 @@ export function saveBooking(
       }
     }
 
-    stmt.run(
+    const pin = booking.pin ?? generateBookingPin();
+    await stmt.run(
       booking.reference,
       booking.tripType,
       booking.date,
@@ -540,29 +669,30 @@ export function saveBooking(
       serializeBookingTripDetails( tripDetails ),
       booking.chauffeurId || null,
       booking.smsConsentVersion || null,
-      booking.smsConsentedAt || null
+      booking.smsConsentedAt || null,
+      pin
     );
 
-    const row = db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( booking.reference ) as BookingRecord;
-    enqueueBookingCreated( db, row );
+    const row = await db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( booking.reference ) as BookingRecord;
+    await enqueueBookingCreated( db, row );
     return row;
   } );
 
-  return insert();
+  return await insert() as BookingRecord;
 }
 
-export function getAllBookings(): BookingRecord[] {
-  const db = getDb();
-  return db.prepare( "SELECT * FROM bookings ORDER BY createdAt DESC" ).all() as BookingRecord[];
+export async function getAllBookings(): Promise<BookingRecord[]> {
+  const db = await getDb();
+  return await db.prepare( "SELECT * FROM bookings ORDER BY createdAt DESC" ).all() as BookingRecord[];
 }
 
-export function getBookingByReference( reference: string ): BookingRecord | undefined {
-  const db = getDb();
-  return db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( reference ) as BookingRecord | undefined;
+export async function getBookingByReference( reference: string ): Promise<BookingRecord | undefined> {
+  const db = await getDb();
+  return await db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( reference ) as BookingRecord | undefined;
 }
 
-export function getAllPayments(): PaymentRecord[] {
-  return getDb().prepare( `
+export async function getAllPayments(): Promise<PaymentRecord[]> {
+  return await (await getDb()).prepare( `
     SELECT
       p.*,
       b.name AS customerName,
@@ -584,11 +714,11 @@ function assertBookingCanReceivePayment( booking: Pick<BookingRecord, "status"> 
   }
 }
 
-export function confirmBookingForPaidPayment(
-  db: Database.Database,
+export async function confirmBookingForPaidPayment(
+  db: DatabaseLike,
   bookingReference: string
-): boolean {
-  const booking = db.prepare(
+): Promise<boolean> {
+  const booking = await db.prepare(
     "SELECT * FROM bookings WHERE reference = ?"
   ).get( bookingReference ) as BookingRecord | undefined;
 
@@ -596,14 +726,14 @@ export function confirmBookingForPaidPayment(
   assertBookingCanReceivePayment( booking );
   if ( [ "confirmed", "accepted" ].includes( booking.status ) ) return false;
 
-  db.prepare(
+  await db.prepare(
     "UPDATE bookings SET status = 'confirmed' WHERE reference = ?"
   ).run( bookingReference );
-  enqueueBookingStatusChanged( db, { ...booking, status: "confirmed" }, booking.status );
+  await enqueueBookingStatusChanged( db, { ...booking, status: "confirmed" }, booking.status );
   return true;
 }
 
-export function createPayment( payment: {
+export async function createPayment( payment: {
   bookingReference: string;
   amountCents: number;
   currency?: string;
@@ -611,17 +741,17 @@ export function createPayment( payment: {
   status: string;
   transactionReference?: string | null;
   notes?: string | null;
-} ): PaymentRecord {
-  const db = getDb();
-  const insert = db.transaction( () => {
-    const booking = db.prepare(
+} ): Promise<PaymentRecord> {
+  const db = await getDb();
+  const insert = db.transaction( async () => {
+    const booking = await db.prepare(
       "SELECT reference, status FROM bookings WHERE reference = ?"
     ).get( payment.bookingReference ) as Pick<BookingRecord, "reference" | "status"> | undefined;
     if ( !booking ) throw new Error( "Booking not found" );
     assertBookingCanReceivePayment( booking );
 
     const paidAt = payment.status === "paid" ? new Date().toISOString() : null;
-    const result = db.prepare( `
+    const result = await db.prepare( `
       INSERT INTO payments (
         bookingReference, amountCents, currency, method, status,
         transactionReference, notes, paidAt
@@ -638,26 +768,26 @@ export function createPayment( payment: {
     );
 
     if ( payment.status === "paid" ) {
-      confirmBookingForPaidPayment( db, payment.bookingReference );
+      await confirmBookingForPaidPayment( db, payment.bookingReference );
     }
 
-    return db.prepare( "SELECT * FROM payments WHERE id = ?" )
+    return await db.prepare( "SELECT * FROM payments WHERE id = ?" )
       .get( result.lastInsertRowid ) as PaymentRecord;
   } );
 
-  return insert();
+  return await insert() as PaymentRecord;
 }
 
-export function updatePayment( id: number, updates: {
+export async function updatePayment( id: number, updates: {
   amountCents?: number;
   method?: string;
   status?: string;
   transactionReference?: string | null;
   notes?: string | null;
-} ): boolean {
-  const db = getDb();
-  const update = db.transaction( () => {
-    const existing = db.prepare( "SELECT * FROM payments WHERE id = ?" ).get( id ) as PaymentRecord | undefined;
+} ): Promise<boolean> {
+  const db = await getDb();
+  const update = db.transaction( async () => {
+    const existing = await db.prepare( "SELECT * FROM payments WHERE id = ?" ).get( id ) as PaymentRecord | undefined;
     if ( !existing ) return false;
 
     const nextStatus = updates.status ?? existing.status;
@@ -665,7 +795,7 @@ export function updatePayment( id: number, updates: {
       ? existing.paidAt || new Date().toISOString()
       : null;
 
-    const result = db.prepare( `
+    const result = await db.prepare( `
       UPDATE payments
       SET amountCents = ?,
           method = ?,
@@ -686,24 +816,25 @@ export function updatePayment( id: number, updates: {
     );
 
     if ( nextStatus === "paid" ) {
-      confirmBookingForPaidPayment( db, existing.bookingReference );
+      await confirmBookingForPaidPayment( db, existing.bookingReference );
     }
 
     return result.changes > 0;
   } );
 
-  return update();
+  return await update() as boolean;
 }
 
-export function deletePayment( id: number ): boolean {
-  return getDb().prepare( "DELETE FROM payments WHERE id = ?" ).run( id ).changes > 0;
+export async function deletePayment( id: number ): Promise<boolean> {
+  const result = await (await getDb()).prepare( "DELETE FROM payments WHERE id = ?" ).run( id );
+  return result.changes > 0;
 }
 
 function generateMockSmsSid(): string {
   return `SM${ Math.random().toString( 36 ).slice( 2, 18 ).toUpperCase().padEnd( 32, "0" ).slice( 0, 32 ) }`;
 }
 
-export function insertMockSmsMessage( input: {
+export async function insertMockSmsMessage( input: {
   sid?: string;
   accountSid?: string | null;
   fromNumber: string;
@@ -711,10 +842,10 @@ export function insertMockSmsMessage( input: {
   body: string;
   status?: string;
   errorMessage?: string | null;
-} ): MockSmsMessageRecord {
-  const db = getDb();
+} ): Promise<MockSmsMessageRecord> {
+  const db = await getDb();
   const sid = input.sid || generateMockSmsSid();
-  db.prepare( `
+  await db.prepare( `
     INSERT INTO mock_sms_messages (sid, accountSid, fromNumber, toNumber, body, status, errorMessage)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   ` ).run(
@@ -726,12 +857,12 @@ export function insertMockSmsMessage( input: {
     input.status || "queued",
     input.errorMessage || null
   );
-  return db.prepare( "SELECT * FROM mock_sms_messages WHERE sid = ?" ).get( sid ) as MockSmsMessageRecord;
+  return await db.prepare( "SELECT * FROM mock_sms_messages WHERE sid = ?" ).get( sid ) as MockSmsMessageRecord;
 }
 
-export function updateMockSmsMessageStatus( sid: string, status: string, errorMessage?: string | null ): boolean {
-  const db = getDb();
-  const result = db.prepare( `
+export async function updateMockSmsMessageStatus( sid: string, status: string, errorMessage?: string | null ): Promise<boolean> {
+  const db = await getDb();
+  const result = await db.prepare( `
     UPDATE mock_sms_messages
     SET status = ?, errorMessage = ?, updatedAt = CURRENT_TIMESTAMP
     WHERE sid = ?
@@ -739,72 +870,90 @@ export function updateMockSmsMessageStatus( sid: string, status: string, errorMe
   return result.changes > 0;
 }
 
-export function listMockSmsMessages( limit = 50 ): MockSmsMessageRecord[] {
-  const db = getDb();
-  return db.prepare( `
+export async function listMockSmsMessages( limit = 50 ): Promise<MockSmsMessageRecord[]> {
+  const db = await getDb();
+  return await db.prepare( `
     SELECT * FROM mock_sms_messages
     ORDER BY id DESC
     LIMIT ?
   ` ).all( limit ) as MockSmsMessageRecord[];
 }
 
-export function clearMockSmsMessages(): number {
-  const db = getDb();
-  return db.prepare( "DELETE FROM mock_sms_messages" ).run().changes;
+export async function clearMockSmsMessages(): Promise<number> {
+  const db = await getDb();
+  const result = await db.prepare( "DELETE FROM mock_sms_messages" ).run();
+  return result.changes;
 }
 
-export function updateBookingStatus( reference: string, status: string ): boolean {
-  const db = getDb();
-  return db.transaction( () => {
-    const booking = db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( reference ) as BookingRecord | undefined;
+export async function confirmBookingPin( reference: string, pin: string ): Promise<{ success: boolean; error?: string }> {
+  const db = await getDb();
+  return await db.transaction( async () => {
+    const booking = await db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( reference ) as BookingRecord | undefined;
+    if ( !booking ) return { success: false, error: "Booking not found" };
+    if ( !booking.pin ) return { success: false, error: "No PIN set for this booking" };
+    if ( booking.pin !== pin ) return { success: false, error: "Invalid PIN. Please try again." };
+    await db.prepare(
+      "UPDATE bookings SET status = 'confirmed', pinConfirmedAt = CURRENT_TIMESTAMP WHERE reference = ?"
+    ).run( reference );
+    if ( booking.status !== "confirmed" ) {
+      await enqueueBookingStatusChanged( db, { ...booking, status: "confirmed" }, booking.status );
+    }
+    return { success: true };
+  } )() as { success: boolean; error?: string };
+}
+
+export async function updateBookingStatus( reference: string, status: string ): Promise<boolean> {
+  const db = await getDb();
+  return await db.transaction( async () => {
+    const booking = await db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( reference ) as BookingRecord | undefined;
     if ( !booking || booking.status === status ) return false;
-    const result = db.prepare( "UPDATE bookings SET status = ? WHERE reference = ?" ).run( status, reference );
-    enqueueBookingStatusChanged( db, { ...booking, status }, booking.status );
+    const result = await db.prepare( "UPDATE bookings SET status = ? WHERE reference = ?" ).run( status, reference );
+    await enqueueBookingStatusChanged( db, { ...booking, status }, booking.status );
     return result.changes > 0;
-  } )();
+  } )() as boolean;
 }
 
-export function updateBookingChauffeur( reference: string, chauffeurId: number | null ): boolean {
-  const db = getDb();
-  return db.transaction( () => {
-    const booking = db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( reference ) as BookingRecord | undefined;
+export async function updateBookingChauffeur( reference: string, chauffeurId: number | null ): Promise<boolean> {
+  const db = await getDb();
+  return await db.transaction( async () => {
+    const booking = await db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( reference ) as BookingRecord | undefined;
     if ( !booking || booking.chauffeurId === chauffeurId ) return false;
-    const result = db.prepare( "UPDATE bookings SET chauffeurId = ? WHERE reference = ?" ).run( chauffeurId, reference );
+    const result = await db.prepare( "UPDATE bookings SET chauffeurId = ? WHERE reference = ?" ).run( chauffeurId, reference );
     const updatedBooking = { ...booking, chauffeurId };
-    enqueueBookingAssignmentChanged( db, updatedBooking, booking.chauffeurId ?? null );
+    await enqueueBookingAssignmentChanged( db, updatedBooking, booking.chauffeurId ?? null );
     if ( chauffeurId ) {
-      const conflict = findBookingConflict( db, updatedBooking );
-      if ( conflict ) enqueueBookingConflict( db, updatedBooking, conflict.reference );
+      const conflict = await findBookingConflict( db, updatedBooking );
+      if ( conflict ) await enqueueBookingConflict( db, updatedBooking, conflict.reference );
     }
     return result.changes > 0;
-  } )();
+  } )() as boolean;
 }
 
-export function updateBookingSchedule(
+export async function updateBookingSchedule(
   reference: string,
   schedule: { date: string; time: string; duration?: number }
-): boolean {
-  const db = getDb();
-  assertFutureBookingTime( schedule.date, schedule.time, new Date(), getNotificationTimeZone() );
-  return db.transaction( () => {
-    const booking = db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( reference ) as BookingRecord | undefined;
+): Promise<boolean> {
+  const db = await getDb();
+  assertFutureBookingTime( schedule.date, schedule.time, new Date(), await getNotificationTimeZone() );
+  return await db.transaction( async () => {
+    const booking = await db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( reference ) as BookingRecord | undefined;
     if ( !booking ) return false;
     const duration = schedule.duration ?? booking.duration;
     if ( booking.date === schedule.date && booking.time === schedule.time && booking.duration === duration ) return false;
-    db.prepare( "UPDATE bookings SET date = ?, time = ?, duration = ? WHERE reference = ?" )
+    await db.prepare( "UPDATE bookings SET date = ?, time = ?, duration = ? WHERE reference = ?" )
       .run( schedule.date, schedule.time, duration, reference );
     const updatedBooking = { ...booking, date: schedule.date, time: schedule.time, duration };
-    enqueueBookingRescheduled( db, updatedBooking, { date: booking.date, time: booking.time, duration: booking.duration } );
-    const conflict = findBookingConflict( db, updatedBooking );
-    if ( conflict ) enqueueBookingConflict( db, updatedBooking, conflict.reference );
+    await enqueueBookingRescheduled( db, updatedBooking, { date: booking.date, time: booking.time, duration: booking.duration } );
+    const conflict = await findBookingConflict( db, updatedBooking );
+    if ( conflict ) await enqueueBookingConflict( db, updatedBooking, conflict.reference );
     return true;
-  } )();
+  } )() as boolean;
 }
 
-function findBookingConflict( db: Database.Database, booking: BookingRecord ): BookingRecord | undefined {
+async function findBookingConflict( db: DatabaseLike, booking: BookingRecord ): Promise<BookingRecord | undefined> {
   if ( !booking.chauffeurId || [ "cancelled", "rejected" ].includes( booking.status ) ) return undefined;
-  const timeZone = getNotificationTimeZone();
-  const candidates = db.prepare( `
+  const timeZone = await getNotificationTimeZone();
+  const candidates = await db.prepare( `
     SELECT * FROM bookings
     WHERE reference <> ? AND date = ? AND chauffeurId = ?
       AND status NOT IN ('cancelled', 'rejected')
@@ -818,42 +967,43 @@ function findBookingConflict( db: Database.Database, booking: BookingRecord ): B
   } );
 }
 
-export function deleteBooking( reference: string ): boolean {
-  const db = getDb();
-  const remove = db.transaction( () => {
-    const booking = db.prepare(
+export async function deleteBooking( reference: string ): Promise<boolean> {
+  const db = await getDb();
+  const remove = db.transaction( async () => {
+    const booking = await db.prepare(
       "SELECT * FROM bookings WHERE reference = ?"
     ).get( reference ) as BookingRecord | undefined;
     if ( !booking ) return false;
 
-    enqueueBookingDeleted( db, booking );
-    return db.prepare( "DELETE FROM bookings WHERE reference = ?" )
-      .run( reference ).changes > 0;
+    await enqueueBookingDeleted( db, booking );
+    const result = await db.prepare( "DELETE FROM bookings WHERE reference = ?" )
+      .run( reference );
+    return result.changes > 0;
   } );
-  return remove();
+  return await remove() as boolean;
 }
 
 // ── App settings (key/value) ──────────────────────────────────────────────────
-export function getAppSetting( key: string ): string | null {
-  const row = getDb().prepare( "SELECT value FROM app_settings WHERE key = ?" ).get( key ) as { value: string } | undefined;
+export async function getAppSetting( key: string ): Promise<string | null> {
+  const row = await (await getDb()).prepare( "SELECT value FROM app_settings WHERE key = ?" ).get( key ) as { value: string } | undefined;
   return row?.value ?? null;
 }
 
-export function setAppSetting( key: string, value: string ): void {
-  getDb().prepare( `
+export async function setAppSetting( key: string, value: string ): Promise<void> {
+  await (await getDb()).prepare( `
     INSERT INTO app_settings (key, value, updatedAt) VALUES (?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = CURRENT_TIMESTAMP
   ` ).run( key, value );
 }
 
-export function getAllDiscountCodes(): DiscountCodeRecord[] {
-  return getDb().prepare( "SELECT * FROM discount_codes ORDER BY createdAt DESC, id DESC" ).all() as DiscountCodeRecord[];
+export async function getAllDiscountCodes(): Promise<DiscountCodeRecord[]> {
+  return await (await getDb()).prepare( "SELECT * FROM discount_codes ORDER BY createdAt DESC, id DESC" ).all() as DiscountCodeRecord[];
 }
 
-export function getDiscountCodesWithUsage(): DiscountCodeWithUsage[] {
-  const discountCodes = getAllDiscountCodes();
+export async function getDiscountCodesWithUsage(): Promise<DiscountCodeWithUsage[]> {
+  const discountCodes = await getAllDiscountCodes();
   const usageByCode = new Map<string, DiscountUsageRecord[]>();
-  const bookings = getDb().prepare( `
+  const bookings = await (await getDb()).prepare( `
     SELECT reference, name, email, tripType, date, time, status, tripDetails, createdAt
     FROM bookings
     ORDER BY createdAt DESC, id DESC
@@ -906,12 +1056,12 @@ export function getDiscountCodesWithUsage(): DiscountCodeWithUsage[] {
   } );
 }
 
-export function getDiscountCodeByCode( code: string ): DiscountCodeRecord | undefined {
+export async function getDiscountCodeByCode( code: string ): Promise<DiscountCodeRecord | undefined> {
   const normalized = normalizeDiscountCode( code );
-  return getDb().prepare( "SELECT * FROM discount_codes WHERE code = ?" ).get( normalized ) as DiscountCodeRecord | undefined;
+  return await (await getDb()).prepare( "SELECT * FROM discount_codes WHERE code = ?" ).get( normalized ) as DiscountCodeRecord | undefined;
 }
 
-export function createDiscountCode( input: {
+export async function createDiscountCode( input: {
   code: string;
   label: string;
   kind: "percent" | "fixed";
@@ -919,10 +1069,10 @@ export function createDiscountCode( input: {
   active?: boolean;
   maxRedemptions?: number | null;
   expiresAt?: string | null;
-} ): DiscountCodeRecord {
-  const db = getDb();
+} ): Promise<DiscountCodeRecord> {
+  const db = await getDb();
   const code = normalizeDiscountCode( input.code );
-  const result = db.prepare( `
+  const result = await db.prepare( `
     INSERT INTO discount_codes (code, label, kind, value, active, maxRedemptions, expiresAt)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   ` ).run(
@@ -934,10 +1084,10 @@ export function createDiscountCode( input: {
     input.maxRedemptions ?? null,
     input.expiresAt || null
   );
-  return db.prepare( "SELECT * FROM discount_codes WHERE id = ?" ).get( result.lastInsertRowid ) as DiscountCodeRecord;
+  return await db.prepare( "SELECT * FROM discount_codes WHERE id = ?" ).get( result.lastInsertRowid ) as DiscountCodeRecord;
 }
 
-export function updateDiscountCode(
+export async function updateDiscountCode(
   id: number,
   updates: Partial<{
     code: string;
@@ -948,9 +1098,9 @@ export function updateDiscountCode(
     maxRedemptions: number | null;
     expiresAt: string | null;
   }>
-): boolean {
-  const db = getDb();
-  const existing = db.prepare( "SELECT * FROM discount_codes WHERE id = ?" ).get( id ) as DiscountCodeRecord | undefined;
+): Promise<boolean> {
+  const db = await getDb();
+  const existing = await db.prepare( "SELECT * FROM discount_codes WHERE id = ?" ).get( id ) as DiscountCodeRecord | undefined;
   if ( !existing ) return false;
 
   const nextCode = updates.code !== undefined ? normalizeDiscountCode( updates.code ) : existing.code;
@@ -961,7 +1111,7 @@ export function updateDiscountCode(
   const nextMaxRedemptions = updates.maxRedemptions !== undefined ? updates.maxRedemptions : existing.maxRedemptions;
   const nextExpiresAt = updates.expiresAt !== undefined ? updates.expiresAt : existing.expiresAt;
 
-  const result = db.prepare( `
+  const result = await db.prepare( `
     UPDATE discount_codes
     SET code = ?,
         label = ?,
@@ -977,39 +1127,40 @@ export function updateDiscountCode(
   return result.changes > 0;
 }
 
-export function deleteDiscountCode( id: number ): boolean {
-  return getDb().prepare( "DELETE FROM discount_codes WHERE id = ?" ).run( id ).changes > 0;
+export async function deleteDiscountCode( id: number ): Promise<boolean> {
+  const result = await (await getDb()).prepare( "DELETE FROM discount_codes WHERE id = ?" ).run( id );
+  return result.changes > 0;
 }
 
 export const DEFAULT_BOOKING_BUFFER_MINUTES = 30;
 
 /** Minimum turnaround gap required between two rides for the same chauffeur. */
-export function getBookingBufferMinutes(): number {
-  const raw = getAppSetting( "bookingBufferMinutes" );
+export async function getBookingBufferMinutes(): Promise<number> {
+  const raw = await getAppSetting( "bookingBufferMinutes" );
   const parsed = raw === null ? NaN : Number( raw );
   return Number.isFinite( parsed ) && parsed >= 0 ? parsed : DEFAULT_BOOKING_BUFFER_MINUTES;
 }
 
-export function checkBookingClash(
+export async function checkBookingClash(
   date: string,
   time: string,
   durationMinutes: number,
   chauffeurId?: number | null
-): { clash: boolean; conflictingBooking?: BookingRecord } {
+): Promise<{ clash: boolean; conflictingBooking?: BookingRecord }> {
   try {
-    const db = getDb();
-    const timeZone = getNotificationTimeZone();
+    const db = await getDb();
+    const timeZone = await getNotificationTimeZone();
     
     // Any booking that hasn't been explicitly killed holds its slot —
     // pending requests must block too, or the same hour can be sold twice
     // before an admin confirms.
     let bookingsOnDate: BookingRecord[];
     if ( chauffeurId !== undefined && chauffeurId !== null ) {
-      bookingsOnDate = db.prepare(
+      bookingsOnDate = await db.prepare(
         "SELECT * FROM bookings WHERE date = ? AND chauffeurId = ? AND status NOT IN ('cancelled', 'rejected')"
       ).all( date, chauffeurId ) as BookingRecord[];
     } else {
-      bookingsOnDate = db.prepare(
+      bookingsOnDate = await db.prepare(
         "SELECT * FROM bookings WHERE date = ? AND status NOT IN ('cancelled', 'rejected')"
       ).all( date ) as BookingRecord[];
     }
@@ -1018,7 +1169,7 @@ export function checkBookingClash(
     const requestedEnd = requestedStart + durationMinutes * 60 * 1000;
     // Rides need turnaround time between them, so each existing booking
     // occupies its slot plus the configured buffer on both sides.
-    const bufferMs = getBookingBufferMinutes() * 60 * 1000;
+    const bufferMs = await getBookingBufferMinutes() * 60 * 1000;
 
     for ( const b of bookingsOnDate ) {
       try {
@@ -1052,16 +1203,16 @@ export interface BlockedSlotRecord {
   createdAt: string;
 }
 
-export function saveBlockedSlot( block: Omit<BlockedSlotRecord, "id" | "createdAt"> ): BlockedSlotRecord {
-  const db = getDb();
-  const stmt = db.prepare( `
+export async function saveBlockedSlot( block: Omit<BlockedSlotRecord, "id" | "createdAt"> ): Promise<BlockedSlotRecord> {
+  const db = await getDb();
+  const stmt = await db.prepare( `
     INSERT INTO blocked_slots (
       title, date, endDate, isFullDay, time, duration, recurring, chauffeurId
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?, ?
     )
   ` );
-  stmt.run( 
+  await stmt.run( 
     block.title, 
     block.date, 
     block.endDate || null, 
@@ -1071,52 +1222,52 @@ export function saveBlockedSlot( block: Omit<BlockedSlotRecord, "id" | "createdA
     block.recurring,
     block.chauffeurId || null
   );
-  const row = db.prepare( "SELECT * FROM blocked_slots ORDER BY id DESC LIMIT 1" ).get() as BlockedSlotRecord;
+  const row = await db.prepare( "SELECT * FROM blocked_slots ORDER BY id DESC LIMIT 1" ).get() as BlockedSlotRecord;
   return row;
 }
 
-export function getAllBlockedSlots(): BlockedSlotRecord[] {
-  const db = getDb();
-  return db.prepare( "SELECT * FROM blocked_slots ORDER BY id DESC" ).all() as BlockedSlotRecord[];
+export async function getAllBlockedSlots(): Promise<BlockedSlotRecord[]> {
+  const db = await getDb();
+  return await db.prepare( "SELECT * FROM blocked_slots ORDER BY id DESC" ).all() as BlockedSlotRecord[];
 }
 
-export function getBlockedSlotsForChauffeur( chauffeurId: number ): BlockedSlotRecord[] {
-  const db = getDb();
-  return db.prepare(
+export async function getBlockedSlotsForChauffeur( chauffeurId: number ): Promise<BlockedSlotRecord[]> {
+  const db = await getDb();
+  return await db.prepare(
     "SELECT * FROM blocked_slots WHERE chauffeurId IS NULL OR chauffeurId = ? ORDER BY id DESC"
   ).all( chauffeurId ) as BlockedSlotRecord[];
 }
 
-export function deleteBlockedSlot( id: number ): boolean {
-  const db = getDb();
-  const stmt = db.prepare( "DELETE FROM blocked_slots WHERE id = ?" );
-  const result = stmt.run( id );
+export async function deleteBlockedSlot( id: number ): Promise<boolean> {
+  const db = await getDb();
+  const stmt = await db.prepare( "DELETE FROM blocked_slots WHERE id = ?" );
+  const result = await stmt.run( id );
   return result.changes > 0;
 }
 
-export function deleteChauffeurBlockedSlot( id: number, chauffeurId: number ): boolean {
-  const db = getDb();
-  const result = db.prepare(
+export async function deleteChauffeurBlockedSlot( id: number, chauffeurId: number ): Promise<boolean> {
+  const db = await getDb();
+  const result = await db.prepare(
     "DELETE FROM blocked_slots WHERE id = ? AND chauffeurId = ?"
   ).run( id, chauffeurId );
   return result.changes > 0;
 }
 
-export function checkBlockedClash(
+export async function checkBlockedClash(
   date: string,
   time: string,
   durationMinutes: number,
   chauffeurId?: number | null
-): { clash: boolean; conflictingBlock?: BlockedSlotRecord } {
+): Promise<{ clash: boolean; conflictingBlock?: BlockedSlotRecord }> {
   try {
-    const db = getDb();
-    const timeZone = getNotificationTimeZone();
+    const db = await getDb();
+    const timeZone = await getNotificationTimeZone();
     let blocks: BlockedSlotRecord[];
 
     if ( chauffeurId !== undefined && chauffeurId !== null ) {
-      blocks = db.prepare( "SELECT * FROM blocked_slots WHERE chauffeurId IS NULL OR chauffeurId = ?" ).all( chauffeurId ) as BlockedSlotRecord[];
+      blocks = await db.prepare( "SELECT * FROM blocked_slots WHERE chauffeurId IS NULL OR chauffeurId = ?" ).all( chauffeurId ) as BlockedSlotRecord[];
     } else {
-      blocks = db.prepare( "SELECT * FROM blocked_slots" ).all() as BlockedSlotRecord[];
+      blocks = await db.prepare( "SELECT * FROM blocked_slots" ).all() as BlockedSlotRecord[];
     }
 
     const requestedStart = zonedDateTimeToDate( date, time, timeZone ).getTime();
@@ -1177,17 +1328,17 @@ export function checkBlockedClash(
   return { clash: false };
 }
 
-export function findAvailableChauffeur(
+export async function findAvailableChauffeur(
   date: string,
   time: string,
   durationMinutes: number
-): ChauffeurRecord | null {
-  const chauffeurs = getAllChauffeurs();
+): Promise<ChauffeurRecord | null> {
+  const chauffeurs = await getAllChauffeurs();
   for ( const c of chauffeurs ) {
-    const bClash = checkBookingClash( date, time, durationMinutes, c.id );
+    const bClash = await checkBookingClash( date, time, durationMinutes, c.id );
     if ( bClash.clash ) continue;
 
-    const blockClash = checkBlockedClash( date, time, durationMinutes, c.id );
+    const blockClash = await checkBlockedClash( date, time, durationMinutes, c.id );
     if ( blockClash.clash ) continue;
 
     // Chauffeur is completely available!

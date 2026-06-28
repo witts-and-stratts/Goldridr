@@ -59,9 +59,9 @@ function generateBookingReference(): string {
   return `GR-${ timestamp.slice( -4 ) }${ random }`;
 }
 
-function formatTimeInZone( date: Date ): string {
+async function formatTimeInZone( date: Date ): Promise<string> {
   return new Intl.DateTimeFormat( "en-GB", {
-    timeZone: getNotificationTimeZone(),
+    timeZone: await getNotificationTimeZone(),
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
@@ -84,19 +84,22 @@ function shiftDateString( date: string, days: number ): string {
   return `${ year }-${ month }-${ day }`;
 }
 
-function isSlotFree( date: string, time: string, durationMinutes: number, chauffeurId?: number | null ): boolean {
-  if ( !isBookingTimeInFuture( date, time, new Date(), getNotificationTimeZone() ) ) {
+async function isSlotFree( date: string, time: string, durationMinutes: number, chauffeurId?: number | null ): Promise<boolean> {
+  if ( !isBookingTimeInFuture( date, time, new Date(), await getNotificationTimeZone() ) ) {
     return false;
   }
 
-  return chauffeurId !== undefined && chauffeurId !== null
-    ? !( checkBookingClash( date, time, durationMinutes, chauffeurId ).clash || checkBlockedClash( date, time, durationMinutes, chauffeurId ).clash )
-    : !!findAvailableChauffeur( date, time, durationMinutes );
+  if ( chauffeurId !== undefined && chauffeurId !== null ) {
+    const bookingClash = await checkBookingClash( date, time, durationMinutes, chauffeurId );
+    const blockedClash = await checkBlockedClash( date, time, durationMinutes, chauffeurId );
+    return !( bookingClash.clash || blockedClash.clash );
+  }
+  return !!await findAvailableChauffeur( date, time, durationMinutes );
 }
 
-function getAlternativeSlots( date: string, time: string, durationMinutes: number, chauffeurId?: number | null ): AlternativeSlot[] {
+async function getAlternativeSlots( date: string, time: string, durationMinutes: number, chauffeurId?: number | null ): Promise<AlternativeSlot[]> {
   const alternatives: AlternativeSlot[] = [];
-  const timeZone = getNotificationTimeZone();
+  const timeZone = await getNotificationTimeZone();
   const requestedDate = zonedDateTimeToDate( date, time, timeZone );
 
   if ( Number.isNaN( requestedDate.getTime() ) ) return alternatives;
@@ -106,8 +109,8 @@ function getAlternativeSlots( date: string, time: string, durationMinutes: numbe
 
   for ( const offset of offsets ) {
     const testDate = new Date( requestedDate.getTime() + offset * 60 * 1000 );
-    const testTime = formatTimeInZone( testDate );
-    if ( isSlotFree( date, testTime, durationMinutes, chauffeurId ) ) {
+    const testTime = await formatTimeInZone( testDate );
+    if ( await isSlotFree( date, testTime, durationMinutes, chauffeurId ) ) {
       alternatives.push( { date, time: testTime } );
       if ( alternatives.length >= MAX_ALTERNATIVES ) return alternatives;
     }
@@ -116,7 +119,7 @@ function getAlternativeSlots( date: string, time: string, durationMinutes: numbe
   // Same time on the following days.
   for ( let dayOffset = 1; dayOffset <= 3; dayOffset++ ) {
     const testDate = shiftDateString( date, dayOffset );
-    if ( isSlotFree( testDate, time, durationMinutes, chauffeurId ) ) {
+    if ( await isSlotFree( testDate, time, durationMinutes, chauffeurId ) ) {
       alternatives.push( { date: testDate, time } );
       if ( alternatives.length >= MAX_ALTERNATIVES ) return alternatives;
     }
@@ -125,21 +128,26 @@ function getAlternativeSlots( date: string, time: string, durationMinutes: numbe
   return alternatives;
 }
 
-function checkSlotAvailability(
+async function checkSlotAvailability(
   date: string,
   time: string,
   durationMinutes: number,
   chauffeurId?: number | null
-): { available: boolean; alternativeSlots: AlternativeSlot[]; bookingClash: ReturnType<typeof checkBookingClash>; blockedClash: ReturnType<typeof checkBlockedClash> } {
-  const bookingClash = checkBookingClash( date, time, durationMinutes, chauffeurId );
-  const blockedClash = checkBlockedClash( date, time, durationMinutes, chauffeurId );
+): Promise<{
+  available: boolean;
+  alternativeSlots: AlternativeSlot[];
+  bookingClash: Awaited<ReturnType<typeof checkBookingClash>>;
+  blockedClash: Awaited<ReturnType<typeof checkBlockedClash>>;
+}> {
+  const bookingClash = await checkBookingClash( date, time, durationMinutes, chauffeurId );
+  const blockedClash = await checkBlockedClash( date, time, durationMinutes, chauffeurId );
   const available = chauffeurId !== undefined && chauffeurId !== null
     ? !( bookingClash.clash || blockedClash.clash )
-    : !!findAvailableChauffeur( date, time, durationMinutes );
+    : !!await findAvailableChauffeur( date, time, durationMinutes );
 
   return {
     available,
-    alternativeSlots: available ? [] : getAlternativeSlots( date, time, durationMinutes, chauffeurId ),
+    alternativeSlots: available ? [] : await getAlternativeSlots( date, time, durationMinutes, chauffeurId ),
     bookingClash,
     blockedClash,
   };
@@ -163,8 +171,8 @@ export async function POST( req: Request ) {
 
     const input: BookingRequestInput = parseResult.data;
     const durationMinutes = input.duration ?? 60;
-    assertFutureBookingTime( input.date, input.time, new Date(), getNotificationTimeZone() );
-    const assignedChauffeur = findAvailableChauffeur( input.date, input.time, durationMinutes );
+    assertFutureBookingTime( input.date, input.time, new Date(), await getNotificationTimeZone() );
+    const assignedChauffeur = await findAvailableChauffeur( input.date, input.time, durationMinutes );
 
     if ( !assignedChauffeur ) {
       return NextResponse.json(
@@ -172,14 +180,14 @@ export async function POST( req: Request ) {
           success: false,
           error: "clash",
           message: "All of our chauffeurs are already reserved at that time.",
-          alternativeSlots: getAlternativeSlots( input.date, input.time, durationMinutes ),
+          alternativeSlots: await getAlternativeSlots( input.date, input.time, durationMinutes ),
         },
         { status: 409 }
       );
     }
 
     const bookingReference = generateBookingReference();
-    const sqliteBooking = saveBooking( {
+    const sqliteBooking = await saveBooking( {
       reference: bookingReference,
       tripType: input.tripType || "airport",
       date: input.date,
@@ -199,7 +207,7 @@ export async function POST( req: Request ) {
 
     return NextResponse.json( {
       success: true,
-      booking: bookingRecordToBookingData( sqliteBooking ),
+      booking: await bookingRecordToBookingData( sqliteBooking ),
       bookingId: sqliteBooking.id,
       message: "Booking confirmed successfully",
     } );
@@ -258,7 +266,7 @@ export async function GET( req: Request ) {
 
   try {
     assertFutureBookingTime( date, time );
-    const availability = checkSlotAvailability( date, time, duration, chauffeurId );
+    const availability = await checkSlotAvailability( date, time, duration, chauffeurId );
 
     return NextResponse.json( {
       success: true,

@@ -27,6 +27,7 @@ export interface BookingDetail {
   notes?: string;
   status: string;
   chauffeurId?: number | null;
+  pin?: string | null;
   tripDetails: {
     pickupLocation?: string;
     dropoffLocation?: string;
@@ -182,6 +183,12 @@ export function BookingDetailDialog({
                       {booking.tripDetails.flightNumber && <span className="flex items-center gap-1.5 text-muted-foreground"><Plane className="size-3.5" />{booking.tripDetails.flightNumber}</span>}
                       {booking.tripDetails.durationHours && <span className="flex items-center gap-1.5 text-muted-foreground"><Clock className="size-3.5" />{booking.tripDetails.durationHours}h</span>}
                     </div>
+                  </div>
+                )}
+                {booking.pin && (
+                  <div className="booking-detail-row">
+                    <p className="booking-detail-row-label">Pickup PIN</p>
+                    <p className="text-sm font-mono font-semibold tracking-widest">{booking.pin}</p>
                   </div>
                 )}
                 {booking.notes && (

@@ -12,9 +12,9 @@ function uniqueCode( prefix: string ): string {
   return `${ prefix }-${ Date.now().toString( 36 ).toUpperCase() }`;
 }
 
-test( "discount codes reduce the stored booking total and increment redemptions", () => {
+test( "discount codes reduce the stored booking total and increment redemptions", async () => {
   const code = uniqueCode( "SAVE" );
-  createDiscountCode( {
+  await createDiscountCode( {
     code,
     label: "Test promo",
     kind: "percent",
@@ -23,7 +23,7 @@ test( "discount codes reduce the stored booking total and increment redemptions"
     maxRedemptions: 5,
   } );
 
-  const booking = saveBooking( {
+  const booking = await saveBooking( {
     reference: uniqueCode( "GR" ),
     tripType: "city",
     date: "2026-12-31",
@@ -51,17 +51,17 @@ test( "discount codes reduce the stored booking total and increment redemptions"
   assert.equal( tripDetails.discountAmountCents, 1000 );
   assert.equal( tripDetails.originalEstimatedTotal, 100 );
   assert.equal( tripDetails.estimatedTotal, 90 );
-  assert.equal( getDiscountCodeByCode( code )?.redemptions, 1 );
+  assert.equal( ( await getDiscountCodeByCode( code ) )?.redemptions, 1 );
 
-  const tracked = getDiscountCodesWithUsage().find( discount => discount.code === code );
+  const tracked = ( await getDiscountCodesWithUsage() ).find( discount => discount.code === code );
   assert.equal( tracked?.trackedRedemptions, 1 );
   assert.equal( tracked?.totalDiscountCents, 1000 );
   assert.equal( tracked?.totalRevenueCents, 9000 );
   assert.equal( tracked?.usages[ 0 ]?.bookingReference, booking.reference );
 } );
 
-test( "discount codes reject unknown codes", () => {
-  assert.throws(
+test( "discount codes reject unknown codes", async () => {
+  await assert.rejects(
     () => saveBooking( {
       reference: uniqueCode( "GR" ),
       tripType: "city",

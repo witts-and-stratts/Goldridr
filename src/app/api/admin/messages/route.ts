@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
-import { getSession, isAdmin } from "@/lib/auth";
+import { isAdmin } from "@/lib/auth";
 import { getAllBookings, getBookingsForChauffeur, getDb, type BookingRecord } from "@/lib/db";
+import { getRequestSession } from "@/lib/driver-auth";
 import { createBroadcast, createManualMessage } from "@/lib/notifications/store";
 
-export async function GET() {
-  const session = await getSession();
+export async function GET( request: Request ) {
+  const session = await getRequestSession( request );
   if ( !session ) return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
   const bookings = session.role === "admin"
-    ? getAllBookings()
-    : getBookingsForChauffeur( session.chauffeurId! );
+    ? await getAllBookings()
+    : await getBookingsForChauffeur( session.chauffeurId! );
   const ridersByEmail = new Map<string, BookingRecord>();
   for ( const booking of bookings ) {
     const key = booking.email.trim().toLowerCase();
@@ -29,7 +30,7 @@ export async function GET() {
 }
 
 export async function POST( request: Request ) {
-  const session = await getSession();
+  const session = await getRequestSession( request );
   if ( !session ) return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
   const body = await request.json();
   const subject = typeof body.subject === "string" ? body.subject.trim() : "";
@@ -40,7 +41,7 @@ export async function POST( request: Request ) {
   }
 
   if ( body.kind === "booking" ) {
-    const booking = getDb().prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( body.reference ) as BookingRecord | undefined;
+    const booking = await ( await getDb() ).prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( body.reference ) as BookingRecord | undefined;
     if ( !booking ) return NextResponse.json( { success: false, error: "Booking not found" }, { status: 404 } );
     if ( session.role === "chauffeur" && booking.chauffeurId !== session.chauffeurId ) {
       return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
@@ -49,7 +50,7 @@ export async function POST( request: Request ) {
     if ( requestedChannels.includes( "sms" ) && !( booking.phone && booking.smsConsentedAt ) ) {
       return NextResponse.json( { success: false, error: "Passenger has not consented to SMS" }, { status: 422 } );
     }
-    const notificationId = createManualMessage( getDb(), session, booking, subject, message, requestedChannels );
+    const notificationId = await createManualMessage( await getDb(), session, booking, subject, message, requestedChannels );
     return NextResponse.json( { success: true, notificationId }, { status: 201 } );
   }
 
@@ -59,7 +60,7 @@ export async function POST( request: Request ) {
       ? body.chauffeurIds.map( Number ).filter( ( id: number ) => Number.isInteger( id ) && id > 0 )
       : [];
     const validChannels = channels.filter( ( channel: string ) => [ "in_app", "email", "sms" ].includes( channel ) );
-    const notificationId = createBroadcast( getDb(), session, chauffeurIds, subject, message, validChannels );
+    const notificationId = await createBroadcast( await getDb(), session, chauffeurIds, subject, message, validChannels );
     return NextResponse.json( { success: true, notificationId }, { status: 201 } );
   }
 
@@ -78,8 +79,8 @@ export async function POST( request: Request ) {
     }
 
     const allowedBookings = session.role === "admin"
-      ? getAllBookings()
-      : getBookingsForChauffeur( session.chauffeurId! );
+      ? await getAllBookings()
+      : await getBookingsForChauffeur( session.chauffeurId! );
     const allowedByReference = new Map( allowedBookings.map( booking => [ booking.reference, booking ] ) );
     const requestedChannels = channels.filter( ( channel: string ) => channel === "email" || channel === "sms" );
     const notificationIds: number[] = [];
@@ -95,13 +96,13 @@ export async function POST( request: Request ) {
         return false;
       } );
       if ( riderChannels.length > 0 ) {
-        notificationIds.push( createManualMessage( getDb(), session, booking, subject, message, riderChannels ) );
+        notificationIds.push( await createManualMessage( await getDb(), session, booking, subject, message, riderChannels ) );
       }
     }
 
     if ( chauffeurIds.length > 0 ) {
       const chauffeurChannels = channels.filter( ( channel: string ) => [ "in_app", "email", "sms" ].includes( channel ) );
-      notificationIds.push( createBroadcast( getDb(), session, chauffeurIds, subject, message, chauffeurChannels ) );
+      notificationIds.push( await createBroadcast( await getDb(), session, chauffeurIds, subject, message, chauffeurChannels ) );
     }
 
     if ( notificationIds.length === 0 ) {

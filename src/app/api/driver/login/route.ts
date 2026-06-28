@@ -16,7 +16,7 @@ export async function POST( request: Request ) {
       );
     }
 
-    const chauffeur = getChauffeurByEmail( email );
+    const chauffeur = await getChauffeurByEmail( email );
     if ( !chauffeur?.passwordHash || !verifyPassword( password, chauffeur.passwordHash ) ) {
       return NextResponse.json(
         { success: false, error: "Invalid email or password" },

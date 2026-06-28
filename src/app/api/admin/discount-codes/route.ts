@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import z from "zod/v4";
-import { getSession, isAdmin } from "@/lib/auth";
+import { isAdmin } from "@/lib/auth";
+import { getRequestSession } from "@/lib/driver-auth";
 import {
   createDiscountCode,
   deleteDiscountCode,
@@ -31,8 +32,8 @@ const DiscountCodeUpdateSchema = z.object( {
   expiresAt: z.string().datetime().nullable().optional(),
 } );
 
-async function requireAdmin() {
-  const session = await getSession();
+async function requireAdmin( request: Request ) {
+  const session = await getRequestSession( request );
   if ( !session ) {
     return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
   }
@@ -42,14 +43,14 @@ async function requireAdmin() {
   return null;
 }
 
-export async function GET() {
-  const authError = await requireAdmin();
+export async function GET( request: Request ) {
+  const authError = await requireAdmin( request );
   if ( authError ) return authError;
-  return NextResponse.json( { success: true, discountCodes: getDiscountCodesWithUsage() } );
+  return NextResponse.json( { success: true, discountCodes: await getDiscountCodesWithUsage() } );
 }
 
 export async function POST( request: Request ) {
-  const authError = await requireAdmin();
+  const authError = await requireAdmin( request );
   if ( authError ) return authError;
 
   const parsed = DiscountCodeSchema.safeParse( await request.json() );
@@ -73,12 +74,12 @@ export async function POST( request: Request ) {
     );
   }
 
-  const discount = createDiscountCode( parsed.data );
+  const discount = await createDiscountCode( parsed.data );
   return NextResponse.json( { success: true, discountCode: discount }, { status: 201 } );
 }
 
 export async function PATCH( request: Request ) {
-  const authError = await requireAdmin();
+  const authError = await requireAdmin( request );
   if ( authError ) return authError;
 
   const parsed = DiscountCodeUpdateSchema.safeParse( await request.json() );
@@ -103,21 +104,21 @@ export async function PATCH( request: Request ) {
   }
 
   const { id, ...updates } = parsed.data;
-  if ( !updateDiscountCode( id, updates ) ) {
+  if ( !await updateDiscountCode( id, updates ) ) {
     return NextResponse.json( { success: false, error: "Discount code not found" }, { status: 404 } );
   }
   return NextResponse.json( { success: true } );
 }
 
 export async function DELETE( request: Request ) {
-  const authError = await requireAdmin();
+  const authError = await requireAdmin( request );
   if ( authError ) return authError;
 
   const id = Number( new URL( request.url ).searchParams.get( "id" ) );
   if ( !Number.isInteger( id ) || id <= 0 ) {
     return NextResponse.json( { success: false, error: "Invalid discount code id" }, { status: 400 } );
   }
-  if ( !deleteDiscountCode( id ) ) {
+  if ( !await deleteDiscountCode( id ) ) {
     return NextResponse.json( { success: false, error: "Discount code not found" }, { status: 404 } );
   }
   return NextResponse.json( { success: true } );

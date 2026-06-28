@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { getSession } from "@/lib/auth"
 import { AdminProvider } from "./context"
 import { AdminShell } from "./admin-shell"
+import { QueryProvider } from "./query-provider"
 import "./admin.css"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -10,8 +11,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!session) redirect("/login")
 
   return (
-    <AdminProvider session={session}>
-      <AdminShell>{children}</AdminShell>
-    </AdminProvider>
+    <QueryProvider>
+      <AdminProvider session={session}>
+        <AdminShell>{children}</AdminShell>
+      </AdminProvider>
+    </QueryProvider>
   )
 }

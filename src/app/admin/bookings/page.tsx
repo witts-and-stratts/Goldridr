@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { qk } from "@/lib/query-keys";
 import {
   Search, Clock, CalendarIcon,
   Plane, Navigation, Loader2, RefreshCw,
@@ -15,7 +17,6 @@ import { Card, CardContent } from "@/components/admin-ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/admin-ui/table";
 import { Skeleton } from "@/components/admin-ui/skeleton";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/admin-ui/dialog";
-// Note: BookingDetailDialog handles booking detail popup; Dialog still used for block calendar popup
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/admin-ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/admin-ui/tabs";
@@ -46,6 +47,7 @@ interface Booking {
   notes?: string;
   status: string;
   chauffeurId?: number | null;
+  pin?: string | null;
   tripDetails: {
     pickupLocation?: string;
     dropoffLocation?: string;
@@ -109,14 +111,38 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function BookingsPage() {
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const {
     chauffeurs,
     currentRole,
     selectedChauffeurId,
     setSelectedChauffeurId,
   } = useAdmin();
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const { data: bookingsData, isPending: bookingsPending } = useQuery( {
+    queryKey: qk.bookings(),
+    queryFn: async () => {
+      const res = await fetch( "/api/admin/bookings" );
+      const data = await res.json();
+      if ( !data.success ) throw new Error( data.error );
+      return data.bookings as Booking[];
+    },
+  } );
+
+  const { data: blockedSlotsData, isPending: blockedPending } = useQuery( {
+    queryKey: qk.blockedSlots(),
+    queryFn: async () => {
+      const res = await fetch( "/api/admin/blocked" );
+      const data = await res.json();
+      if ( !data.success ) throw new Error( data.error );
+      return data.blocks as BlockedSlot[];
+    },
+  } );
+
+  const bookings = bookingsData ?? [];
+  const blockedSlots = blockedSlotsData ?? [];
+  const loading = bookingsPending || blockedPending;
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -124,7 +150,6 @@ export default function BookingsPage() {
   const [selected, setSelected] = useState<Booking | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
-  const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
 
   // Block form state
   const [blockTitle, setBlockTitle] = useState("");
@@ -146,25 +171,6 @@ export default function BookingsPage() {
     }
   }, [currentRole.type, searchParams, setSelectedChauffeurId]);
 
-  const fetchAll = async () => {
-    setLoading(true);
-    try {
-      const [bRes, blRes] = await Promise.all([
-        fetch("/api/admin/bookings"),
-        fetch("/api/admin/blocked"),
-      ]);
-      const [bData, blData] = await Promise.all([bRes.json(), blRes.json()]);
-      if (bData.success) setBookings(bData.bookings);
-      if (blData.success) setBlockedSlots(blData.blocks);
-    } catch {
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchAll(); }, []);
-
   const handleUpdateStatus = async (reference: string, newStatus: string) => {
     const promise = fetch("/api/admin/bookings", {
       method: "PATCH",
@@ -173,7 +179,7 @@ export default function BookingsPage() {
     }).then(async (res) => {
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
-      setBookings((prev) => prev.map((b) => b.reference === reference ? { ...b, status: newStatus } : b));
+      queryClient.invalidateQueries( { queryKey: qk.bookings() } );
       if (selected?.reference === reference) setSelected((p) => p ? { ...p, status: newStatus } : null);
       return data;
     });
@@ -190,7 +196,7 @@ export default function BookingsPage() {
       .then(async (res) => {
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
-        setBookings((prev) => prev.filter((b) => b.reference !== reference));
+        queryClient.invalidateQueries( { queryKey: qk.bookings() } );
         setDetailOpen(false);
         setSelected(null);
         return data;
@@ -213,7 +219,7 @@ export default function BookingsPage() {
     }).then(async (res) => {
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
-      setBlockedSlots((prev) => [data.block, ...prev]);
+      queryClient.invalidateQueries( { queryKey: qk.blockedSlots() } );
       setBlockOpen(false);
       setBlockTitle(""); setBlockDate(""); setBlockEndDate(""); setBlockFullDay(false);
       setBlockTime(""); setBlockDuration(60); setBlockRecurring("none");
@@ -227,7 +233,7 @@ export default function BookingsPage() {
       .then(async (res) => {
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
-        setBlockedSlots((prev) => prev.filter((b) => b.id !== id));
+        queryClient.invalidateQueries( { queryKey: qk.blockedSlots() } );
         return data;
       });
     toast.promise(promise, { loading: "Removing…", success: "Removed", error: (e) => e.message });
@@ -301,7 +307,10 @@ export default function BookingsPage() {
               </SelectContent>
             </Select>
           )}
-          <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => {
+            queryClient.invalidateQueries( { queryKey: qk.bookings() } );
+            queryClient.invalidateQueries( { queryKey: qk.blockedSlots() } );
+          }} disabled={loading}>
             {loading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Refresh
           </Button>
@@ -537,7 +546,7 @@ export default function BookingsPage() {
             const data = await res.json();
             if (!data.success) throw new Error(data.error);
             toast.success("Chauffeur updated");
-            setBookings((prev) => prev.map((b) => b.reference === reference ? { ...b, chauffeurId } : b));
+            queryClient.invalidateQueries( { queryKey: qk.bookings() } );
             setSelected((p) => p ? { ...p, chauffeurId } : null);
           } catch (err) {
             toast.error("Failed", { description: err instanceof Error ? err.message : "Unknown error" });

@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
 import {
   BadgePercent,
   CalendarClock,
@@ -120,36 +122,26 @@ function StatusBadge( { discount }: { discount: DiscountCode } ) {
 }
 
 export default function DiscountsPage() {
-  const [ discountCodes, setDiscountCodes ] = useState<DiscountCode[]>( [] );
-  const [ loading, setLoading ] = useState( true );
+  const queryClient = useQueryClient();
+
+  const { data: discountCodesData, isPending: loading } = useQuery( {
+    queryKey: qk.discounts(),
+    queryFn: async () => {
+      const response = await fetch( "/api/admin/discount-codes" );
+      const data = await response.json();
+      if ( !response.ok || !data.success ) throw new Error( data.error || "Failed to load discount codes" );
+      return data.discountCodes as DiscountCode[];
+    },
+  } );
+
+  const discountCodes = discountCodesData ?? [];
+
   const [ saving, setSaving ] = useState( false );
   const [ dialogOpen, setDialogOpen ] = useState( false );
   const [ usageCode, setUsageCode ] = useState<DiscountCode | null>( null );
   const [ search, setSearch ] = useState( "" );
   const [ statusFilter, setStatusFilter ] = useState( "all" );
   const [ form, setForm ] = useState( EMPTY_FORM );
-
-  const loadDiscountCodes = useCallback( async () => {
-    setLoading( true );
-    try {
-      const response = await fetch( "/api/admin/discount-codes" );
-      const data = await response.json();
-      if ( !response.ok || !data.success ) throw new Error( data.error || "Failed to load discount codes" );
-      setDiscountCodes( data.discountCodes );
-      setUsageCode( current => current
-        ? data.discountCodes.find( ( discount: DiscountCode ) => discount.id === current.id ) || null
-        : null
-      );
-    } catch ( error ) {
-      toast.error( error instanceof Error ? error.message : "Failed to load discount codes" );
-    } finally {
-      setLoading( false );
-    }
-  }, [] );
-
-  useEffect( () => {
-    void loadDiscountCodes();
-  }, [ loadDiscountCodes ] );
 
   const summary = useMemo( () => ( {
     totalCodes: discountCodes.length,
@@ -206,7 +198,7 @@ export default function DiscountsPage() {
       toast.success( `Discount code ${ data.discountCode.code } created` );
       setForm( EMPTY_FORM );
       setDialogOpen( false );
-      await loadDiscountCodes();
+      queryClient.invalidateQueries( { queryKey: qk.discounts() } );
     } catch ( error ) {
       toast.error( error instanceof Error ? error.message : "Failed to create discount code" );
     } finally {
@@ -226,7 +218,7 @@ export default function DiscountsPage() {
       return;
     }
     toast.success( discount.active ? "Discount code disabled" : "Discount code enabled" );
-    await loadDiscountCodes();
+    queryClient.invalidateQueries( { queryKey: qk.discounts() } );
   };
 
   return (

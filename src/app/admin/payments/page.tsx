@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
 import {
   Banknote,
   CheckCircle2,
@@ -121,9 +123,32 @@ function PaymentStatusBadge( { status }: { status: PaymentStatus } ) {
 }
 
 export default function PaymentsPage() {
-  const [payments, setPayments] = useState<Payment[]>( [] );
-  const [bookings, setBookings] = useState<Booking[]>( [] );
-  const [loading, setLoading] = useState( true );
+  const queryClient = useQueryClient();
+
+  const { data: paymentsData, isPending: paymentsPending } = useQuery( {
+    queryKey: qk.payments(),
+    queryFn: async () => {
+      const res = await fetch( "/api/admin/payments" );
+      const data = await res.json();
+      if ( !data.success ) throw new Error( data.error || "Failed to load payments" );
+      return data.payments as Payment[];
+    },
+  } );
+
+  const { data: bookingsData } = useQuery( {
+    queryKey: qk.bookings(),
+    queryFn: async () => {
+      const res = await fetch( "/api/admin/bookings" );
+      const data = await res.json();
+      if ( !data.success ) throw new Error( data.error || "Failed to load bookings" );
+      return data.bookings as Booking[];
+    },
+  } );
+
+  const payments = paymentsData ?? [];
+  const bookings = bookingsData ?? [];
+  const loading = paymentsPending;
+
   const [saving, setSaving] = useState( false );
   const [dialogOpen, setDialogOpen] = useState( false );
   const [search, setSearch] = useState( "" );
@@ -134,32 +159,6 @@ export default function PaymentsPage() {
   const [status, setStatus] = useState<PaymentStatus>( "paid" );
   const [transactionReference, setTransactionReference] = useState( "" );
   const [notes, setNotes] = useState( "" );
-
-  const fetchData = useCallback( async () => {
-    setLoading( true );
-    try {
-      const [ paymentsResponse, bookingsResponse ] = await Promise.all( [
-        fetch( "/api/admin/payments" ),
-        fetch( "/api/admin/bookings" ),
-      ] );
-      const [ paymentsData, bookingsData ] = await Promise.all( [
-        paymentsResponse.json(),
-        bookingsResponse.json(),
-      ] );
-      if ( !paymentsResponse.ok || !paymentsData.success ) throw new Error( paymentsData.error || "Failed to load payments" );
-      if ( !bookingsResponse.ok || !bookingsData.success ) throw new Error( bookingsData.error || "Failed to load bookings" );
-      setPayments( paymentsData.payments );
-      setBookings( bookingsData.bookings );
-    } catch ( error ) {
-      toast.error( error instanceof Error ? error.message : "Failed to load payments" );
-    } finally {
-      setLoading( false );
-    }
-  }, [] );
-
-  useEffect( () => {
-    fetchData();
-  }, [ fetchData ] );
 
   const summary = useMemo( () => {
     const paid = payments.filter( payment => payment.status === "paid" )
@@ -234,7 +233,8 @@ export default function PaymentsPage() {
       );
       setDialogOpen( false );
       resetForm();
-      await fetchData();
+      await queryClient.invalidateQueries( { queryKey: qk.payments() } );
+      await queryClient.invalidateQueries( { queryKey: qk.bookings() } );
     } catch ( error ) {
       toast.error( error instanceof Error ? error.message : "Failed to record payment" );
     } finally {
@@ -251,7 +251,7 @@ export default function PaymentsPage() {
       } );
       const data = await response.json();
       if ( !response.ok || !data.success ) throw new Error( data.error || "Failed to update payment" );
-      setPayments( current => current.map( item => item.id === payment.id ? { ...item, status: nextStatus } : item ) );
+      queryClient.invalidateQueries( { queryKey: qk.payments() } );
       toast.success(
         nextStatus === "paid"
           ? "Payment marked paid and booking confirmed"
@@ -268,7 +268,7 @@ export default function PaymentsPage() {
       const response = await fetch( `/api/admin/payments?id=${ payment.id }`, { method: "DELETE" } );
       const data = await response.json();
       if ( !response.ok || !data.success ) throw new Error( data.error || "Failed to delete payment" );
-      setPayments( current => current.filter( item => item.id !== payment.id ) );
+      queryClient.invalidateQueries( { queryKey: qk.payments() } );
       toast.success( "Payment deleted" );
     } catch ( error ) {
       toast.error( error instanceof Error ? error.message : "Failed to delete payment" );
@@ -283,7 +283,10 @@ export default function PaymentsPage() {
           <p className="mt-0.5 text-sm text-muted-foreground">Track customer charges against bookings.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => {
+            queryClient.invalidateQueries( { queryKey: qk.payments() } );
+            queryClient.invalidateQueries( { queryKey: qk.bookings() } );
+          }} disabled={loading}>
             {loading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Refresh
           </Button>

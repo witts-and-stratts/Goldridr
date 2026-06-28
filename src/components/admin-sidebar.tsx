@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, CalendarDays, Users, BookOpen,
   ShieldCheck, ChevronRight, LogOut, Bell, Settings,
-  TestTube2, CreditCard, TicketPercent,
+  TestTube2, CreditCard, TicketPercent, ScanLine, Car,
 } from "lucide-react"
 import {
   Collapsible,
@@ -51,6 +51,7 @@ const navSections = [
     items: [
       { label: "Bookings", icon: BookOpen,     href: "/admin/bookings"  },
       { label: "Calendar", icon: CalendarDays, href: "/admin/calendar"  },
+      { label: "Scan",     icon: ScanLine,     href: "/admin/scan"      },
       { label: "Payments", icon: CreditCard, href: "/admin/payments", adminOnly: true },
       { label: "Discounts", icon: TicketPercent, href: "/admin/discounts", adminOnly: true },
     ],
@@ -60,6 +61,7 @@ const navSections = [
     defaultOpen: true,
     items: [
       { label: "Chauffeurs", icon: Users, href: "/admin/chauffeurs" },
+      { label: "Vehicles", icon: Car, href: "/admin/vehicles" },
     ],
   },
 ]

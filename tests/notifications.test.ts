@@ -10,6 +10,7 @@ import {
 } from "../src/lib/notifications/store";
 import type { BookingRecord } from "../src/lib/db";
 import type { AuthSession } from "../src/lib/auth";
+import { asDatabaseLike } from "./db-like";
 
 function createDb() {
   const db = new Database( ":memory:" );
@@ -75,10 +76,10 @@ const booking: BookingRecord = {
   createdAt: "2026-06-11T12:00:00.000Z",
 };
 
-test( "booking creation atomically creates in-app, email, SMS reminder, and chauffeur records", () => {
+test( "booking creation atomically creates in-app, email, SMS reminder, and chauffeur records", async () => {
   const db = createDb();
   db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (7, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run();
-  db.transaction( () => enqueueBookingCreated( db, booking ) )();
+  await enqueueBookingCreated( asDatabaseLike( db ), booking );
 
   const notifications = db.prepare( "SELECT COUNT(*) AS count FROM notifications" ).get() as { count: number };
   const recipients = db.prepare( "SELECT userId FROM notification_recipients ORDER BY userId" ).all() as { userId: string }[];
@@ -112,7 +113,7 @@ test( "booking creation atomically creates in-app, email, SMS reminder, and chau
   db.close();
 } );
 
-test( "expired leases can be reclaimed without claiming active leases", () => {
+test( "expired leases can be reclaimed without claiming active leases", async () => {
   const db = createDb();
   db.prepare( `
     INSERT INTO notifications (id, eventKey, type, category, title, body, metadata)
@@ -128,7 +129,7 @@ test( "expired leases can be reclaimed without claiming active leases", () => {
   insert.run( "expired@example.com", "expired", past, past, past );
   insert.run( "active@example.com", "active", past, past, future );
 
-  const claimed = claimDeliveries( db, 10, 60_000 );
+  const claimed = await claimDeliveries( asDatabaseLike( db ), 10, 60_000 );
   assert.equal( claimed.length, 1 );
   assert.equal( claimed[ 0 ].recipient, "expired@example.com" );
   db.close();
@@ -282,7 +283,7 @@ test( "every rider trip email template includes the booking QR code", async () =
   }
 } );
 
-test( "manual reminders create auditable customer and chauffeur deliveries", () => {
+test( "manual reminders create auditable customer and chauffeur deliveries", async () => {
   const db = createDb();
   db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (7, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run();
   const session: AuthSession = {
@@ -292,7 +293,7 @@ test( "manual reminders create auditable customer and chauffeur deliveries", () 
     email: "admin@example.com",
     expiresAt: Math.floor( Date.now() / 1000 ) + 3600,
   };
-  const notificationId = createManualReminder( db, session, booking, [ "email", "sms" ] );
+  const notificationId = await createManualReminder( asDatabaseLike( db ), session, booking, [ "email", "sms" ] );
   const deliveries = db.prepare(
     "SELECT channel, recipient, template FROM notification_deliveries WHERE notificationId = ? ORDER BY recipient"
   ).all( notificationId ) as Array<{ channel: string; recipient: string; template: string }>;
@@ -305,11 +306,11 @@ test( "manual reminders create auditable customer and chauffeur deliveries", () 
   db.close();
 } );
 
-test( "booking assignment changes notify the customer and affected chauffeurs", () => {
+test( "booking assignment changes notify the customer and affected chauffeurs", async () => {
   const db = createDb();
   db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (7, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run();
 
-  enqueueBookingAssignmentChanged( db, booking, null );
+  await enqueueBookingAssignmentChanged( asDatabaseLike( db ), booking, null );
 
   const recipients = db.prepare(
     "SELECT userId FROM notification_recipients ORDER BY userId"
@@ -329,12 +330,12 @@ test( "booking assignment changes notify the customer and affected chauffeurs", 
   db.close();
 } );
 
-test( "booking deletion notifies all parties and cancels pending reminders", () => {
+test( "booking deletion notifies all parties and cancels pending reminders", async () => {
   const db = createDb();
   db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (7, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run();
-  enqueueBookingCreated( db, booking );
+  await enqueueBookingCreated( asDatabaseLike( db ), booking );
 
-  enqueueBookingDeleted( db, booking );
+  await enqueueBookingDeleted( asDatabaseLike( db ), booking );
 
   const deletion = db.prepare(
     "SELECT id, type FROM notifications WHERE type = 'booking.deleted'"

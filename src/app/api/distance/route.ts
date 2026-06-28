@@ -29,12 +29,12 @@ export async function GET( request: Request ) {
 
   // Get price per mile based on booking type
   const pricePerMileMap: Record<string, number> = {
-    airport: getPriceByMileAirport(),
-    hourly: getPriceByMileHourly(),
-    city: getPriceByMileCity(),
+    airport: await getPriceByMileAirport(),
+    hourly: await getPriceByMileHourly(),
+    city: await getPriceByMileCity(),
   };
 
-  const pricePerMile = pricePerMileMap[ type ] ?? getPriceByMileAirport();
+  const pricePerMile = pricePerMileMap[ type ] ?? await getPriceByMileAirport();
 
   try {
     // Call Google Maps Distance Matrix API

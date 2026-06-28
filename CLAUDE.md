@@ -60,3 +60,164 @@ When spawning subagents (Agent/Task tool), the routing block is automatically in
 | `ctx stats` | Call the `ctx_stats` MCP tool and display the full output verbatim |
 | `ctx doctor` | Call the `ctx_doctor` MCP tool, run the returned shell command, display as checklist |
 | `ctx upgrade` | Call the `ctx_upgrade` MCP tool, run the returned shell command, display as checklist |
+
+---
+
+# Goldridr — Project Guide
+
+## Overview
+
+Goldridr is a luxury chauffeur booking platform with two apps:
+
+- **Web admin** (`/src`) — Next.js 15, TypeScript, Tailwind, SQLite (via `bookings.db`). Admin dashboard for managing bookings, chauffeurs, discounts, payments, and settings.
+- **Driver app** (`/driver-app`) — Expo 56 (SDK 56), React Native 0.85, Expo Router. Used by drivers and admins on mobile.
+
+Both share the same SQLite database and a set of REST API routes under `/src/app/api/`.
+
+---
+
+## Driver App
+
+### Stack
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `expo` | ~56.0.11 | SDK |
+| `expo-router` | ~56.2.10 | File-based routing |
+| `@expo/ui` | ~56.0.17 | Native UI primitives — **prefer these always** |
+| `expo-camera` | ~56.0.8 | QR code scanning |
+| `expo-glass-effect` | ~56.0.4 | Glassmorphism backgrounds |
+| `expo-symbols` | ~56.0.6 | SF Symbols |
+| `react-native-reanimated` | 4.3.1 | Animations |
+| `react-native-gesture-handler` | ~2.31.1 | Gestures |
+| `react-native-safe-area-context` | ~5.7.0 | Safe area insets |
+
+### UI preference — @expo/ui first
+
+Always reach for `@expo/ui` (and its community sub-packages) before writing custom RN components. Key APIs in use:
+
+```ts
+// Bottom sheets
+import { BottomSheet } from "@expo/ui";
+// isPresented={true/false} to open/close. fitToContents sizes to content.
+// onDismiss fires when the sheet is dismissed (drag or tap backdrop).
+// Native sheet renders its own drag handle — do NOT add a custom one.
+
+// Segmented controls
+import { SegmentedControl } from "@expo/ui/community/segmented-control";
+// Props: values, selectedIndex, onValueChange, appearance, tintColor, style
+
+// Other @expo/ui primitives as they become available (Switch, Picker, etc.)
+```
+
+For icons, always use the project wrapper instead of raw libraries:
+```ts
+import { NativeIcon, type NativeSymbolName } from "@/components/native-icon";
+// Always pass { ios, android, web } object — never a bare string
+```
+
+### File structure
+
+```
+driver-app/src/
+  app/
+    _layout.tsx               Root layout, AuthProvider
+    (tabs)/
+      _layout.tsx             NativeTabs shell (Home, Schedule, Bookings, Scan)
+      index.tsx               Home screen — upcoming ride + admin flyout drawer
+      manage.tsx              Bookings screen — SegmentedControl (Overview / Bookings)
+      schedule.tsx            Schedule screen — month/week/agenda calendar
+      scan.tsx                QR scan screen
+    manage/
+      chauffeurs.tsx          Admin: chauffeur list
+      discounts.tsx           Admin: discount codes
+      payments.tsx            Admin: payments
+      settings.tsx            Admin: settings
+    ride/
+      [reference].tsx         Ride detail — booking status + chauffeur (bottom-sheet pattern)
+    login.tsx
+  components/
+    native-controls.tsx       NativeButton, NativePicker wrappers
+    native-icon.tsx           NativeIcon + NativeSymbolName type
+    status-text.tsx           StatusText pill component
+    ride-row.tsx              RideRow list item (flat prop for list style)
+    ride-info.tsx             Full ride info block
+    block-row.tsx             Blocked-date row
+    agenda-list.tsx           Agenda view list
+    week-timeline.tsx         Week timeline view
+    month-grid.tsx            Month calendar grid
+    year-grid.tsx             Year overview grid
+    field-label.tsx           Form field label
+    route-line.tsx            Pickup → destination visual
+  lib/
+    api.ts                    All API calls (getRides, getAdminChauffeurs, updateAdminBooking, etc.)
+    auth-context.tsx          AuthContext — token, user, isAdmin, login, logout
+    colors.ts                 colors object + plate (StyleSheet shorthand for gold text)
+    types.ts                  DriverRide, AdminChauffeur, and other shared types
+    format.ts                 Date/time formatters
+    money.ts                  Currency formatters
+    schedule.ts               Schedule helpers
+```
+
+### Routing
+
+- Tabs use `expo-router/unstable-native-tabs` (`NativeTabs`, `NativeTabs.Trigger`, `NativeTabs.Screen`).
+- Tab icons always specify `sf` (iOS) and `md` (Android) keys.
+- Protected routes check `token` from `useAuth()` and redirect to `/login` if absent.
+
+### Patterns
+
+**Bottom-sheet confirmation pattern** (used for booking status and chauffeur changes):
+1. Row is a `Pressable` with label on left, current value + chevron on right (`compactRow` style).
+2. Tap opens sheet: `setPendingValue(x); setSheetOpen(true)`.
+3. Sheet contains a list of options + a `NativeButton label="Confirm"` that calls the API and closes.
+4. `onDismiss` clears both `pendingValue` and `sheetOpen`.
+
+**Scroll padding**: All tab-screen `ScrollView` components must include `paddingBottom: insets.bottom + 70` in their `contentContainerStyle` so content is not hidden behind the tab bar.
+
+**Admin-only features**: Guard with `isAdmin` from `useAuth()`. Non-admin users must not see admin routes or actions.
+
+### Colors
+
+```ts
+import { colors, plate } from "@/lib/colors";
+// colors.gold, colors.amber, colors.red, colors.ivory, colors.muted, colors.background
+// plate — StyleSheet text style preset for gold-coloured headings
+```
+
+---
+
+## Web Admin
+
+- Next.js 15 App Router, TypeScript, Tailwind CSS.
+- SQLite via `bookings.db` at the project root.
+- API routes live under `src/app/api/`.
+- Admin UI components in `src/components/admin-ui/` (shadcn-style).
+- Booking flow components in `src/components/booking/`.
+- Calendar components in `src/components/calendar/`.
+
+---
+
+## Shared API
+
+Driver app calls web API routes (same host) using a bearer token. Key endpoints:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/driver/rides` | List rides for current driver |
+| GET | `/api/driver/rides/[reference]` | Single ride detail |
+| POST | `/api/driver/scan` | Look up ride by QR data |
+| GET/POST | `/api/driver/blocked` | Blocked dates |
+
+Admin-only routes are gated server-side by role check on the token.
+
+---
+
+## Key conventions
+
+- No comments unless the WHY is non-obvious.
+- No custom UI components when an `@expo/ui` primitive exists.
+- No `useFlatList` — use `ScrollView` + `.map()` for short lists; `FlatList` only for long paginated lists.
+- `useFocusEffect` + `useCallback` for data loading in tab screens (re-fetches on re-focus).
+- Horizontal chip rows: `flexGrow: 0, flexShrink: 0` on the `ScrollView` + `alignItems: "center"` on `contentContainerStyle` to prevent stretch.
+- `useSafeAreaInsets()` for all inset-aware padding — never hardcode status bar / home indicator heights.

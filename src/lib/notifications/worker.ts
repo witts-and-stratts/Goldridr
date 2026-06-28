@@ -61,17 +61,18 @@ function nextAttempt( attempts: number, error: unknown ): Date {
   return new Date( Date.now() + base + jitter );
 }
 
-function createAdminFailureAlert( delivery: NotificationDeliveryRecord, error: unknown ): void {
-  const db = getDb();
-  const notificationId = Number( db.prepare( `
+async function createAdminFailureAlert( delivery: NotificationDeliveryRecord, error: unknown ): Promise<void> {
+  const db = await getDb();
+  const result = await db.prepare( `
     INSERT INTO notifications (eventKey, type, category, title, body, metadata)
     VALUES (?, 'delivery.failed', 'system', 'Notification delivery failed', ?, ?)
   ` ).run(
     `delivery:${ delivery.id }:dead:${ randomUUID() }`,
     `Delivery ${ delivery.id } to ${ delivery.recipient } exhausted retries: ${ error instanceof Error ? error.message : "Unknown error" }`,
     JSON.stringify( { deliveryId: delivery.id } )
-  ).lastInsertRowid );
-  db.prepare( "INSERT INTO notification_recipients (notificationId, userId) VALUES (?, 'admin')" ).run( notificationId );
+  );
+  const notificationId = Number( result.lastInsertRowid );
+  await db.prepare( "INSERT INTO notification_recipients (notificationId, userId) VALUES (?, 'admin')" ).run( notificationId );
 }
 
 export class NotificationWorker {
@@ -81,9 +82,9 @@ export class NotificationWorker {
   constructor( private readonly queue: NotificationQueue = new SqliteNotificationQueue() ) {}
 
   async verify(): Promise<void> {
-    this.emailTransport = createEmailTransport();
+    this.emailTransport = await createEmailTransport();
     await this.emailTransport.verify();
-    this.smsTransport = createSmsTransport();
+    this.smsTransport = await createSmsTransport();
     await this.smsTransport.verify();
   }
 
@@ -97,7 +98,7 @@ export class NotificationWorker {
         await this.deliver( delivery );
         delivered++;
       } catch ( error ) {
-        this.fail( delivery, error );
+        await this.fail( delivery, error );
         failed++;
       }
     }
@@ -105,16 +106,16 @@ export class NotificationWorker {
   }
 
   private async deliver( delivery: NotificationDeliveryRecord ): Promise<void> {
-    const db = getDb();
-    const notification = db.prepare(
+    const db = await getDb();
+    const notification = await db.prepare(
       "SELECT * FROM notifications WHERE id = ?"
     ).get( delivery.notificationId ) as { id: number; bookingReference: string | null; category: string } | undefined;
     if ( !notification ) throw new Error( "Notification no longer exists" );
 
     if ( notification.category === "reminders" && notification.bookingReference ) {
-      const booking = db.prepare( "SELECT status, date, time FROM bookings WHERE reference = ?" ).get( notification.bookingReference ) as { status: string; date: string; time: string } | undefined;
+      const booking = await db.prepare( "SELECT status, date, time FROM bookings WHERE reference = ?" ).get( notification.bookingReference ) as { status: string; date: string; time: string } | undefined;
       if ( !booking || [ "cancelled", "rejected" ].includes( booking.status ) || zonedDateTimeToDate( booking.date, booking.time ).getTime() <= Date.now() ) {
-        db.prepare( `
+        await db.prepare( `
           UPDATE notification_deliveries
           SET status = 'cancelled', leaseToken = NULL, leaseExpiresAt = NULL, updatedAt = CURRENT_TIMESTAMP
           WHERE id = ?
@@ -141,8 +142,8 @@ export class NotificationWorker {
       );
       result = await this.emailTransport!.send( message );
     } else if ( delivery.channel === "sms" ) {
-      if ( !this.smsTransport ) this.smsTransport = createSmsTransport();
-      const smsConfig = getSmsConfig();
+      if ( !this.smsTransport ) this.smsTransport = await createSmsTransport();
+      const smsConfig = await getSmsConfig();
       const response = await this.smsTransport.send( {
         from: smsConfig.from,
         to: delivery.recipient,
@@ -159,7 +160,7 @@ export class NotificationWorker {
       throw new Error( `Unsupported delivery channel ${ delivery.channel }` );
     }
 
-    db.prepare( `
+    await db.prepare( `
       UPDATE notification_deliveries
       SET status = 'delivered', attempts = attempts + 1, provider = ?, providerMessageId = ?,
           accepted = ?, rejected = ?, response = ?, providerMetadata = ?, lastError = NULL,
@@ -176,12 +177,12 @@ export class NotificationWorker {
     );
   }
 
-  private fail( delivery: NotificationDeliveryRecord, error: unknown ): void {
-    const db = getDb();
+  private async fail( delivery: NotificationDeliveryRecord, error: unknown ): Promise<void> {
+    const db = await getDb();
     const attempts = delivery.attempts + 1;
     const retry = isTransient( error ) && attempts <= RETRY_DELAYS_MS.length;
     if ( retry ) {
-      db.prepare( `
+      await db.prepare( `
         UPDATE notification_deliveries
         SET status = 'pending', attempts = ?, nextAttemptAt = ?, lastError = ?,
             leaseToken = NULL, leaseExpiresAt = NULL, updatedAt = CURRENT_TIMESTAMP
@@ -190,13 +191,13 @@ export class NotificationWorker {
       return;
     }
     const status = attempts > RETRY_DELAYS_MS.length ? "dead_letter" : "failed";
-    db.prepare( `
+    await db.prepare( `
       UPDATE notification_deliveries
       SET status = ?, attempts = ?, lastError = ?, leaseToken = NULL, leaseExpiresAt = NULL,
           updatedAt = CURRENT_TIMESTAMP
       WHERE id = ?
     ` ).run( status, attempts, error instanceof Error ? error.message : String( error ), delivery.id );
-    if ( status === "dead_letter" ) createAdminFailureAlert( delivery, error );
+    if ( status === "dead_letter" ) await createAdminFailureAlert( delivery, error );
   }
 
   async close(): Promise<void> {

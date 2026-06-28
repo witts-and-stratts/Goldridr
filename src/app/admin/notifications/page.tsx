@@ -1,23 +1,36 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
 import {
   AlertTriangle,
   BellRing,
   BookOpen,
   Check,
+  CheckSquare,
   CircleAlert,
   Inbox,
   MailOpen,
   MessageSquareText,
+  MoreHorizontal,
   RefreshCw,
   Search,
   Send,
+  Square,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAdmin } from "../context";
 import { Badge } from "@/components/admin-ui/badge";
 import { Button } from "@/components/admin-ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/admin-ui/dropdown-menu";
 import { Input } from "@/components/admin-ui/input";
 import {
   Sheet,
@@ -105,6 +118,7 @@ function statusVariant( status: string ) {
 
 export default function NotificationsPage() {
   const { session } = useAdmin();
+  const queryClient = useQueryClient();
   const [ items, setItems ] = useState<NotificationItem[]>( [] );
   const [ failed, setFailed ] = useState<FailedDelivery[]>( [] );
   const [ reminders, setReminders ] = useState<ReminderDelivery[]>( [] );
@@ -116,28 +130,41 @@ export default function NotificationsPage() {
   const [ search, setSearch ] = useState( "" );
   const [ unreadOnly, setUnreadOnly ] = useState( false );
   const [ mobileDetailOpen, setMobileDetailOpen ] = useState( false );
+  const [ isSelecting, setIsSelecting ] = useState( false );
+  const [ selectedIds, setSelectedIds ] = useState<Set<number>>( new Set() );
+  const [ openMenuId, setOpenMenuId ] = useState<number | null>( null );
+  const lastClickedIndexRef = useRef<number | null>( null );
 
-  const load = useCallback( async () => {
-    const [ notificationResponse, reminderResponse ] = await Promise.all( [
-      fetch( "/api/admin/notifications?limit=100" ),
-      fetch( "/api/admin/reminders" ),
-    ] );
-    const [ notificationData, reminderData ] = await Promise.all( [
-      notificationResponse.json(),
-      reminderResponse.json(),
-    ] );
-    if ( notificationData.success ) {
-      setItems( notificationData.notifications );
-      setFailed( notificationData.failedDeliveries );
-    }
-    if ( reminderData.success ) setReminders( reminderData.reminders );
-  }, [] );
+  const { data: inboxData, refetch } = useQuery( {
+    queryKey: qk.notifications(),
+    queryFn: async () => {
+      const [ notifRes, reminderRes ] = await Promise.all( [
+        fetch( "/api/admin/notifications?limit=100" ),
+        fetch( "/api/admin/reminders" ),
+      ] );
+      const [ notifData, reminderData ] = await Promise.all( [
+        notifRes.json(),
+        reminderRes.json(),
+      ] );
+      return {
+        notifications: notifData.success ? notifData.notifications as NotificationItem[] : [],
+        failedDeliveries: notifData.success ? notifData.failedDeliveries as FailedDelivery[] : [],
+        reminders: reminderData.success ? reminderData.reminders as ReminderDelivery[] : [],
+      };
+    },
+  } );
 
   useEffect( () => {
-    // Initial remote inbox hydration.
+    if ( !inboxData ) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load();
-  }, [ load ] );
+    setItems( inboxData.notifications );
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFailed( inboxData.failedDeliveries );
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReminders( inboxData.reminders );
+  }, [ inboxData ] );
+
+  const load = useCallback( () => { void refetch(); }, [ refetch ] );
 
   const visibleItems = useMemo( () => {
     let result: NotificationItem[] = [];
@@ -196,6 +223,7 @@ export default function NotificationsPage() {
   }, [] );
 
   const selectNotification = async ( item: NotificationItem ) => {
+    lastClickedIndexRef.current = visibleItems.findIndex( v => v.recipientId === item.recipientId );
     setSelectedNotificationId( item.recipientId );
     openMobileDetail();
     if ( item.readAt ) return;
@@ -217,6 +245,92 @@ export default function NotificationsPage() {
     } );
     setItems( current => current.map( item => ( { ...item, readAt: item.readAt || new Date().toISOString() } ) ) );
   };
+
+  const patchNotifications = ( action: string, recipientIds: number[] ) =>
+    fetch( "/api/admin/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify( { action, recipientIds } ),
+    } );
+
+  const markReadIds = async ( ids: number[] ) => {
+    await patchNotifications( "read", ids );
+    const now = new Date().toISOString();
+    setItems( current => current.map( item => ids.includes( item.recipientId ) ? { ...item, readAt: now } : item ) );
+  };
+
+  const markUnreadIds = async ( ids: number[] ) => {
+    await patchNotifications( "unread", ids );
+    setItems( current => current.map( item => ids.includes( item.recipientId ) ? { ...item, readAt: null } : item ) );
+  };
+
+  const deleteIds = async ( ids: number[] ) => {
+    await patchNotifications( "delete", ids );
+    setItems( current => current.filter( item => !ids.includes( item.recipientId ) ) );
+    if ( ids.includes( selectedNotificationId! ) ) setSelectedNotificationId( null );
+    setSelectedIds( prev => { const next = new Set( prev ); ids.forEach( id => next.delete( id ) ); return next; } );
+  };
+
+  const exitSelect = useCallback( () => {
+    setIsSelecting( false );
+    setSelectedIds( new Set() );
+    lastClickedIndexRef.current = null;
+  }, [] );
+
+  const handleRowClick = ( item: NotificationItem, index: number, e: React.MouseEvent ) => {
+    if ( e.shiftKey || isSelecting ) {
+      if ( !isSelecting ) {
+        setIsSelecting( true );
+        if ( e.shiftKey && lastClickedIndexRef.current !== null ) {
+          const lo = Math.min( lastClickedIndexRef.current, index );
+          const hi = Math.max( lastClickedIndexRef.current, index );
+          setSelectedIds( new Set( visibleItems.slice( lo, hi + 1 ).map( v => v.recipientId ) ) );
+        } else {
+          lastClickedIndexRef.current = index;
+          setSelectedIds( new Set( [ item.recipientId ] ) );
+        }
+        return;
+      }
+      if ( e.shiftKey && lastClickedIndexRef.current !== null ) {
+        const lo = Math.min( lastClickedIndexRef.current, index );
+        const hi = Math.max( lastClickedIndexRef.current, index );
+        const rangeIds = visibleItems.slice( lo, hi + 1 ).map( v => v.recipientId );
+        setSelectedIds( current => { const next = new Set( current ); rangeIds.forEach( id => next.add( id ) ); return next; } );
+      } else {
+        setSelectedIds( current => {
+          const next = new Set( current );
+          if ( next.has( item.recipientId ) ) next.delete( item.recipientId );
+          else next.add( item.recipientId );
+          return next;
+        } );
+      }
+      lastClickedIndexRef.current = index;
+    } else {
+      selectNotification( item );
+    }
+  };
+
+  const toggleSelectAll = useCallback( () => {
+    if ( selectedIds.size === visibleItems.length ) setSelectedIds( new Set() );
+    else setSelectedIds( new Set( visibleItems.map( item => item.recipientId ) ) );
+  }, [ selectedIds.size, visibleItems ] );
+
+  useEffect( () => {
+    const onKeyDown = ( e: KeyboardEvent ) => {
+      const tag = ( e.target as HTMLElement ).tagName;
+      const isTyping = tag === "INPUT" || tag === "TEXTAREA";
+      if ( ( e.metaKey || e.ctrlKey ) && e.key === "a" && !isTyping ) {
+        e.preventDefault();
+        if ( !isSelecting ) setIsSelecting( true );
+        toggleSelectAll();
+      }
+      if ( e.key === "Escape" && isSelecting ) {
+        exitSelect();
+      }
+    };
+    window.addEventListener( "keydown", onKeyDown );
+    return () => window.removeEventListener( "keydown", onKeyDown );
+  }, [ isSelecting, toggleSelectAll, exitSelect, setIsSelecting ] );
 
   const retry = async ( deliveryId: number ) => {
     const response = await fetch( "/api/admin/notifications", {
@@ -307,23 +421,30 @@ export default function NotificationsPage() {
         </aside>
 
         <section className="min-h-0 overflow-auto border-r bg-sidebar/40">
-          <div className="sticky top-0 z-10 space-y-3 border-b bg-background/95 p-4 backdrop-blur">
-            <div className="flex items-center justify-between gap-3">
+          <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
+            <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-2">
               <span className="text-base font-medium">
                 {folders.find( item => item.value === folder )?.label}
               </span>
-              <div className="flex items-center gap-2">
-                {!["reminders", "failures"].includes( folder ) && (
+              <div className="flex items-center gap-1">
+                {isSelecting && (
+                  <span className="mr-2 text-xs text-muted-foreground tabular-nums">{selectedIds.size} selected</span>
+                )}
+                <Button variant="ghost" size="icon" onClick={load} aria-label="Refresh"><RefreshCw className="size-3.5" /></Button>
+              </div>
+            </div>
+            {!["reminders", "failures"].includes( folder ) && (
+              <div className="flex items-center gap-2 px-4 pb-3">
+                {!isSelecting && (
                   <Label className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
-                    Unread
+                    Unread only
                     <Switch checked={unreadOnly} onCheckedChange={setUnreadOnly} className="shadow-none" />
                   </Label>
                 )}
-                <Button variant="ghost" size="icon" onClick={load} aria-label="Refresh inbox"><RefreshCw className="size-3.5" /></Button>
               </div>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            )}
+            <div className="relative px-4 pb-4">
+              <Search className="absolute left-7 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={event => setSearch( event.target.value )} placeholder="Search inbox..." className="bg-background pl-9" />
             </div>
           </div>
@@ -369,27 +490,90 @@ export default function NotificationsPage() {
                 </div>
               </div>
             ) ) : <EmptyList label="No delivery failures." />
-          ) : visibleItems.length ? visibleItems.map( item => (
-            <button
-              key={item.recipientId}
-              type="button"
-              onClick={() => selectNotification( item )}
-              className={cn(
-                "flex w-full gap-3 border-b px-4 py-3 text-left hover:bg-muted/40",
-                selectedNotificationId === item.recipientId && "bg-muted/60"
-              )}
-            >
-              <span className={cn( "mt-1.5 size-2 shrink-0 rounded-full", item.readAt ? "bg-border" : "bg-primary" )} />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center justify-between gap-3">
-                  <span className={cn( "truncate text-sm", !item.readAt && "font-semibold" )}>{item.title}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime( item.createdAt )}</span>
+          ) : visibleItems.length ? visibleItems.map( ( item, index ) => {
+            const isMenuTarget = isSelecting && selectedIds.has( item.recipientId ) && selectedIds.size > 1;
+            const menuIds = isMenuTarget ? [ ...selectedIds ] : [ item.recipientId ];
+            const menuLabel = isMenuTarget ? `${selectedIds.size} selected` : undefined;
+            const hasUnread = isMenuTarget
+              ? visibleItems.filter( v => selectedIds.has( v.recipientId ) ).some( v => !v.readAt )
+              : !item.readAt;
+            const hasRead = isMenuTarget
+              ? visibleItems.filter( v => selectedIds.has( v.recipientId ) ).some( v => !!v.readAt )
+              : !!item.readAt;
+            return (
+              <div
+                key={item.recipientId}
+                role="button"
+                tabIndex={0}
+                onClick={( e ) => handleRowClick( item, index, e )}
+                onKeyDown={( e ) => { if ( e.key === "Enter" || e.key === " " ) { e.preventDefault(); handleRowClick( item, index, e as unknown as React.MouseEvent ); } }}
+                onContextMenu={( e ) => { e.preventDefault(); setOpenMenuId( item.recipientId ); }}
+                className={cn(
+                  "group relative flex w-full cursor-pointer gap-3 border-b px-4 py-3 text-left select-none outline-none hover:bg-muted/40 focus-visible:bg-muted/40",
+                  selectedNotificationId === item.recipientId && !isSelecting && "bg-muted/60",
+                  isSelecting && selectedIds.has( item.recipientId ) && "bg-primary/5"
+                )}
+              >
+                <span className={cn( "mt-1.5 size-2 shrink-0 rounded-full", item.readAt ? "bg-border" : "bg-primary" )} />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-3">
+                    <span className={cn( "truncate text-sm", !item.readAt && "font-semibold" )}>{item.title}</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime( item.createdAt )}</span>
+                  </span>
+                  <span className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.body}</span>
+                  <span className="mt-1.5 block text-[11px] capitalize text-muted-foreground">{item.category}</span>
                 </span>
-                <span className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.body}</span>
-                <span className="mt-1.5 block text-[11px] capitalize text-muted-foreground">{item.category}</span>
-              </span>
-            </button>
-          ) ) : <EmptyList label="No notifications in this folder." /> }
+                <DropdownMenu
+                  open={openMenuId === item.recipientId}
+                  onOpenChange={( open ) => { if ( !open ) setOpenMenuId( null ); }}
+                >
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-2 size-6 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+                      onClick={( e ) => { e.stopPropagation(); setOpenMenuId( item.recipientId ); }}
+                      tabIndex={-1}
+                    >
+                      <MoreHorizontal className="size-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    {menuLabel && (
+                      <div className="px-2 py-1.5 text-[11px] font-medium text-muted-foreground">{menuLabel}</div>
+                    )}
+                    {hasUnread && (
+                      <DropdownMenuItem onClick={( e ) => { e.stopPropagation(); void markReadIds( menuIds ); setOpenMenuId( null ); }}>
+                        <Check className="size-3.5" />Mark as read
+                      </DropdownMenuItem>
+                    )}
+                    {hasRead && (
+                      <DropdownMenuItem onClick={( e ) => { e.stopPropagation(); void markUnreadIds( menuIds ); setOpenMenuId( null ); }}>
+                        <MailOpen className="size-3.5" />Mark as unread
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={( e ) => { e.stopPropagation(); void deleteIds( menuIds ); setOpenMenuId( null ); if ( isMenuTarget ) exitSelect(); }}
+                    >
+                      <Trash2 className="size-3.5" />Delete{menuLabel ? ` ${menuLabel}` : ""}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {!isSelecting ? (
+                      <DropdownMenuItem onClick={( e ) => { e.stopPropagation(); setIsSelecting( true ); lastClickedIndexRef.current = index; setSelectedIds( new Set( [ item.recipientId ] ) ); setOpenMenuId( null ); }}>
+                        <CheckSquare className="size-3.5" />Select
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onClick={( e ) => { e.stopPropagation(); exitSelect(); setOpenMenuId( null ); }}>
+                        <Square className="size-3.5" />Done selecting
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            );
+          } ) : <EmptyList label="No notifications in this folder." /> }
         </section>
 
         <section className="hidden min-h-0 overflow-auto lg:block">
@@ -398,15 +582,20 @@ export default function NotificationsPage() {
           ) : folder === "failures" ? (
             <EmptyDetail label="Delivery failures can be retried from the list." />
           ) : selectedNotification ? (
-            <NotificationDetail item={selectedNotification} />
+            <NotificationDetail
+              item={selectedNotification}
+              onMarkRead={() => markReadIds( [ selectedNotification.recipientId ] )}
+              onMarkUnread={() => markUnreadIds( [ selectedNotification.recipientId ] )}
+              onDelete={() => deleteIds( [ selectedNotification.recipientId ] )}
+            />
           ) : (
             <EmptyDetail label="Select a notification to read it." />
           ) }
         </section>
       </div>
 
-      <MessageComposer open={composeOpen} onOpenChange={setComposeOpen} onSent={load} />
-      <ReminderComposer open={reminderOpen} onOpenChange={setReminderOpen} onSent={() => { setFolder( "reminders" ); void load(); }} />
+      <MessageComposer open={composeOpen} onOpenChange={setComposeOpen} onSent={() => queryClient.invalidateQueries( { queryKey: qk.notifications() } )} />
+      <ReminderComposer open={reminderOpen} onOpenChange={setReminderOpen} onSent={() => { setFolder( "reminders" ); queryClient.invalidateQueries( { queryKey: qk.notifications() } ); }} />
       <Sheet open={mobileDetailOpen} onOpenChange={setMobileDetailOpen}>
         <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-md">
           <SheetTitle className="sr-only">Inbox detail</SheetTitle>
@@ -414,7 +603,12 @@ export default function NotificationsPage() {
           { folder === "reminders" && selectedReminder
             ? <ReminderDetail reminder={selectedReminder} />
             : selectedNotification
-              ? <NotificationDetail item={selectedNotification} />
+              ? <NotificationDetail
+                  item={selectedNotification}
+                  onMarkRead={() => markReadIds( [ selectedNotification.recipientId ] )}
+                  onMarkUnread={() => markUnreadIds( [ selectedNotification.recipientId ] )}
+                  onDelete={() => { void deleteIds( [ selectedNotification.recipientId ] ); setMobileDetailOpen( false ); }}
+                />
               : <EmptyDetail label="No detail available." /> }
         </SheetContent>
       </Sheet>
@@ -434,12 +628,38 @@ function EmptyDetail( { label }: { label: string } ) {
   );
 }
 
-function NotificationDetail( { item }: { item: NotificationItem } ) {
+function NotificationDetail( {
+  item,
+  onMarkRead,
+  onMarkUnread,
+  onDelete,
+}: {
+  item: NotificationItem;
+  onMarkRead: () => void;
+  onMarkUnread: () => void;
+  onDelete: () => void;
+} ) {
   return (
     <article className="mx-auto max-w-3xl p-8">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="capitalize">{item.category}</Badge>
-        {item.bookingReference && <Badge variant="secondary">{item.bookingReference}</Badge>}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="capitalize">{item.category}</Badge>
+          {item.bookingReference && <Badge variant="secondary">{item.bookingReference}</Badge>}
+        </div>
+        <div className="flex items-center gap-1">
+          {item.readAt ? (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={onMarkUnread}>
+              <MailOpen className="size-3.5" />Mark unread
+            </Button>
+          ) : (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={onMarkRead}>
+              <Check className="size-3.5" />Mark read
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive" onClick={onDelete}>
+            <Trash2 className="size-3.5" />Delete
+          </Button>
+        </div>
       </div>
       <h2 className="mt-5 text-xl font-semibold tracking-tight">{item.title}</h2>
       <p className="mt-2 text-xs text-muted-foreground">{new Date( item.createdAt ).toLocaleString()}</p>

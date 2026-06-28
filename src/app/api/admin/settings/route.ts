@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import z from "zod/v4";
-import { getSession } from "@/lib/auth";
 import { getAdminSettings, saveAdminSettings } from "@/lib/admin-settings";
+import { getRequestSession } from "@/lib/driver-auth";
 
 const SettingsSchema = z.object( {
   bookingBufferMinutes: z.number().int().min( 0 ).max( 240 ),
@@ -26,17 +26,17 @@ const SettingsSchema = z.object( {
   twilioFromNumber: z.string().trim().min( 1 ),
 } );
 
-export async function GET() {
-  const session = await getSession();
+export async function GET( request: Request ) {
+  const session = await getRequestSession( request );
   if ( !session ) return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
   return NextResponse.json( {
     success: true,
-    settings: getAdminSettings(),
+    settings: await getAdminSettings(),
   } );
 }
 
 export async function PUT( request: Request ) {
-  const session = await getSession();
+  const session = await getRequestSession( request );
   if ( !session ) return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
 
   const body = await request.json();
@@ -48,7 +48,7 @@ export async function PUT( request: Request ) {
     );
   }
 
-  saveAdminSettings( parsed.data );
+  await saveAdminSettings( parsed.data );
   return NextResponse.json( {
     success: true,
     settings: parsed.data,

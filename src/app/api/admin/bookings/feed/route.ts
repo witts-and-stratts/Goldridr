@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { verifySessionToken } from "@/lib/auth";
 import { getAllBookings, getBookingsForChauffeur } from "@/lib/db";
+import { getRequestSession } from "@/lib/driver-auth";
 
 // Helper to format date strings to RFC 5545 iCal format: YYYYMMDDTHHMMSSZ
 function formatICalDate( dateStr: string, timeStr: string, offsetHours = 0 ): string {
@@ -30,15 +31,19 @@ function escapeICalText( text?: string ): string {
     .replace( /\r/g, "" );
 }
 
-export async function GET() {
+export async function GET( request: Request ) {
   try {
-    const session = await getSession();
+    const url = new URL( request.url );
+    const feedToken = url.searchParams.get( "token" );
+    const session = feedToken
+      ? verifySessionToken( feedToken )
+      : await getRequestSession( request );
     if ( !session ) {
       return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
     }
     const bookings = session.role === "admin"
-      ? getAllBookings()
-      : getBookingsForChauffeur( session.chauffeurId! );
+      ? await getAllBookings()
+      : await getBookingsForChauffeur( session.chauffeurId! );
 
     // Filter out cancelled and rejected bookings
     const activeBookings = bookings.filter( 

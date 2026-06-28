@@ -62,7 +62,7 @@ export function bookingRecordToResponses( booking: BookingRecord ): BookingRespo
   };
 }
 
-export function bookingRecordToBookingData( booking: BookingRecord ): BookingData {
+export async function bookingRecordToBookingData( booking: BookingRecord ): Promise<BookingData> {
   const tripDetails = parseTripDetails( booking.tripDetails );
   const startDate = zonedDateTimeToDate( booking.date, booking.time );
   const start = startDate.toISOString();
@@ -79,7 +79,7 @@ export function bookingRecordToBookingData( booking: BookingRecord ): BookingDat
       {
         name: booking.name,
         email: booking.email,
-        timeZone: getNotificationTimeZone(),
+        timeZone: await getNotificationTimeZone(),
       },
     ],
     responses: bookingRecordToResponses( booking ),

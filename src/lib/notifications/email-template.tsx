@@ -161,14 +161,16 @@ function contentFor( template: string, payload: Record<string, unknown> ): Email
 
   switch ( template ) {
     case "booking_created": {
+      const pin = typeof payload.pin === "string" && payload.pin ? payload.pin : null;
       return {
         subject: `We received booking ${ reference }`,
         preview: "Your Goldridr booking request was received.",
         heading: "Booking request received",
-        message: `Hi ${ passenger }, your ride request is now with our team. We will send another update as soon as it is confirmed.`,
+        message: `Hi ${ passenger }, your ride request is now with our team. We will send another update as soon as it is confirmed.${ pin ? " Share your 4-digit PIN with your driver at pickup to confirm the ride." : "" }`,
         appUrl,
         footerNote: "Keep this email for your booking reference. This request is pending until you receive a confirmation update.",
         booking: bookingContent( payload, reference, "Request received" ),
+        ...( pin ? { details: [ [ "Your pickup PIN", pin ] as [ string, string ] ] } : {} ),
       };
     }
     case "booking_status": {
@@ -515,7 +517,7 @@ export async function renderNotificationEmail(
   payload: Record<string, unknown>,
   idempotencyKey: string
 ): Promise<RenderedEmail> {
-  const config = getEmailConfig();
+  const config = await getEmailConfig();
   const baseContent = contentFor( template, payload );
   const reference = stringValue( payload.bookingReference );
   const passengerEmail = stringValue( payload.passengerEmail ) || recipient;

@@ -18,7 +18,7 @@ export async function GET( request: Request ) {
     );
   }
 
-  const appUrl = getAppUrl() || url.origin;
+  const appUrl = await getAppUrl() || url.origin;
   const verifyUrl = getBookingVerifyUrl( appUrl, reference, email );
   const qr = new QRCodeGenerator( -1, ErrorCorrectLevel.M );
   qr.addData( verifyUrl );

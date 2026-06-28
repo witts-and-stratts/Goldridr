@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession, isAdmin } from "@/lib/auth";
+import { isAdmin } from "@/lib/auth";
+import { getRequestSession } from "@/lib/driver-auth";
 import { PastBookingTimeError } from "@/lib/booking-time";
 import {
   deleteBooking,
@@ -10,15 +11,15 @@ import {
   updateBookingStatus,
 } from "@/lib/db";
 
-export async function GET() {
+export async function GET( req: Request ) {
   try {
-    const session = await getSession();
+    const session = await getRequestSession( req );
     if ( !session ) {
       return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
     }
     const bookings = session.role === "admin"
-      ? getAllBookings()
-      : getBookingsForChauffeur( session.chauffeurId! );
+      ? await getAllBookings()
+      : await getBookingsForChauffeur( session.chauffeurId! );
     
     // Parse the JSON string from tripDetails into objects
     const parsedBookings = bookings.map( booking => {
@@ -49,7 +50,7 @@ export async function GET() {
 
 export async function PATCH( req: Request ) {
   try {
-    const session = await getSession();
+    const session = await getRequestSession( req );
     if ( !session ) {
       return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
     }
@@ -69,12 +70,12 @@ export async function PATCH( req: Request ) {
     let updated = false;
 
     if ( status !== undefined ) {
-      updated = updateBookingStatus( reference, status );
+      updated = await updateBookingStatus( reference, status );
     }
 
     if ( chauffeurId !== undefined ) {
       // chauffeurId could be a number or null to unassign
-      updated = updateBookingChauffeur( reference, chauffeurId );
+      updated = await updateBookingChauffeur( reference, chauffeurId );
     }
 
     if ( date !== undefined || time !== undefined || duration !== undefined ) {
@@ -84,7 +85,7 @@ export async function PATCH( req: Request ) {
           { status: 400 }
         );
       }
-      updated = updateBookingSchedule( reference, {
+      updated = await updateBookingSchedule( reference, {
         date,
         time,
         duration: duration === undefined ? undefined : Number( duration ),
@@ -117,7 +118,7 @@ export async function PATCH( req: Request ) {
 
 export async function DELETE( req: Request ) {
   try {
-    const session = await getSession();
+    const session = await getRequestSession( req );
     if ( !session ) {
       return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
     }
@@ -135,7 +136,7 @@ export async function DELETE( req: Request ) {
       );
     }
 
-    const deleted = deleteBooking( reference );
+    const deleted = await deleteBooking( reference );
 
     if ( deleted ) {
       return NextResponse.json( {

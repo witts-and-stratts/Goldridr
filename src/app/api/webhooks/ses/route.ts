@@ -23,7 +23,7 @@ export async function POST( request: Request ) {
       mail?: { messageId?: string };
     };
     recordProviderEvent(
-      getDb(),
+      await getDb(),
       "ses_api",
       envelope.MessageId,
       event.mail?.messageId,

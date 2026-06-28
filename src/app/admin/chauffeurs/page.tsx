@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { qk } from "@/lib/query-keys";
 import {
   User, RefreshCw, Loader2, BookOpen, Clock, CalendarDays,
-  Plus, Trash2,
+  Plus, Trash2, Car,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/admin-ui/button";
 import { Badge } from "@/components/admin-ui/badge";
@@ -18,13 +20,6 @@ import {
 import { useAdmin } from "../context";
 import Link from "next/link";
 
-interface Chauffeur {
-  id: number;
-  name: string;
-  email: string;
-  phone?: string;
-}
-
 interface Booking {
   id: number;
   reference: string;
@@ -34,38 +29,65 @@ interface Booking {
   tripDetails: { estimatedTotal?: number; estimatedPrice?: number };
 }
 
+interface Vehicle {
+  id: number;
+  make: string;
+  model: string;
+  year?: number | null;
+  colour?: string | null;
+  plate?: string | null;
+  status: string;
+}
+
+interface AdminChauffeur {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string;
+  status: string;
+  vehicle?: Vehicle | null;
+}
+
 const formatPrice = (n?: number) =>
   Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
 
 export default function ChauffeursPage() {
-  const { chauffeurs, fetchChauffeurs } = useAdmin();
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { chauffeurs: rawChauffeurs } = useAdmin();
+  const chauffeurs = rawChauffeurs as AdminChauffeur[];
+
+  const { data: bookingsData, isPending: bookingsPending } = useQuery( {
+    queryKey: qk.bookings(),
+    queryFn: async () => {
+      const res = await fetch( "/api/admin/bookings" );
+      const data = await res.json();
+      if ( !data.success ) throw new Error( data.error );
+      return data.bookings as Booking[];
+    },
+  } );
+
+  const { data: vehiclesData } = useQuery( {
+    queryKey: [ "vehicles" ],
+    queryFn: async () => {
+      const res = await fetch( "/api/admin/vehicles" );
+      const data = await res.json();
+      if ( !data.success ) throw new Error( data.error );
+      return data.vehicles as Vehicle[];
+    },
+  } );
+
+  const vehicles = vehiclesData ?? [];
+  const bookings = bookingsData ?? [];
+  const loading = bookingsPending;
+
   const [addOpen, setAddOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Chauffeur | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string; email: string } | null>(null);
+  const [assignVehicleTarget, setAssignVehicleTarget] = useState<AdminChauffeur | null>(null);
+  const [assignVehicleId, setAssignVehicleId] = useState<string>("");
+  const [assigningSaving, setAssigningSaving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
-
-  const fetchAll = async () => {
-    setLoading(true);
-    try {
-      const [, bRes] = await Promise.all([
-        fetchChauffeurs(),
-        fetch("/api/admin/bookings"),
-      ]);
-      const bData = await bRes.json();
-      if (bData.success) setBookings(bData.bookings);
-    } catch {
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // The initial request intentionally runs once when the page mounts.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchAll(); }, []);
 
   const handleAdd = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -79,7 +101,7 @@ export default function ChauffeursPage() {
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || "Failed to add chauffeur");
 
-      await fetchChauffeurs();
+      await queryClient.invalidateQueries( { queryKey: qk.chauffeurs() } );
       setForm({ name: "", email: "", phone: "", password: "" });
       setAddOpen(false);
       toast.success("Chauffeur added");
@@ -87,6 +109,32 @@ export default function ChauffeursPage() {
       toast.error(error instanceof Error ? error.message : "Failed to add chauffeur");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAssignVehicle = async () => {
+    if (!assignVehicleTarget) return;
+    setAssigningSaving(true);
+    try {
+      const vehicleId = assignVehicleId === "" ? null : Number(assignVehicleId);
+      const url = vehicleId === null ? "/api/admin/chauffeurs" : "/api/admin/vehicles";
+      const body = vehicleId === null
+        ? { id: assignVehicleTarget.id, vehicleId: null }
+        : { id: vehicleId, chauffeurId: assignVehicleTarget.id };
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to assign vehicle");
+      await queryClient.invalidateQueries( { queryKey: qk.chauffeurs() } );
+      setAssignVehicleTarget(null);
+      toast.success(vehicleId ? "Vehicle assigned" : "Vehicle unassigned");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to assign vehicle");
+    } finally {
+      setAssigningSaving(false);
     }
   };
 
@@ -98,10 +146,8 @@ export default function ChauffeursPage() {
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || "Failed to delete chauffeur");
 
-      setBookings((current) => current.map((booking) =>
-        booking.chauffeurId === deleteTarget.id ? { ...booking, chauffeurId: null } : booking
-      ));
-      await fetchChauffeurs();
+      await queryClient.invalidateQueries( { queryKey: qk.chauffeurs() } );
+      await queryClient.invalidateQueries( { queryKey: qk.bookings() } );
       setDeleteTarget(null);
       toast.success("Chauffeur deleted");
     } catch (error) {
@@ -135,7 +181,10 @@ export default function ChauffeursPage() {
           <p className="text-sm text-muted-foreground mt-0.5">{chauffeurs.length} registered driver{chauffeurs.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => {
+            queryClient.invalidateQueries( { queryKey: qk.chauffeurs() } );
+            queryClient.invalidateQueries( { queryKey: qk.bookings() } );
+          }} disabled={loading}>
             {loading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Refresh
           </Button>
@@ -223,12 +272,31 @@ export default function ChauffeursPage() {
                     </div>
                   </div>
                   <Separator className="my-3" />
+                  {c.vehicle ? (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
+                      <Car className="size-3.5 shrink-0" />
+                      <span className="truncate">
+                        {[c.vehicle.year, c.vehicle.make, c.vehicle.model].filter(Boolean).join(" ")}
+                        {c.vehicle.plate ? ` · ${c.vehicle.plate}` : ""}
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-muted-foreground">Revenue generated</p>
                       <p className="text-sm font-semibold">{formatPrice(s.revenue)}</p>
                     </div>
                     <div className="flex gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setAssignVehicleTarget(c);
+                          setAssignVehicleId(c.vehicle ? String(c.vehicle.id) : "");
+                        }}
+                      >
+                        <Car className="size-3.5" /> Vehicle
+                      </Button>
                       <Link
                         href={`/admin/bookings?chauffeur=${c.id}`}
                         className={buttonVariants({ variant: "outline", size: "sm" })}
@@ -321,6 +389,40 @@ export default function ChauffeursPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(assignVehicleTarget)} onOpenChange={(open) => !open && setAssignVehicleTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign vehicle</DialogTitle>
+            <DialogDescription>
+              Select a vehicle for {assignVehicleTarget?.name}. Choose "None" to unassign.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <select
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={assignVehicleId}
+              onChange={(e) => setAssignVehicleId(e.target.value)}
+            >
+              <option value="">None</option>
+              {vehicles.filter(v => v.status === "active").map(v => (
+                <option key={v.id} value={String(v.id)}>
+                  {[v.year, v.make, v.model].filter(Boolean).join(" ")}{v.plate ? ` · ${v.plate}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignVehicleTarget(null)} disabled={assigningSaving}>
+              Cancel
+            </Button>
+            <Button onClick={handleAssignVehicle} disabled={assigningSaving}>
+              {assigningSaving && <Loader2 className="animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

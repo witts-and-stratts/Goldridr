@@ -188,8 +188,8 @@ class ResendEmailTransport implements EmailTransport {
   async close(): Promise<void> {}
 }
 
-export function createEmailTransport(): EmailTransport {
-  const config = getEmailConfig();
+export async function createEmailTransport(): Promise<EmailTransport> {
+  const config = await getEmailConfig();
   if ( config.transport === "resend" ) {
     return new ResendEmailTransport( config.apiKey );
   }

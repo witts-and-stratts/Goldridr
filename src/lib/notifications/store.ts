@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { DatabaseLike } from "@/lib/db-client";
 import { randomUUID } from "crypto";
 import type { AuthSession } from "@/lib/auth";
 import type { BookingRecord, ChauffeurRecord } from "@/lib/db";
@@ -8,6 +8,7 @@ import type {
   NotificationDeliveryRecord,
   NotificationRecord,
 } from "./types";
+import { sendPushToUsers } from "./push";
 import { zonedDateTimeToDate } from "./time";
 import { getAppUrl } from "@/lib/admin-settings";
 
@@ -33,16 +34,16 @@ interface NotificationInput {
   deliveries?: DeliveryInput[];
 }
 
-function getChauffeur( db: Database.Database, id?: number | null ): ChauffeurRecord | undefined {
+async function getChauffeur( db: DatabaseLike, id?: number | null ): Promise<ChauffeurRecord | undefined> {
   if ( !id ) return undefined;
-  return db.prepare( "SELECT id, name, email, phone, status FROM chauffeurs WHERE id = ?" ).get( id ) as ChauffeurRecord | undefined;
+  return await db.prepare( "SELECT id, name, email, phone, status FROM chauffeurs WHERE id = ?" ).get( id ) as ChauffeurRecord | undefined;
 }
 
-function insertNotification( db: Database.Database, input: NotificationInput ): number {
-  const existing = db.prepare( "SELECT id FROM notifications WHERE eventKey = ?" ).get( input.eventKey ) as { id: number } | undefined;
+async function insertNotification( db: DatabaseLike, input: NotificationInput ): Promise<number> {
+  const existing = await db.prepare( "SELECT id FROM notifications WHERE eventKey = ?" ).get( input.eventKey ) as { id: number } | undefined;
   if ( existing ) return existing.id;
 
-  const result = db.prepare( `
+  const result = await db.prepare( `
     INSERT INTO notifications (eventKey, type, category, title, body, bookingReference, actorUserId, metadata)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   ` ).run(
@@ -57,22 +58,35 @@ function insertNotification( db: Database.Database, input: NotificationInput ): 
   );
   const notificationId = Number( result.lastInsertRowid );
 
-  const addRecipient = db.prepare( `
+  const addRecipient = await db.prepare( `
     INSERT OR IGNORE INTO notification_recipients (notificationId, userId) VALUES (?, ?)
   ` );
+  const pushUserIds: string[] = [];
   for ( const userId of new Set( input.inAppUserIds || [] ) ) {
-    if ( channelEnabled( db, userId, input.category, "inApp" ) ) addRecipient.run( notificationId, userId );
+    if ( await channelEnabled( db, userId, input.category, "inApp" ) ) {
+      await addRecipient.run( notificationId, userId );
+      pushUserIds.push( userId );
+    }
   }
+  // Fire-and-forget: device push mirrors the in-app feed and must not block
+  // or fail the booking write that triggered it.
+  void sendPushToUsers( db, pushUserIds, {
+    title: input.title,
+    body: input.body,
+    data: { url: input.bookingReference ? `/ride/${ input.bookingReference }` : "/notifications" },
+  } ).catch( error => {
+    if ( !process.env.NODE_TEST_CONTEXT ) console.error( "Push notification send failed", error );
+  } );
 
-  const addDelivery = db.prepare( `
+  const addDelivery = await db.prepare( `
     INSERT OR IGNORE INTO notification_deliveries (
       notificationId, channel, recipient, template, payload, idempotencyKey, scheduledAt, nextAttemptAt
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   ` );
   for ( const [ index, delivery ] of ( input.deliveries || [] ).entries() ) {
-    if ( delivery.preferenceUserId && !channelEnabled( db, delivery.preferenceUserId, input.category, delivery.channel ) ) continue;
+    if ( delivery.preferenceUserId && !await channelEnabled( db, delivery.preferenceUserId, input.category, delivery.channel ) ) continue;
     const scheduledAt = ( delivery.scheduledAt || new Date() ).toISOString();
-    addDelivery.run(
+    await addDelivery.run(
       notificationId,
       delivery.channel,
       delivery.recipient,
@@ -86,20 +100,20 @@ function insertNotification( db: Database.Database, input: NotificationInput ): 
   return notificationId;
 }
 
-function channelEnabled(
-  db: Database.Database,
+async function channelEnabled(
+  db: DatabaseLike,
   userId: string,
   category: NotificationCategory,
   channel: "inApp" | "email" | "sms"
-): boolean {
-  const row = db.prepare( `
+): Promise<boolean> {
+  const row = await db.prepare( `
     SELECT inApp, email, sms FROM notification_preferences WHERE userId = ? AND category = ?
   ` ).get( userId, category ) as { inApp: number; email: number; sms: number } | undefined;
   if ( row ) return Boolean( row[ channel ] );
   return channel !== "sms";
 }
 
-function bookingPayload( booking: BookingRecord ): Record<string, unknown> {
+async function bookingPayload( booking: BookingRecord ): Promise<Record<string, unknown>> {
   let tripDetails: Record<string, unknown> = {};
   try {
     tripDetails = JSON.parse( booking.tripDetails || "{}" ) as Record<string, unknown>;
@@ -118,7 +132,8 @@ function bookingPayload( booking: BookingRecord ): Record<string, unknown> {
     tripType: booking.tripType,
     notes: booking.notes,
     tripDetails,
-    appUrl: getAppUrl(),
+    pin: booking.pin ?? null,
+    appUrl: await getAppUrl(),
   };
 }
 
@@ -126,12 +141,12 @@ function pickupDate( booking: BookingRecord ): Date {
   return zonedDateTimeToDate( booking.date, booking.time );
 }
 
-function reminderDeliveries( booking: BookingRecord, chauffeur?: ChauffeurRecord ): DeliveryInput[] {
+async function reminderDeliveries( booking: BookingRecord, chauffeur?: ChauffeurRecord ): Promise<DeliveryInput[]> {
   const deliveries: DeliveryInput[] = [];
   for ( const hours of [ 24, 2 ] ) {
     const scheduledAt = new Date( pickupDate( booking ).getTime() - hours * 60 * 60 * 1000 );
     if ( scheduledAt.getTime() <= Date.now() ) continue;
-    const payload = { ...bookingPayload( booking ), reminderHours: hours };
+    const payload = { ...await bookingPayload( booking ), reminderHours: hours };
     deliveries.push( { channel: "email", recipient: booking.email, template: "booking_reminder", payload, scheduledAt } );
     if ( booking.phone && booking.smsConsentedAt ) {
       deliveries.push( { channel: "sms", recipient: booking.phone, template: "booking_reminder", payload, scheduledAt } );
@@ -150,10 +165,10 @@ function reminderDeliveries( booking: BookingRecord, chauffeur?: ChauffeurRecord
   return deliveries;
 }
 
-export function enqueueBookingCreated( db: Database.Database, booking: BookingRecord ): void {
-  const chauffeur = getChauffeur( db, booking.chauffeurId );
-  const payload = bookingPayload( booking );
-  insertNotification( db, {
+export async function enqueueBookingCreated( db: DatabaseLike, booking: BookingRecord ): Promise<void> {
+  const chauffeur = await getChauffeur( db, booking.chauffeurId );
+  const payload = await bookingPayload( booking );
+  await insertNotification( db, {
     eventKey: `booking:${ booking.reference }:created`,
     type: "booking.created",
     category: "bookings",
@@ -177,7 +192,7 @@ export function enqueueBookingCreated( db: Database.Database, booking: BookingRe
         : [] ),
     ],
   } );
-  insertNotification( db, {
+  await insertNotification( db, {
     eventKey: `booking:${ booking.reference }:reminders`,
     type: "booking.reminders_scheduled",
     category: "reminders",
@@ -185,27 +200,27 @@ export function enqueueBookingCreated( db: Database.Database, booking: BookingRe
     body: "Customer and chauffeur reminders are scheduled before pickup.",
     bookingReference: booking.reference,
     metadata: payload,
-    deliveries: reminderDeliveries( booking, chauffeur ),
+    deliveries: await reminderDeliveries( booking, chauffeur ),
   } );
 
   if ( booking.phone && booking.smsConsentVersion && booking.smsConsentedAt ) {
-    db.prepare( `
+    await db.prepare( `
       INSERT INTO sms_consents (customerEmail, phone, consentVersion, consentedAt)
       VALUES (?, ?, ?, ?)
     ` ).run( booking.email, booking.phone, booking.smsConsentVersion, booking.smsConsentedAt );
   }
 }
 
-export function enqueueBookingStatusChanged(
-  db: Database.Database,
+export async function enqueueBookingStatusChanged(
+  db: DatabaseLike,
   booking: BookingRecord,
   previousStatus: string
-): void {
-  const chauffeur = getChauffeur( db, booking.chauffeurId );
+): Promise<void> {
+  const chauffeur = await getChauffeur( db, booking.chauffeurId );
   const restored = [ "cancelled", "rejected" ].includes( previousStatus ) && [ "confirmed", "accepted" ].includes( booking.status );
   const type = restored ? "booking.restored" : `booking.${ booking.status }`;
-  const payload = { ...bookingPayload( booking ), status: booking.status, previousStatus };
-  insertNotification( db, {
+  const payload = { ...await bookingPayload( booking ), status: booking.status, previousStatus };
+  await insertNotification( db, {
     eventKey: `booking:${ booking.reference }:status:${ previousStatus }:${ booking.status }:${ Date.now() }`,
     type,
     category: "bookings",
@@ -223,7 +238,7 @@ export function enqueueBookingStatusChanged(
   } );
 
   if ( [ "cancelled", "rejected" ].includes( booking.status ) ) {
-    db.prepare( `
+    await db.prepare( `
       UPDATE notification_deliveries
       SET status = 'cancelled', updatedAt = CURRENT_TIMESTAMP
       WHERE status = 'pending'
@@ -232,7 +247,7 @@ export function enqueueBookingStatusChanged(
         )
     ` ).run( booking.reference );
   } else if ( restored ) {
-    insertNotification( db, {
+    await insertNotification( db, {
       eventKey: `booking:${ booking.reference }:reminders:restored:${ Date.now() }`,
       type: "booking.reminders_rescheduled",
       category: "reminders",
@@ -240,26 +255,26 @@ export function enqueueBookingStatusChanged(
       body: "Pickup reminders were restored.",
       bookingReference: booking.reference,
       metadata: payload,
-      deliveries: reminderDeliveries( booking, chauffeur ),
+      deliveries: await reminderDeliveries( booking, chauffeur ),
     } );
   }
 }
 
-export function enqueueBookingAssignmentChanged(
-  db: Database.Database,
+export async function enqueueBookingAssignmentChanged(
+  db: DatabaseLike,
   booking: BookingRecord,
   previousChauffeurId: number | null
-): void {
-  const previous = getChauffeur( db, previousChauffeurId );
-  const next = getChauffeur( db, booking.chauffeurId );
+): Promise<void> {
+  const previous = await getChauffeur( db, previousChauffeurId );
+  const next = await getChauffeur( db, booking.chauffeurId );
   const action = previous && next ? "reassigned" : next ? "assigned" : "unassigned";
   const payload = {
-    ...bookingPayload( booking ),
+    ...await bookingPayload( booking ),
     previousChauffeurName: previous?.name,
     chauffeurName: next?.name,
     action,
   };
-  insertNotification( db, {
+  await insertNotification( db, {
     eventKey: `booking:${ booking.reference }:assignment:${ previousChauffeurId || "none" }:${ booking.chauffeurId || "none" }:${ Date.now() }`,
     type: `booking.${ action }`,
     category: "bookings",
@@ -293,18 +308,18 @@ export function enqueueBookingAssignmentChanged(
   } );
 }
 
-export function enqueueBookingDeleted(
-  db: Database.Database,
+export async function enqueueBookingDeleted(
+  db: DatabaseLike,
   booking: BookingRecord
-): void {
-  const chauffeur = getChauffeur( db, booking.chauffeurId );
+): Promise<void> {
+  const chauffeur = await getChauffeur( db, booking.chauffeurId );
   const payload = {
-    ...bookingPayload( booking ),
+    ...await bookingPayload( booking ),
     status: "deleted",
     chauffeurName: chauffeur?.name,
   };
 
-  insertNotification( db, {
+  await insertNotification( db, {
     eventKey: `booking:${ booking.reference }:deleted:${ Date.now() }`,
     type: "booking.deleted",
     category: "bookings",
@@ -340,7 +355,7 @@ export function enqueueBookingDeleted(
     ],
   } );
 
-  db.prepare( `
+  await db.prepare( `
     UPDATE notification_deliveries
     SET status = 'cancelled', updatedAt = CURRENT_TIMESTAMP
     WHERE status = 'pending'
@@ -350,14 +365,14 @@ export function enqueueBookingDeleted(
   ` ).run( booking.reference );
 }
 
-export function enqueueBookingRescheduled(
-  db: Database.Database,
+export async function enqueueBookingRescheduled(
+  db: DatabaseLike,
   booking: BookingRecord,
   previous: { date: string; time: string; duration: number }
-): void {
-  const chauffeur = getChauffeur( db, booking.chauffeurId );
-  const payload = { ...bookingPayload( booking ), previous };
-  insertNotification( db, {
+): Promise<void> {
+  const chauffeur = await getChauffeur( db, booking.chauffeurId );
+  const payload = { ...await bookingPayload( booking ), previous };
+  await insertNotification( db, {
     eventKey: `booking:${ booking.reference }:rescheduled:${ previous.date }:${ previous.time }:${ Date.now() }`,
     type: "booking.rescheduled",
     category: "bookings",
@@ -382,7 +397,7 @@ export function enqueueBookingRescheduled(
         : [] ),
     ],
   } );
-  db.prepare( `
+  await db.prepare( `
     UPDATE notification_deliveries
     SET status = 'cancelled', updatedAt = CURRENT_TIMESTAMP
     WHERE status = 'pending'
@@ -390,7 +405,7 @@ export function enqueueBookingRescheduled(
         SELECT id FROM notifications WHERE bookingReference = ? AND category = 'reminders'
       )
   ` ).run( booking.reference );
-  insertNotification( db, {
+  await insertNotification( db, {
     eventKey: `booking:${ booking.reference }:reminders:rescheduled:${ Date.now() }`,
     type: "booking.reminders_rescheduled",
     category: "reminders",
@@ -398,32 +413,32 @@ export function enqueueBookingRescheduled(
     body: "Pickup reminders were updated to the new time.",
     bookingReference: booking.reference,
     metadata: payload,
-    deliveries: reminderDeliveries( booking, chauffeur ),
+    deliveries: await reminderDeliveries( booking, chauffeur ),
   } );
 }
 
-export function enqueueBookingConflict(
-  db: Database.Database,
+export async function enqueueBookingConflict(
+  db: DatabaseLike,
   booking: BookingRecord,
   conflictingReference: string
-): void {
-  insertNotification( db, {
+): Promise<void> {
+  await insertNotification( db, {
     eventKey: `booking:${ booking.reference }:conflict:${ conflictingReference }:${ Date.now() }`,
     type: "booking.conflict",
     category: "system",
     title: `Schedule conflict for ${ booking.reference }`,
     body: `This assignment overlaps booking ${ conflictingReference }.`,
     bookingReference: booking.reference,
-    metadata: { ...bookingPayload( booking ), conflictingReference },
+    metadata: { ...await bookingPayload( booking ), conflictingReference },
     inAppUserIds: [ "admin" ],
   } );
 }
 
-export function listNotifications(
-  db: Database.Database,
+export async function listNotifications(
+  db: DatabaseLike,
   userId: string,
   options: { unreadOnly?: boolean; category?: string; limit?: number; afterId?: number } = {}
-): Array<NotificationRecord & { recipientId: number; readAt: string | null }> {
+): Promise<Array<NotificationRecord & { recipientId: number; readAt: string | null }>> {
   const clauses = [ "r.userId = ?" ];
   const params: Array<string | number> = [ userId ];
   if ( options.unreadOnly ) clauses.push( "r.readAt IS NULL" );
@@ -436,7 +451,7 @@ export function listNotifications(
     params.push( options.afterId );
   }
   params.push( Math.min( options.limit || 50, 100 ) );
-  return db.prepare( `
+  return await db.prepare( `
     SELECT n.*, r.id AS recipientId, r.readAt
     FROM notification_recipients r
     JOIN notifications n ON n.id = r.notificationId
@@ -446,34 +461,63 @@ export function listNotifications(
   ` ).all( ...params ) as Array<NotificationRecord & { recipientId: number; readAt: string | null }>;
 }
 
-export function markNotificationsRead( db: Database.Database, userId: string, recipientIds?: number[] ): number {
+export async function markNotificationsRead( db: DatabaseLike, userId: string, recipientIds?: number[] ): Promise<number> {
   if ( recipientIds?.length ) {
     const placeholders = recipientIds.map( () => "?" ).join( "," );
-    return db.prepare( `
+    const result = await db.prepare( `
       UPDATE notification_recipients SET readAt = CURRENT_TIMESTAMP
       WHERE userId = ? AND id IN (${ placeholders }) AND readAt IS NULL
-    ` ).run( userId, ...recipientIds ).changes;
+    ` ).run( userId, ...recipientIds );
+    return result.changes;
   }
-  return db.prepare(
+  const result = await db.prepare(
     "UPDATE notification_recipients SET readAt = CURRENT_TIMESTAMP WHERE userId = ? AND readAt IS NULL"
-  ).run( userId ).changes;
+  ).run( userId );
+  return result.changes;
 }
 
-export function getUnreadCount( db: Database.Database, userId: string ): number {
-  return ( db.prepare(
+export async function markNotificationsUnread( db: DatabaseLike, userId: string, recipientIds?: number[] ): Promise<number> {
+  if ( recipientIds?.length ) {
+    const placeholders = recipientIds.map( () => "?" ).join( "," );
+    const result = await db.prepare( `
+      UPDATE notification_recipients SET readAt = NULL
+      WHERE userId = ? AND id IN (${ placeholders }) AND readAt IS NOT NULL
+    ` ).run( userId, ...recipientIds );
+    return result.changes;
+  }
+  const result = await db.prepare(
+    "UPDATE notification_recipients SET readAt = NULL WHERE userId = ? AND readAt IS NOT NULL"
+  ).run( userId );
+  return result.changes;
+}
+
+export async function getUnreadCount( db: DatabaseLike, userId: string ): Promise<number> {
+  return ( await db.prepare(
     "SELECT COUNT(*) AS count FROM notification_recipients WHERE userId = ? AND readAt IS NULL"
   ).get( userId ) as { count: number } ).count;
 }
 
-export function claimDeliveries(
-  db: Database.Database,
+export async function deleteNotifications( db: DatabaseLike, userId: string, recipientIds?: number[] ): Promise<number> {
+  if ( recipientIds?.length ) {
+    const placeholders = recipientIds.map( () => "?" ).join( "," );
+    const result = await db.prepare(
+      `DELETE FROM notification_recipients WHERE userId = ? AND id IN (${ placeholders })`
+    ).run( userId, ...recipientIds );
+    return result.changes;
+  }
+  const result = await db.prepare( "DELETE FROM notification_recipients WHERE userId = ?" ).run( userId );
+  return result.changes;
+}
+
+export async function claimDeliveries(
+  db: DatabaseLike,
   limit = 20,
   leaseMs = 60_000
-): NotificationDeliveryRecord[] {
+): Promise<NotificationDeliveryRecord[]> {
   const token = randomUUID();
   const expiresAt = new Date( Date.now() + leaseMs ).toISOString();
-  const claim = db.transaction( () => {
-    const ids = db.prepare( `
+  const claim = db.transaction( async () => {
+    const ids = await db.prepare( `
       SELECT d.id
       FROM notification_deliveries d
       JOIN notifications n ON n.id = d.notificationId
@@ -493,35 +537,35 @@ export function claimDeliveries(
     ` ).all( limit ) as { id: number }[];
     if ( ids.length === 0 ) return [];
     const placeholders = ids.map( () => "?" ).join( "," );
-    db.prepare( `
+    await db.prepare( `
       UPDATE notification_deliveries
       SET status = 'processing', leaseToken = ?, leaseExpiresAt = ?, updatedAt = CURRENT_TIMESTAMP
       WHERE id IN (${ placeholders })
     ` ).run( token, expiresAt, ...ids.map( row => row.id ) );
-    return db.prepare( `
+    return await db.prepare( `
       SELECT * FROM notification_deliveries WHERE leaseToken = ? ORDER BY id
     ` ).all( token ) as NotificationDeliveryRecord[];
   } );
-  return claim();
+  return await claim() as NotificationDeliveryRecord[];
 }
 
-export function createManualMessage(
-  db: Database.Database,
+export async function createManualMessage(
+  db: DatabaseLike,
   session: AuthSession,
   booking: BookingRecord,
   subject: string,
   message: string,
   channels: Array<"email" | "sms">
-): number {
+): Promise<number> {
   const deliveries: DeliveryInput[] = [];
   for ( const channel of channels ) {
     if ( channel === "email" ) {
-      deliveries.push( { channel, recipient: booking.email, template: "manual_message", payload: { subject, message, ...bookingPayload( booking ) } } );
+      deliveries.push( { channel, recipient: booking.email, template: "manual_message", payload: { subject, message, ...await bookingPayload( booking ) } } );
     } else if ( booking.phone && booking.smsConsentedAt ) {
-      deliveries.push( { channel, recipient: booking.phone, template: "manual_message", payload: { subject, message, ...bookingPayload( booking ) } } );
+      deliveries.push( { channel, recipient: booking.phone, template: "manual_message", payload: { subject, message, ...await bookingPayload( booking ) } } );
     }
   }
-  return insertNotification( db, {
+  return await insertNotification( db, {
     eventKey: `booking:${ booking.reference }:manual:${ randomUUID() }`,
     type: "message.manual",
     category: "messages",
@@ -529,23 +573,23 @@ export function createManualMessage(
     body: message,
     bookingReference: booking.reference,
     actorUserId: session.userId,
-    metadata: bookingPayload( booking ),
+    metadata: await bookingPayload( booking ),
     inAppUserIds: [ "admin" ],
     deliveries,
   } );
 }
 
-export function createBroadcast(
-  db: Database.Database,
+export async function createBroadcast(
+  db: DatabaseLike,
   session: AuthSession,
   chauffeurIds: number[],
   subject: string,
   message: string,
   channels: Array<"in_app" | "email" | "sms">
-): number {
+): Promise<number> {
   const chauffeurs = ( chauffeurIds.length
-    ? db.prepare( `SELECT * FROM chauffeurs WHERE status = 'active' AND id IN (${ chauffeurIds.map( () => "?" ).join( "," ) })` ).all( ...chauffeurIds )
-    : db.prepare( "SELECT * FROM chauffeurs WHERE status = 'active'" ).all()
+    ? await db.prepare( `SELECT * FROM chauffeurs WHERE status = 'active' AND id IN (${ chauffeurIds.map( () => "?" ).join( "," ) })` ).all( ...chauffeurIds )
+    : await db.prepare( "SELECT * FROM chauffeurs WHERE status = 'active'" ).all()
   ) as ChauffeurRecord[];
   const deliveries: DeliveryInput[] = [];
   for ( const chauffeur of chauffeurs ) {
@@ -557,7 +601,7 @@ export function createBroadcast(
       }
     }
   }
-  return insertNotification( db, {
+  return await insertNotification( db, {
     eventKey: `broadcast:${ randomUUID() }`,
     type: "message.broadcast",
     category: "messages",
@@ -570,14 +614,14 @@ export function createBroadcast(
   } );
 }
 
-export function createManualReminder(
-  db: Database.Database,
+export async function createManualReminder(
+  db: DatabaseLike,
   session: AuthSession,
   booking: BookingRecord,
   channels: Array<"email" | "sms">
-): number {
-  const chauffeur = getChauffeur( db, booking.chauffeurId );
-  const payload = { ...bookingPayload( booking ), reminderHours: "Manual" };
+): Promise<number> {
+  const chauffeur = await getChauffeur( db, booking.chauffeurId );
+  const payload = { ...await bookingPayload( booking ), reminderHours: "Manual" };
   const deliveries: DeliveryInput[] = [];
   if ( channels.includes( "email" ) ) {
     deliveries.push( { channel: "email", recipient: booking.email, template: "booking_reminder", payload } );
@@ -594,7 +638,7 @@ export function createManualReminder(
   if ( channels.includes( "sms" ) && booking.phone && booking.smsConsentedAt ) {
     deliveries.push( { channel: "sms", recipient: booking.phone, template: "booking_reminder", payload } );
   }
-  return insertNotification( db, {
+  return await insertNotification( db, {
     eventKey: `booking:${ booking.reference }:reminder:manual:${ randomUUID() }`,
     type: "booking.reminder_manual",
     category: "reminders",
@@ -608,10 +652,10 @@ export function createManualReminder(
   } );
 }
 
-export function listReminderDeliveries(
-  db: Database.Database,
+export async function listReminderDeliveries(
+  db: DatabaseLike,
   session: AuthSession
-): Array<NotificationDeliveryRecord & {
+): Promise<Array<NotificationDeliveryRecord & {
   title: string;
   bookingReference: string | null;
   passengerName: string | null;
@@ -620,10 +664,10 @@ export function listReminderDeliveries(
   lastError: string | null;
   providerMessageId: string | null;
   updatedAt: string;
-}> {
+}>> {
   const roleClause = session.role === "chauffeur" ? "AND b.chauffeurId = ?" : "";
   const params = session.role === "chauffeur" ? [ session.chauffeurId! ] : [];
-  return db.prepare( `
+  return await db.prepare( `
     SELECT d.*, n.title, n.bookingReference, b.name AS passengerName,
       b.date AS pickupDate, b.time AS pickupTime
     FROM notification_deliveries d
@@ -645,11 +689,11 @@ export function listReminderDeliveries(
   }>;
 }
 
-export function getPreferences(
-  db: Database.Database,
+export async function getPreferences(
+  db: DatabaseLike,
   userId: string
-): Array<{ category: NotificationCategory; inApp: number; email: number; sms: number }> {
-  return db.prepare( `
+): Promise<Array<{ category: NotificationCategory; inApp: number; email: number; sms: number }>> {
+  return await db.prepare( `
     SELECT category, inApp, email, sms
     FROM notification_preferences
     WHERE userId = ?
@@ -657,13 +701,13 @@ export function getPreferences(
   ` ).all( userId ) as Array<{ category: NotificationCategory; inApp: number; email: number; sms: number }>;
 }
 
-export function setPreference(
-  db: Database.Database,
+export async function setPreference(
+  db: DatabaseLike,
   userId: string,
   category: NotificationCategory,
   preference: { inApp: boolean; email: boolean; sms: boolean }
-): void {
-  db.prepare( `
+): Promise<void> {
+  await db.prepare( `
     INSERT INTO notification_preferences (userId, category, inApp, email, sms, updatedAt)
     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(userId, category) DO UPDATE SET
@@ -674,10 +718,10 @@ export function setPreference(
   ` ).run( userId, category, Number( preference.inApp ), Number( preference.email ), Number( preference.sms ) );
 }
 
-export function listFailedDeliveries(
-  db: Database.Database
-): Array<NotificationDeliveryRecord & { title: string; bookingReference: string | null; lastError: string | null }> {
-  return db.prepare( `
+export async function listFailedDeliveries(
+  db: DatabaseLike
+): Promise<Array<NotificationDeliveryRecord & { title: string; bookingReference: string | null; lastError: string | null }>> {
+  return await db.prepare( `
     SELECT d.*, n.title, n.bookingReference
     FROM notification_deliveries d
     JOIN notifications n ON n.id = d.notificationId
@@ -687,25 +731,26 @@ export function listFailedDeliveries(
   ` ).all() as Array<NotificationDeliveryRecord & { title: string; bookingReference: string | null; lastError: string | null }>;
 }
 
-export function retryDelivery( db: Database.Database, deliveryId: number ): boolean {
-  return db.prepare( `
+export async function retryDelivery( db: DatabaseLike, deliveryId: number ): Promise<boolean> {
+  const result = await db.prepare( `
     UPDATE notification_deliveries
     SET status = 'pending', attempts = 0, nextAttemptAt = CURRENT_TIMESTAMP,
         leaseToken = NULL, leaseExpiresAt = NULL, lastError = NULL, updatedAt = CURRENT_TIMESTAMP
     WHERE id = ? AND status IN ('failed', 'dead_letter')
-  ` ).run( deliveryId ).changes > 0;
+  ` ).run( deliveryId );
+  return result.changes > 0;
 }
 
-export function recordProviderEvent(
-  db: Database.Database,
+export async function recordProviderEvent(
+  db: DatabaseLike,
   provider: string,
   providerEventId: string,
   providerMessageId: string | undefined,
   eventType: string,
   payload: unknown
-): void {
-  db.transaction( () => {
-    const result = db.prepare( `
+): Promise<void> {
+  await db.transaction( async () => {
+    const result = await db.prepare( `
       INSERT OR IGNORE INTO notification_provider_events
         (provider, providerEventId, providerMessageId, eventType, payload)
       VALUES (?, ?, ?, ?, ?)
@@ -720,7 +765,7 @@ export function recordProviderEvent(
         ? "failed"
         : null;
     if ( status ) {
-      db.prepare( `
+      await db.prepare( `
         UPDATE notification_deliveries
         SET status = ?, providerMetadata = ?, updatedAt = CURRENT_TIMESTAMP
         WHERE provider = ? AND providerMessageId = ?

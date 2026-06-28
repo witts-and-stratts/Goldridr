@@ -63,7 +63,7 @@ class MockSmsTransport implements SmsTransport {
   async verify(): Promise<void> {}
 
   async send( message: RenderedSms ): Promise<SmsSendResult> {
-    const record = insertMockSmsMessage( {
+    const record = await insertMockSmsMessage( {
       fromNumber: message.from,
       toNumber: message.to,
       body: message.body,
@@ -83,8 +83,8 @@ class MockSmsTransport implements SmsTransport {
   async close(): Promise<void> {}
 }
 
-export function createSmsTransport(): SmsTransport {
-  const config = getSmsConfig();
+export async function createSmsTransport(): Promise<SmsTransport> {
+  const config = await getSmsConfig();
   if ( config.transport === "mock" ) return new MockSmsTransport();
   return new TwilioSmsTransport( config.accountSid, config.authToken );
 }

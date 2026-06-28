@@ -13,8 +13,8 @@ export async function GET() {
       return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
     }
     const blocks = session.role === "admin"
-      ? getAllBlockedSlots()
-      : getBlockedSlotsForChauffeur( session.chauffeurId! );
+      ? await getAllBlockedSlots()
+      : await getBlockedSlotsForChauffeur( session.chauffeurId! );
     return NextResponse.json( { success: true, blocks } );
   } catch ( err: unknown ) {
     const message = err instanceof Error ? err.message : "Failed to load blocked slots";
@@ -61,7 +61,7 @@ export async function POST( request: Request ) {
       );
     }
 
-    const saved = saveBlockedSlot( {
+    const saved = await saveBlockedSlot( {
       title,
       date,
       endDate: endDate || undefined,
@@ -112,8 +112,8 @@ export async function DELETE( request: Request ) {
     }
 
     const deleted = session.role === "admin"
-      ? deleteBlockedSlot( id )
-      : deleteChauffeurBlockedSlot( id, session.chauffeurId! );
+      ? await deleteBlockedSlot( id )
+      : await deleteChauffeurBlockedSlot( id, session.chauffeurId! );
     if ( !deleted ) {
       return NextResponse.json( 
         { success: false, error: "Blocked slot not found or already deleted" },

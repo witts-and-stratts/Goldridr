@@ -57,16 +57,20 @@ export function YearView() {
     <>
       {/* ── Mobile / tablet: scrollable 1→2 col ─────────────────────────── */}
       <div className="lg:hidden flex-1 min-h-0 overflow-y-auto p-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {months.map((month, i) => (
             <div key={i} className="rounded-lg border border-border bg-card p-2">
               <Calendar
                 {...sharedProps}
                 month={month}
+                className="w-full"
                 classNames={{
+                  months: "w-full",
+                  month: "w-full flex flex-col gap-1",
                   month_caption: "flex items-center justify-center pb-1",
                   caption_label: "text-xs font-semibold",
-                  weekday: "text-[10px] text-muted-foreground/60 font-medium",
+                  weekdays: "flex",
+                  weekday: "text-[10px] text-muted-foreground/60 font-medium flex-1 text-center",
                   week: "flex w-full mt-1",
                   day: "relative flex-1 aspect-square p-0 text-center text-xs",
                 }}

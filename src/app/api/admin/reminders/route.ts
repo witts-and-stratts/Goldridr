@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import { getAllBookings, getBookingsForChauffeur, getDb } from "@/lib/db";
+import { getRequestSession } from "@/lib/driver-auth";
 import { createManualReminder, listReminderDeliveries } from "@/lib/notifications/store";
 
-export async function GET() {
-  const session = await getSession();
+export async function GET( request: Request ) {
+  const session = await getRequestSession( request );
   if ( !session ) return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
   const bookings = session.role === "admin"
-    ? getAllBookings()
-    : getBookingsForChauffeur( session.chauffeurId! );
+    ? await getAllBookings()
+    : await getBookingsForChauffeur( session.chauffeurId! );
   return NextResponse.json( {
     success: true,
-    reminders: listReminderDeliveries( getDb(), session ),
+    reminders: await listReminderDeliveries( await getDb(), session ),
     bookings: bookings.map( booking => ( {
       reference: booking.reference,
       name: booking.name,
@@ -26,12 +26,12 @@ export async function GET() {
 }
 
 export async function POST( request: Request ) {
-  const session = await getSession();
+  const session = await getRequestSession( request );
   if ( !session ) return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
   const body = await request.json();
   const allowedBookings = session.role === "admin"
-    ? getAllBookings()
-    : getBookingsForChauffeur( session.chauffeurId! );
+    ? await getAllBookings()
+    : await getBookingsForChauffeur( session.chauffeurId! );
   const booking = allowedBookings.find( item => item.reference === body.reference );
   if ( !booking ) return NextResponse.json( { success: false, error: "Booking not found" }, { status: 404 } );
   if ( [ "cancelled", "rejected" ].includes( booking.status ) ) {
@@ -46,6 +46,6 @@ export async function POST( request: Request ) {
   if ( channels.includes( "sms" ) && !( booking.phone && booking.smsConsentedAt ) ) {
     return NextResponse.json( { success: false, error: "Passenger has not consented to SMS" }, { status: 422 } );
   }
-  const notificationId = createManualReminder( getDb(), session, booking, channels );
+  const notificationId = await createManualReminder( await getDb(), session, booking, channels );
   return NextResponse.json( { success: true, notificationId }, { status: 201 } );
 }

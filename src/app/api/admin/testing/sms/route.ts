@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import z from "zod/v4";
 import { getTwilioFromNumber } from "@/lib/admin-settings";
-import { getSession, isAdmin } from "@/lib/auth";
+import { isAdmin, type AuthSession } from "@/lib/auth";
+import { getRequestSession } from "@/lib/driver-auth";
 import {
   clearMockSmsMessages,
   insertMockSmsMessage,
@@ -11,11 +12,11 @@ import {
 
 const SmsStatusSchema = z.enum( [ "queued", "sent", "delivered", "failed", "undelivered" ] );
 
-function requireAdmin( session: Awaited<ReturnType<typeof getSession>> ) {
+function requireAdmin( session: AuthSession | null ) {
   return session && isAdmin( session );
 }
 
-function toMessage( record: ReturnType<typeof listMockSmsMessages>[number] ) {
+function toMessage( record: Awaited<ReturnType<typeof listMockSmsMessages>>[number] ) {
   return {
     sid: record.sid,
     accountSid: record.accountSid,
@@ -30,14 +31,14 @@ function toMessage( record: ReturnType<typeof listMockSmsMessages>[number] ) {
 }
 
 export async function GET( request: Request ) {
-  const session = await getSession();
+  const session = await getRequestSession( request );
   if ( !requireAdmin( session ) ) {
     return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
   }
 
   const { searchParams } = new URL( request.url );
   const limit = Math.max( 1, Math.min( 100, Number( searchParams.get( "limit" ) || "25" ) || 25 ) );
-  const messages = listMockSmsMessages( limit );
+  const messages = await listMockSmsMessages( limit );
 
   return NextResponse.json( {
     success: true,
@@ -48,14 +49,14 @@ export async function GET( request: Request ) {
 }
 
 export async function POST( request: Request ) {
-  const session = await getSession();
+  const session = await getRequestSession( request );
   if ( !requireAdmin( session ) ) {
     return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
   }
 
   const body = await request.json();
   const to = typeof body.to === "string" ? body.to.trim() : "";
-  const from = typeof body.from === "string" ? body.from.trim() : getTwilioFromNumber();
+  const from = typeof body.from === "string" ? body.from.trim() : await getTwilioFromNumber();
   const messageBody = typeof body.body === "string" ? body.body.trim() : "";
   const status = typeof body.status === "string" && SmsStatusSchema.safeParse( body.status ).success
     ? body.status
@@ -68,7 +69,7 @@ export async function POST( request: Request ) {
     );
   }
 
-  const record = insertMockSmsMessage( {
+  const record = await insertMockSmsMessage( {
     accountSid: typeof body.accountSid === "string" ? body.accountSid.trim() : null,
     fromNumber: from,
     toNumber: to,
@@ -84,7 +85,7 @@ export async function POST( request: Request ) {
 }
 
 export async function PATCH( request: Request ) {
-  const session = await getSession();
+  const session = await getRequestSession( request );
   if ( !requireAdmin( session ) ) {
     return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
   }
@@ -102,7 +103,7 @@ export async function PATCH( request: Request ) {
     );
   }
 
-  const updated = updateMockSmsMessageStatus(
+  const updated = await updateMockSmsMessageStatus(
     sid,
     status,
     typeof body.errorMessage === "string" ? body.errorMessage.trim() || null : null
@@ -115,12 +116,12 @@ export async function PATCH( request: Request ) {
   return NextResponse.json( { success: true } );
 }
 
-export async function DELETE() {
-  const session = await getSession();
+export async function DELETE( request: Request ) {
+  const session = await getRequestSession( request );
   if ( !requireAdmin( session ) ) {
     return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
   }
 
-  const deleted = clearMockSmsMessages();
+  const deleted = await clearMockSmsMessages();
   return NextResponse.json( { success: true, deleted } );
 }

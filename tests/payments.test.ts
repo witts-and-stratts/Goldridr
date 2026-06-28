@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { confirmBookingForPaidPayment } from "../src/lib/db";
+import { asDatabaseLike } from "./db-like";
 
 function createDb() {
   const db = new Database( ":memory:" );
@@ -60,12 +61,10 @@ function createDb() {
   return db;
 }
 
-test( "a paid payment confirms its pending booking and queues the status notification", () => {
+test( "a paid payment confirms its pending booking and queues the status notification", async () => {
   const db = createDb();
 
-  const changed = db.transaction( () =>
-    confirmBookingForPaidPayment( db, "GR-PAYMENT" )
-  )();
+  const changed = await confirmBookingForPaidPayment( asDatabaseLike( db ), "GR-PAYMENT" );
 
   const booking = db.prepare(
     "SELECT status FROM bookings WHERE reference = 'GR-PAYMENT'"
@@ -83,13 +82,13 @@ test( "a paid payment confirms its pending booking and queues the status notific
   db.close();
 } );
 
-test( "an already confirmed booking is not confirmed or notified twice", () => {
+test( "an already confirmed booking is not confirmed or notified twice", async () => {
   const db = createDb();
   db.prepare(
     "UPDATE bookings SET status = 'confirmed' WHERE reference = 'GR-PAYMENT'"
   ).run();
 
-  const changed = confirmBookingForPaidPayment( db, "GR-PAYMENT" );
+  const changed = await confirmBookingForPaidPayment( asDatabaseLike( db ), "GR-PAYMENT" );
   const notifications = db.prepare(
     "SELECT COUNT(*) AS count FROM notifications"
   ).get() as { count: number };
@@ -99,14 +98,14 @@ test( "an already confirmed booking is not confirmed or notified twice", () => {
   db.close();
 } );
 
-test( "a cancelled booking cannot be confirmed by recording a paid payment", () => {
+test( "a cancelled booking cannot be confirmed by recording a paid payment", async () => {
   const db = createDb();
   db.prepare(
     "UPDATE bookings SET status = 'cancelled' WHERE reference = 'GR-PAYMENT'"
   ).run();
 
-  assert.throws(
-    () => confirmBookingForPaidPayment( db, "GR-PAYMENT" ),
+  await assert.rejects(
+    () => confirmBookingForPaidPayment( asDatabaseLike( db ), "GR-PAYMENT" ),
     /Cannot record a payment for a cancelled booking/
   );
 

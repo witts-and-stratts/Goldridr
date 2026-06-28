@@ -15,7 +15,7 @@ export async function GET( req: Request ) {
       );
     }
 
-    const booking = getBookingByReference( reference.trim().toUpperCase() );
+    const booking = await getBookingByReference( reference.trim().toUpperCase() );
     if ( !booking || booking.email.toLowerCase() !== email.trim().toLowerCase() ) {
       return NextResponse.json(
         { success: false, error: "Booking not found. Please check your booking reference and email." },
@@ -25,7 +25,7 @@ export async function GET( req: Request ) {
 
     return NextResponse.json( {
       success: true,
-      booking: bookingRecordToBookingData( booking ),
+      booking: await bookingRecordToBookingData( booking ),
     } );
   } catch ( error ) {
     console.error( "Error fetching booking:", error );

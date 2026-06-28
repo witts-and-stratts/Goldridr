@@ -17,18 +17,18 @@ export async function GET( request: Request ) {
     start( controller ) {
       const encoder = new TextEncoder();
       const write = ( value: string ) => controller.enqueue( encoder.encode( value ) );
-      const poll = () => {
-        const events = listNotifications( getDb(), session.userId, { afterId: cursor, limit: 100 } ).reverse();
+      const poll = async () => {
+        const events = ( await listNotifications( await getDb(), session.userId, { afterId: cursor, limit: 100 } ) ).reverse();
         for ( const event of events ) {
           cursor = Math.max( cursor, event.recipientId );
           write( `id: ${ event.recipientId }\nevent: notification\ndata: ${ JSON.stringify( event ) }\n\n` );
         }
       };
-      poll();
+      void poll();
       write( ": connected\n\n" );
       timer = setInterval( () => {
         try {
-          poll();
+          void poll();
           write( ": keepalive\n\n" );
         } catch {
           if ( timer ) clearInterval( timer );

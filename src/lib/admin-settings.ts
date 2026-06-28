@@ -10,78 +10,80 @@ export const DEFAULT_PRICE_BY_MILE_CITY = 3;
 export const DEFAULT_PRICE_BY_MILE_HOURLY = 4;
 export const DEFAULT_TWILIO_FROM_NUMBER = "+10000000000";
 
-function readTextSetting( key: string, envName: string, fallback: string ): string {
-  const stored = getAppSetting( key )?.trim();
-  if ( stored ) return stored;
+async function readTextSetting( key: string, envName: string, fallback: string ): Promise<string> {
+  try {
+    const stored = ( await getAppSetting( key ) )?.trim();
+    if ( stored ) return stored;
+  } catch {}
 
   const envValue = process.env[ envName ]?.trim();
   return envValue || fallback;
 }
 
-function readNumberSetting( key: string, envName: string, fallback: number ): number {
-  const raw = readTextSetting( key, envName, String( fallback ) );
+async function readNumberSetting( key: string, envName: string, fallback: number ): Promise<number> {
+  const raw = await readTextSetting( key, envName, String( fallback ) );
   const parsed = Number( raw );
   return Number.isFinite( parsed ) ? parsed : fallback;
 }
 
-function writeSetting( key: string, value: string | number | undefined ): void {
+async function writeSetting( key: string, value: string | number | undefined ): Promise<void> {
   if ( value === undefined || value === null ) return;
-  setAppSetting( key, String( value ) );
+  await setAppSetting( key, String( value ) );
 }
 
-export function getNotificationTimeZone(): string {
-  return readTextSetting( "notificationTimezone", "NOTIFICATION_TIMEZONE", DEFAULT_NOTIFICATION_TIME_ZONE );
+export async function getNotificationTimeZone(): Promise<string> {
+  return await readTextSetting( "notificationTimezone", "NOTIFICATION_TIMEZONE", DEFAULT_NOTIFICATION_TIME_ZONE );
 }
 
-export function getAppUrl(): string {
-  return readTextSetting( "appUrl", "APP_URL", DEFAULT_APP_URL );
+export async function getAppUrl(): Promise<string> {
+  return await readTextSetting( "appUrl", "APP_URL", DEFAULT_APP_URL );
 }
 
-export function getEmailFromName(): string {
-  return readTextSetting( "emailFromName", "EMAIL_FROM_NAME", DEFAULT_EMAIL_FROM_NAME );
+export async function getEmailFromName(): Promise<string> {
+  return await readTextSetting( "emailFromName", "EMAIL_FROM_NAME", DEFAULT_EMAIL_FROM_NAME );
 }
 
-export function getEmailFromAddress(): string {
-  return readTextSetting( "emailFromAddress", "EMAIL_FROM_ADDRESS", DEFAULT_EMAIL_FROM_ADDRESS );
+export async function getEmailFromAddress(): Promise<string> {
+  return await readTextSetting( "emailFromAddress", "EMAIL_FROM_ADDRESS", DEFAULT_EMAIL_FROM_ADDRESS );
 }
 
-export function getEmailReplyTo(): string | undefined {
-  const value = readTextSetting( "emailReplyTo", "EMAIL_REPLY_TO", DEFAULT_EMAIL_REPLY_TO );
+export async function getEmailReplyTo(): Promise<string | undefined> {
+  const value = await readTextSetting( "emailReplyTo", "EMAIL_REPLY_TO", DEFAULT_EMAIL_REPLY_TO );
   return value || undefined;
 }
 
-export function getPriceByMileAirport(): number {
-  return readNumberSetting( "priceByMileAirport", "PRICE_BY_MILE_AIRPORT", DEFAULT_PRICE_BY_MILE_AIRPORT );
+export async function getPriceByMileAirport(): Promise<number> {
+  return await readNumberSetting( "priceByMileAirport", "PRICE_BY_MILE_AIRPORT", DEFAULT_PRICE_BY_MILE_AIRPORT );
 }
 
-export function getPriceByMileCity(): number {
-  return readNumberSetting( "priceByMileCity", "PRICE_BY_MILE_CITY", DEFAULT_PRICE_BY_MILE_CITY );
+export async function getPriceByMileCity(): Promise<number> {
+  return await readNumberSetting( "priceByMileCity", "PRICE_BY_MILE_CITY", DEFAULT_PRICE_BY_MILE_CITY );
 }
 
-export function getPriceByMileHourly(): number {
-  return readNumberSetting( "priceByMileHourly", "PRICE_BY_MILE_HOURLY", DEFAULT_PRICE_BY_MILE_HOURLY );
+export async function getPriceByMileHourly(): Promise<number> {
+  return await readNumberSetting( "priceByMileHourly", "PRICE_BY_MILE_HOURLY", DEFAULT_PRICE_BY_MILE_HOURLY );
 }
 
-export function getTwilioFromNumber(): string {
-  return readTextSetting( "twilioFromNumber", "TWILIO_FROM_NUMBER", DEFAULT_TWILIO_FROM_NUMBER );
+export async function getTwilioFromNumber(): Promise<string> {
+  return await readTextSetting( "twilioFromNumber", "TWILIO_FROM_NUMBER", DEFAULT_TWILIO_FROM_NUMBER );
 }
 
-export function getAdminSettings() {
+export async function getAdminSettings() {
   return {
-    bookingBufferMinutes: readNumberSetting( "bookingBufferMinutes", "", 30 ),
-    notificationTimezone: getNotificationTimeZone(),
-    appUrl: getAppUrl(),
-    emailFromName: getEmailFromName(),
-    emailFromAddress: getEmailFromAddress(),
-    emailReplyTo: getEmailReplyTo() ?? "",
-    priceByMileAirport: getPriceByMileAirport(),
-    priceByMileCity: getPriceByMileCity(),
-    priceByMileHourly: getPriceByMileHourly(),
-    twilioFromNumber: getTwilioFromNumber(),
+    bookingBufferMinutes: await readNumberSetting( "bookingBufferMinutes", "", 30 ),
+    notificationTimezone: await getNotificationTimeZone(),
+    appUrl: await getAppUrl(),
+    emailFromName: await getEmailFromName(),
+    emailFromAddress: await getEmailFromAddress(),
+    emailReplyTo: await getEmailReplyTo() ?? "",
+    priceByMileAirport: await getPriceByMileAirport(),
+    priceByMileCity: await getPriceByMileCity(),
+    priceByMileHourly: await getPriceByMileHourly(),
+    twilioFromNumber: await getTwilioFromNumber(),
   };
 }
 
-export function saveAdminSettings( settings: {
+export async function saveAdminSettings( settings: {
   bookingBufferMinutes: number;
   notificationTimezone: string;
   appUrl: string;
@@ -92,15 +94,15 @@ export function saveAdminSettings( settings: {
   priceByMileCity: number;
   priceByMileHourly: number;
   twilioFromNumber: string;
-} ): void {
-  writeSetting( "bookingBufferMinutes", settings.bookingBufferMinutes );
-  writeSetting( "notificationTimezone", settings.notificationTimezone );
-  writeSetting( "appUrl", settings.appUrl );
-  writeSetting( "emailFromName", settings.emailFromName );
-  writeSetting( "emailFromAddress", settings.emailFromAddress );
-  writeSetting( "emailReplyTo", settings.emailReplyTo );
-  writeSetting( "priceByMileAirport", settings.priceByMileAirport );
-  writeSetting( "priceByMileCity", settings.priceByMileCity );
-  writeSetting( "priceByMileHourly", settings.priceByMileHourly );
-  writeSetting( "twilioFromNumber", settings.twilioFromNumber );
+} ): Promise<void> {
+  await writeSetting( "bookingBufferMinutes", settings.bookingBufferMinutes );
+  await writeSetting( "notificationTimezone", settings.notificationTimezone );
+  await writeSetting( "appUrl", settings.appUrl );
+  await writeSetting( "emailFromName", settings.emailFromName );
+  await writeSetting( "emailFromAddress", settings.emailFromAddress );
+  await writeSetting( "emailReplyTo", settings.emailReplyTo );
+  await writeSetting( "priceByMileAirport", settings.priceByMileAirport );
+  await writeSetting( "priceByMileCity", settings.priceByMileCity );
+  await writeSetting( "priceByMileHourly", settings.priceByMileHourly );
+  await writeSetting( "twilioFromNumber", settings.twilioFromNumber );
 }

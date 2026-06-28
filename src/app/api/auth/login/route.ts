@@ -45,7 +45,7 @@ export async function POST( request: Request ) {
       return NextResponse.json( { success: true, role: "admin" } );
     }
 
-    const chauffeur = getChauffeurByEmail( email );
+    const chauffeur = await getChauffeurByEmail( email );
     if ( chauffeur?.passwordHash && verifyPassword( password, chauffeur.passwordHash ) ) {
       await setSession( {
         role: "chauffeur",

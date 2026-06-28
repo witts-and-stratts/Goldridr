@@ -1,19 +1,23 @@
 import { NextResponse } from "next/server";
 import {
   saveBlockedSlot,
+  getAllBlockedSlots,
   getBlockedSlotsForChauffeur,
+  deleteBlockedSlot,
   deleteChauffeurBlockedSlot,
 } from "@/lib/db";
-import { getDriverSession, unauthorizedResponse } from "@/lib/driver-auth";
+import { getAppSession, unauthorizedResponse } from "@/lib/driver-auth";
 
 const RECURRING_VALUES = [ "none", "daily", "weekly", "weekends" ];
 
 export async function GET( req: Request ) {
   try {
-    const session = getDriverSession( req );
+    const session = getAppSession( req );
     if ( !session ) return unauthorizedResponse();
 
-    const blocks = getBlockedSlotsForChauffeur( session.chauffeurId );
+    const blocks = session.role === "admin"
+      ? await getAllBlockedSlots()
+      : await getBlockedSlotsForChauffeur( session.chauffeurId! );
     return NextResponse.json( { success: true, blocks } );
   } catch ( err: unknown ) {
     const message = err instanceof Error ? err.message : "Failed to load blocked slots";
@@ -23,7 +27,7 @@ export async function GET( req: Request ) {
 
 export async function POST( req: Request ) {
   try {
-    const session = getDriverSession( req );
+    const session = getAppSession( req );
     if ( !session ) return unauthorizedResponse();
 
     const body = await req.json();
@@ -64,7 +68,7 @@ export async function POST( req: Request ) {
       );
     }
 
-    const block = saveBlockedSlot( {
+    const block = await saveBlockedSlot( {
       title,
       date,
       endDate,
@@ -72,7 +76,11 @@ export async function POST( req: Request ) {
       time,
       duration,
       recurring,
-      chauffeurId: session.chauffeurId,
+      chauffeurId: session.role === "admin"
+        ? body.chauffeurId !== undefined && body.chauffeurId !== null && body.chauffeurId !== ""
+          ? Number.parseInt( String( body.chauffeurId ), 10 )
+          : null
+        : session.chauffeurId,
     } );
 
     return NextResponse.json( { success: true, block }, { status: 201 } );
@@ -84,7 +92,7 @@ export async function POST( req: Request ) {
 
 export async function DELETE( req: Request ) {
   try {
-    const session = getDriverSession( req );
+    const session = getAppSession( req );
     if ( !session ) return unauthorizedResponse();
 
     const { searchParams } = new URL( req.url );
@@ -96,7 +104,9 @@ export async function DELETE( req: Request ) {
       );
     }
 
-    const deleted = deleteChauffeurBlockedSlot( id, session.chauffeurId );
+    const deleted = session.role === "admin"
+      ? await deleteBlockedSlot( id )
+      : await deleteChauffeurBlockedSlot( id, session.chauffeurId! );
     if ( !deleted ) {
       return NextResponse.json(
         { success: false, error: "Blocked slot not found" },

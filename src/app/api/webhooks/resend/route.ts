@@ -20,7 +20,7 @@ export async function POST( request: Request ) {
     } ) as { id?: string; type: string; created_at?: string; data?: { email_id?: string; id?: string } };
     const providerEventId = event.id || `${ event.type }:${ event.data?.email_id || event.data?.id }:${ event.created_at || "" }`;
     recordProviderEvent(
-      getDb(),
+      await getDb(),
       "resend",
       providerEventId,
       event.data?.email_id || event.data?.id,

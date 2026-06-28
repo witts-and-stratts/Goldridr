@@ -37,19 +37,19 @@ function bool( name: string, fallback = false ): boolean {
   return value === "true";
 }
 
-export function getEmailConfig(): EmailConfig {
+export async function getEmailConfig(): Promise<EmailConfig> {
   const transport = ( process.env.EMAIL_TRANSPORT || "smtp" ) as EmailTransportName;
   if ( ![ "smtp", "ses_api", "ses_smtp", "resend", "mailpit" ].includes( transport ) ) {
     throw new Error( `Unsupported EMAIL_TRANSPORT: ${ transport }` );
   }
 
   if ( transport === "mailpit" ) {
-    const fromName = getEmailFromName();
-    const fromAddress = getEmailFromAddress();
+    const fromName = await getEmailFromName();
+    const fromAddress = await getEmailFromAddress();
     return {
       fromName,
       fromAddress,
-      replyTo: getEmailReplyTo(),
+      replyTo: await getEmailReplyTo(),
       transport: "mailpit",
       host: process.env.MAILPIT_HOST?.trim() || "127.0.0.1",
       port: port( "MAILPIT_PORT", 1025 ),
@@ -58,9 +58,9 @@ export function getEmailConfig(): EmailConfig {
   }
 
   const common: CommonEmailConfig = {
-    fromName: getEmailFromName(),
-    fromAddress: getEmailFromAddress(),
-    replyTo: getEmailReplyTo(),
+    fromName: await getEmailFromName(),
+    fromAddress: await getEmailFromAddress(),
+    replyTo: await getEmailReplyTo(),
   };
 
   if ( transport === "smtp" ) {
@@ -96,12 +96,12 @@ export function getEmailConfig(): EmailConfig {
   return { ...common, transport: "resend", apiKey: required( "RESEND_API_KEY" ) };
 }
 
-export function getSmsConfig() {
+export async function getSmsConfig() {
   const transport = ( process.env.TWILIO_TRANSPORT || ( process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN ? "twilio" : "mock" ) ) as SmsTransportName;
   if ( transport === "mock" ) {
     return {
       transport: "mock" as const,
-      from: getTwilioFromNumber(),
+      from: await getTwilioFromNumber(),
     };
   }
 
@@ -109,7 +109,7 @@ export function getSmsConfig() {
     transport: "twilio" as const,
     accountSid: required( "TWILIO_ACCOUNT_SID" ),
     authToken: required( "TWILIO_AUTH_TOKEN" ),
-    from: getTwilioFromNumber(),
+    from: await getTwilioFromNumber(),
   };
 }
 import {

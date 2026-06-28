@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
-import { getSession, isAdmin } from "@/lib/auth";
-import { createChauffeur, deleteChauffeur, getAllChauffeurs } from "@/lib/db";
+import { isAdmin } from "@/lib/auth";
+import { createChauffeur, deleteChauffeur, getAllChauffeurs, assignVehicleToChauffeur, getDb } from "@/lib/db";
+import { getRequestSession } from "@/lib/driver-auth";
 
-export async function GET() {
+export async function GET( req: Request ) {
   try {
-    const session = await getSession();
+    const session = await getRequestSession( req );
     if ( !session ) {
       return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
     }
     if ( !isAdmin( session ) ) {
       return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
     }
-    const chauffeurs = getAllChauffeurs();
+    const chauffeurs = await getAllChauffeurs();
     return NextResponse.json( { success: true, chauffeurs } );
   } catch ( err: unknown ) {
     const message = err instanceof Error ? err.message : "Failed to retrieve chauffeurs list";
@@ -24,7 +25,7 @@ export async function GET() {
 
 export async function POST( req: Request ) {
   try {
-    const session = await getSession();
+    const session = await getRequestSession( req );
     if ( !session ) {
       return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
     }
@@ -59,7 +60,7 @@ export async function POST( req: Request ) {
       );
     }
 
-    const chauffeur = createChauffeur( { name, email, phone, password } );
+    const chauffeur = await createChauffeur( { name, email, phone, password } );
     return NextResponse.json( { success: true, chauffeur }, { status: 201 } );
   } catch ( err: unknown ) {
     const message = err instanceof Error ? err.message : "Failed to add chauffeur";
@@ -68,9 +69,48 @@ export async function POST( req: Request ) {
   }
 }
 
+export async function PATCH( req: Request ) {
+  try {
+    const session = await getRequestSession( req );
+    if ( !session ) return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
+    if ( !isAdmin( session ) ) return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
+
+    const body = await req.json();
+    const chauffeurId = Number( body.id );
+    if ( !Number.isInteger( chauffeurId ) || chauffeurId <= 0 ) {
+      return NextResponse.json( { success: false, error: "A valid chauffeur id is required" }, { status: 400 } );
+    }
+
+    if ( "vehicleId" in body ) {
+      const vehicleId = body.vehicleId == null ? null : Number( body.vehicleId );
+      if ( vehicleId !== null && ( !Number.isInteger( vehicleId ) || vehicleId <= 0 ) ) {
+        return NextResponse.json( { success: false, error: "Invalid vehicle id" }, { status: 400 } );
+      }
+      try {
+        if ( vehicleId === null ) {
+          await ( await getDb() ).prepare( "UPDATE chauffeurs SET vehicleId = NULL WHERE id = ?" ).run( chauffeurId );
+        } else {
+          await assignVehicleToChauffeur( chauffeurId, vehicleId );
+        }
+      } catch ( err: unknown ) {
+        const message = err instanceof Error ? err.message : "Failed to assign vehicle";
+        return NextResponse.json( { success: false, error: message }, { status: 400 } );
+      }
+      const chauffeurs = await getAllChauffeurs();
+      const updated = chauffeurs.find( c => c.id === chauffeurId );
+      return NextResponse.json( { success: true, chauffeur: updated } );
+    }
+
+    return NextResponse.json( { success: false, error: "Nothing to update" }, { status: 400 } );
+  } catch ( err: unknown ) {
+    const message = err instanceof Error ? err.message : "Failed to update chauffeur";
+    return NextResponse.json( { success: false, error: message }, { status: 500 } );
+  }
+}
+
 export async function DELETE( req: Request ) {
   try {
-    const session = await getSession();
+    const session = await getRequestSession( req );
     if ( !session ) {
       return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
     }
@@ -88,7 +128,7 @@ export async function DELETE( req: Request ) {
       );
     }
 
-    if ( !deleteChauffeur( id ) ) {
+    if ( !await deleteChauffeur( id ) ) {
       return NextResponse.json(
         { success: false, error: "Chauffeur not found" },
         { status: 404 }

@@ -24,42 +24,43 @@ export function WeekView() {
   const nowPct = currentTimePct(now);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      {/* Sticky day headers */}
-      <div className="flex shrink-0 border-b border-border">
-        <div className="w-14 shrink-0 border-r border-border" />
-        <div className="flex flex-1 overflow-hidden" style={{ minWidth: `${7 * MIN_COL_PX}px` }}>
-          {weekDays.map((day, i) => {
-            const isToday = isSameDay(day, new Date());
-            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-            return (
-              <div
-                key={i}
-                onClick={() => { setCurrentDate(day); setView("day"); }}
-                className={cn(
-                  "flex-1 h-10 flex flex-col items-center justify-center border-r border-border/40 cursor-pointer hover:bg-accent/30 transition-colors min-w-[100px]",
-                  isToday && "border-b-2 border-b-blue-500",
-                  isWeekend && "bg-muted/20",
-                )}
-              >
-                <span className={cn("text-[9px] uppercase tracking-wider font-medium",
-                  isToday ? "text-blue-500" : isWeekend ? "text-muted-foreground/60" : "text-muted-foreground"
-                )}>{format(day, "EEE")}</span>
-                <span className={cn("text-sm font-semibold size-6 flex items-center justify-center rounded-full transition-all",
-                  isToday ? "bg-blue-500 text-white" : "text-foreground hover:bg-accent/50"
-                )}>{format(day, "d")}</span>
-              </div>
-            );
-          })}
+    <ScrollArea className="flex-1 min-h-0" horizontal>
+      <div style={{ minWidth: `${7 * MIN_COL_PX + GUTTER_W}px` }}>
+        {/* Day headers — scroll horizontally with the columns */}
+        <div className="flex shrink-0 border-b border-border sticky top-0 z-20 bg-background">
+          {/* Corner cell — pinned left */}
+          <div className="w-14 shrink-0 border-r border-border sticky left-0 z-30 bg-background" />
+          <div className="flex flex-1">
+            {weekDays.map((day, i) => {
+              const isToday = isSameDay(day, new Date());
+              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+              return (
+                <div
+                  key={i}
+                  onClick={() => { setCurrentDate(day); setView("day"); }}
+                  className={cn(
+                    "flex-1 h-10 flex flex-col items-center justify-center border-r border-border/40 cursor-pointer hover:bg-accent/30 transition-colors min-w-[100px]",
+                    isToday && "border-b-2 border-b-blue-500",
+                    isWeekend && "bg-muted/20",
+                  )}
+                >
+                  <span className={cn("text-[9px] uppercase tracking-wider font-medium",
+                    isToday ? "text-blue-500" : isWeekend ? "text-muted-foreground/60" : "text-muted-foreground"
+                  )}>{format(day, "EEE")}</span>
+                  <span className={cn("text-sm font-semibold size-6 flex items-center justify-center rounded-full transition-all",
+                    isToday ? "bg-blue-500 text-white" : "text-foreground hover:bg-accent/50"
+                  )}>{format(day, "d")}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      {/* Single scroll: hours + all 7 columns */}
-      <ScrollArea className="flex-1 min-h-0" horizontal>
+        {/* Timeline: time labels + all 7 columns */}
         <div className="pt-2">
-          <div className="flex" style={{ height: `${TIMELINE_HEIGHT_PX}px`, minWidth: `${7 * MIN_COL_PX + GUTTER_W}px` }}>
-            {/* Hours gutter */}
-            <div className="w-14 shrink-0 border-r border-border select-none pointer-events-none">
+          <div className="flex" style={{ height: `${TIMELINE_HEIGHT_PX}px` }}>
+            {/* Hours gutter — pinned left when scrolling horizontally */}
+            <div className="w-14 shrink-0 border-r border-border select-none pointer-events-none sticky left-0 z-10 bg-background">
               <HourLabels />
             </div>
             {/* 7 day columns */}
@@ -113,7 +114,7 @@ export function WeekView() {
             })}
           </div>
         </div>
-      </ScrollArea>
-    </div>
+      </div>
+    </ScrollArea>
   );
 }

@@ -35,6 +35,28 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 # Goldridr
+
+## Database
+
+The app uses `@libsql/client` so the same database layer works with Turso in production and a local SQLite-compatible file during development.
+
+Local development defaults to `file:bookings.db` when `TURSO_DATABASE_URL` is not set. For Turso, create/import the database, then set these environment variables:
+
+```bash
+TURSO_DATABASE_URL=libsql://your-database.turso.io
+TURSO_AUTH_TOKEN=your-token
+```
+
+To migrate the existing local database into Turso, use the Turso CLI:
+
+```bash
+turso db import ./bookings.db
+turso db show --url <database-name>
+turso db tokens create <database-name>
+```
+
+After the env vars are configured, the existing schema initialization runs through Turso on app startup.
+
 # Notifications
 
 The application stores notification events and channel deliveries in the same SQLite transaction as booking changes. Run the durable worker as a separate process:

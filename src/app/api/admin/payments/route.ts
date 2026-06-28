@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import z from "zod/v4";
-import { getSession, isAdmin } from "@/lib/auth";
+import { isAdmin } from "@/lib/auth";
+import { getRequestSession } from "@/lib/driver-auth";
 import {
   createPayment,
   deletePayment,
@@ -30,8 +31,8 @@ const UpdatePaymentSchema = z.object( {
   notes: z.string().trim().max( 1000 ).nullable().optional(),
 } );
 
-async function requireAdmin() {
-  const session = await getSession();
+async function requireAdmin( request: Request ) {
+  const session = await getRequestSession( request );
   if ( !session ) {
     return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
   }
@@ -41,12 +42,12 @@ async function requireAdmin() {
   return null;
 }
 
-export async function GET() {
+export async function GET( request: Request ) {
   try {
-    const authError = await requireAdmin();
+    const authError = await requireAdmin( request );
     if ( authError ) return authError;
 
-    return NextResponse.json( { success: true, payments: getAllPayments() } );
+    return NextResponse.json( { success: true, payments: await getAllPayments() } );
   } catch ( error: unknown ) {
     const message = error instanceof Error ? error.message : "Failed to fetch payments";
     return NextResponse.json( { success: false, error: message }, { status: 500 } );
@@ -55,7 +56,7 @@ export async function GET() {
 
 export async function POST( request: Request ) {
   try {
-    const authError = await requireAdmin();
+    const authError = await requireAdmin( request );
     if ( authError ) return authError;
 
     const parsed = CreatePaymentSchema.safeParse( await request.json() );
@@ -66,7 +67,7 @@ export async function POST( request: Request ) {
       );
     }
 
-    const payment = createPayment( parsed.data );
+    const payment = await createPayment( parsed.data );
     return NextResponse.json( { success: true, payment }, { status: 201 } );
   } catch ( error: unknown ) {
     const message = error instanceof Error ? error.message : "Failed to create payment";
@@ -81,7 +82,7 @@ export async function POST( request: Request ) {
 
 export async function PATCH( request: Request ) {
   try {
-    const authError = await requireAdmin();
+    const authError = await requireAdmin( request );
     if ( authError ) return authError;
 
     const parsed = UpdatePaymentSchema.safeParse( await request.json() );
@@ -93,7 +94,7 @@ export async function PATCH( request: Request ) {
     }
 
     const { id, ...updates } = parsed.data;
-    if ( !updatePayment( id, updates ) ) {
+    if ( !await updatePayment( id, updates ) ) {
       return NextResponse.json( { success: false, error: "Payment not found" }, { status: 404 } );
     }
     return NextResponse.json( { success: true } );
@@ -106,14 +107,14 @@ export async function PATCH( request: Request ) {
 
 export async function DELETE( request: Request ) {
   try {
-    const authError = await requireAdmin();
+    const authError = await requireAdmin( request );
     if ( authError ) return authError;
 
     const id = Number( new URL( request.url ).searchParams.get( "id" ) );
     if ( !Number.isInteger( id ) || id <= 0 ) {
       return NextResponse.json( { success: false, error: "Invalid payment id" }, { status: 400 } );
     }
-    if ( !deletePayment( id ) ) {
+    if ( !await deletePayment( id ) ) {
       return NextResponse.json( { success: false, error: "Payment not found" }, { status: 404 } );
     }
     return NextResponse.json( { success: true } );

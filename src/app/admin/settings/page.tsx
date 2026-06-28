@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
 import { Bell, Mail, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/admin-ui/button";
 import { Checkbox } from "@/components/admin-ui/checkbox";
@@ -54,38 +56,52 @@ const channels = [
 ];
 
 export default function SettingsPage() {
+  const queryClient = useQueryClient();
   const [ preferences, setPreferences ] = useState<Preference[]>( [] );
   const [ settings, setSettings ] = useState<AdminSettingsState>( EMPTY_SETTINGS );
   const [ settingsStatus, setSettingsStatus ] = useState<"idle" | "saving" | "saved" | "error">( "idle" );
 
-  useEffect( () => {
-    fetch( "/api/admin/notifications/preferences" )
-      .then( response => response.json() )
-      .then( data => {
-        if ( data.success ) setPreferences( data.preferences );
-      } )
-      .catch( () => {} );
+  const { data: settingsData } = useQuery( {
+    queryKey: qk.settings(),
+    queryFn: async () => {
+      const res = await fetch( "/api/admin/settings" );
+      const data = await res.json();
+      if ( !data.success ) throw new Error( data.error ?? "Failed to load settings" );
+      return data.settings;
+    },
+  } );
 
-    fetch( "/api/admin/settings" )
-      .then( response => response.json() )
-      .then( data => {
-        if ( data.success ) {
-          setSettings( {
-            bookingBufferMinutes: String( data.settings.bookingBufferMinutes ?? EMPTY_SETTINGS.bookingBufferMinutes ),
-            notificationTimezone: data.settings.notificationTimezone || EMPTY_SETTINGS.notificationTimezone,
-            appUrl: data.settings.appUrl || EMPTY_SETTINGS.appUrl,
-            emailFromName: data.settings.emailFromName || EMPTY_SETTINGS.emailFromName,
-            emailFromAddress: data.settings.emailFromAddress || EMPTY_SETTINGS.emailFromAddress,
-            emailReplyTo: data.settings.emailReplyTo || "",
-            priceByMileAirport: String( data.settings.priceByMileAirport ?? EMPTY_SETTINGS.priceByMileAirport ),
-            priceByMileCity: String( data.settings.priceByMileCity ?? EMPTY_SETTINGS.priceByMileCity ),
-            priceByMileHourly: String( data.settings.priceByMileHourly ?? EMPTY_SETTINGS.priceByMileHourly ),
-            twilioFromNumber: data.settings.twilioFromNumber || EMPTY_SETTINGS.twilioFromNumber,
-          } );
-        }
-      } )
-      .catch( () => {} );
-  }, [] );
+  const { data: preferencesData } = useQuery( {
+    queryKey: qk.notificationPreferences(),
+    queryFn: async () => {
+      const res = await fetch( "/api/admin/notifications/preferences" );
+      const data = await res.json();
+      if ( !data.success ) throw new Error( data.error ?? "Failed to load preferences" );
+      return data.preferences as Preference[];
+    },
+  } );
+
+  useEffect( () => {
+    if ( !settingsData ) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSettings( {
+      bookingBufferMinutes: String( settingsData.bookingBufferMinutes ?? EMPTY_SETTINGS.bookingBufferMinutes ),
+      notificationTimezone: settingsData.notificationTimezone || EMPTY_SETTINGS.notificationTimezone,
+      appUrl: settingsData.appUrl || EMPTY_SETTINGS.appUrl,
+      emailFromName: settingsData.emailFromName || EMPTY_SETTINGS.emailFromName,
+      emailFromAddress: settingsData.emailFromAddress || EMPTY_SETTINGS.emailFromAddress,
+      emailReplyTo: settingsData.emailReplyTo || "",
+      priceByMileAirport: String( settingsData.priceByMileAirport ?? EMPTY_SETTINGS.priceByMileAirport ),
+      priceByMileCity: String( settingsData.priceByMileCity ?? EMPTY_SETTINGS.priceByMileCity ),
+      priceByMileHourly: String( settingsData.priceByMileHourly ?? EMPTY_SETTINGS.priceByMileHourly ),
+      twilioFromNumber: settingsData.twilioFromNumber || EMPTY_SETTINGS.twilioFromNumber,
+    } );
+  }, [ settingsData ] );
+
+  useEffect( () => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if ( preferencesData ) setPreferences( preferencesData );
+  }, [ preferencesData ] );
 
   const preferenceFor = ( category: string ) => preferences.find( preference => preference.category === category )
     || { category, inApp: 1, email: 1, sms: 0 };
@@ -108,6 +124,7 @@ export default function SettingsPage() {
         sms: Boolean( next.sms ),
       } ),
     } );
+    queryClient.invalidateQueries( { queryKey: qk.notificationPreferences() } );
   };
 
   const saveSettings = async () => {
@@ -148,7 +165,12 @@ export default function SettingsPage() {
           twilioFromNumber: settings.twilioFromNumber.trim(),
         } ),
       } );
-      setSettingsStatus( response.ok ? "saved" : "error" );
+      if ( response.ok ) {
+        setSettingsStatus( "saved" );
+        queryClient.invalidateQueries( { queryKey: qk.settings() } );
+      } else {
+        setSettingsStatus( "error" );
+      }
     } catch {
       setSettingsStatus( "error" );
     }

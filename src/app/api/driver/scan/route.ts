@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getBookingByReference } from "@/lib/db";
-import { getDriverSession, unauthorizedResponse } from "@/lib/driver-auth";
+import { getAppSession, unauthorizedResponse } from "@/lib/driver-auth";
 import { bookingRecordToDriverRide } from "@/lib/driver-ride";
 
 interface ScanPayload {
@@ -45,7 +45,7 @@ function parseScanPayload( raw: string ): ScanPayload | null {
 
 export async function POST( req: Request ) {
   try {
-    const session = getDriverSession( req );
+    const session = getAppSession( req );
     if ( !session ) return unauthorizedResponse();
 
     const body = await req.json();
@@ -59,7 +59,7 @@ export async function POST( req: Request ) {
       );
     }
 
-    const booking = getBookingByReference( scan.reference.trim().toUpperCase() );
+    const booking = await getBookingByReference( scan.reference.trim().toUpperCase() );
     if ( !booking ) {
       return NextResponse.json(
         { success: false, error: "No booking found for this QR code" },
@@ -74,7 +74,11 @@ export async function POST( req: Request ) {
       );
     }
 
-    if ( booking.chauffeurId && booking.chauffeurId !== session.chauffeurId ) {
+    if (
+      session.role !== "admin" &&
+      booking.chauffeurId &&
+      booking.chauffeurId !== session.chauffeurId
+    ) {
       return NextResponse.json(
         { success: false, error: "This ride is assigned to another chauffeur" },
         { status: 403 }
@@ -83,7 +87,7 @@ export async function POST( req: Request ) {
 
     return NextResponse.json( {
       success: true,
-      assignedToYou: booking.chauffeurId === session.chauffeurId,
+      assignedToYou: session.role === "admin" || booking.chauffeurId === session.chauffeurId,
       ride: bookingRecordToDriverRide( booking ),
     } );
   } catch ( err: unknown ) {
