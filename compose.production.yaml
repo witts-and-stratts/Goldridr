@@ -2,7 +2,7 @@ name: goldridr-production
 
 services:
   pocketbase:
-    image: ${POCKETBASE_IMAGE:?POCKETBASE_IMAGE must identify the release image}
+    image: ${POCKETBASE_IMAGE:-ghcr.io/witts-and-stratts/goldridr-pocketbase:latest}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${POCKETBASE_HOST_PORT:-8091}:8090"
@@ -26,7 +26,7 @@ services:
       - no-new-privileges:true
 
   web:
-    image: ${IMAGE_NAME:?IMAGE_NAME must identify the release image}
+    image: ${IMAGE_NAME:-ghcr.io/witts-and-stratts/goldridr:latest}
     restart: unless-stopped
     env_file:
       - .env
@@ -58,7 +58,7 @@ services:
       - no-new-privileges:true
 
   notifications-worker:
-    image: ${WORKER_IMAGE:?WORKER_IMAGE must identify the release image}
+    image: ${WORKER_IMAGE:-ghcr.io/witts-and-stratts/goldridr-worker:latest}
     restart: unless-stopped
     env_file:
       - .env

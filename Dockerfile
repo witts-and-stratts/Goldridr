@@ -8,7 +8,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends g++ make python3 \
   && rm -rf /var/lib/apt/lists/* \
   && npm install --global npm@11.18.0 \
-  && npm ci
+  && npm ci --prefer-offline --no-audit --no-fund
 
 FROM node:22-bookworm-slim AS builder
 

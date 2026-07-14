@@ -22,6 +22,16 @@ ssh root@YOUR_HETZNER_IP 'chmod 700 /root/goldridr/scripts/deploy.sh'
 
 The GitHub workflow does not upload or overwrite these server-owned files. During deployment it authenticates the server to GHCR and invokes `/root/goldridr/scripts/deploy.sh`; that script runs `docker compose pull` and `docker compose up` directly on Hetzner. When the service layout changes, update the server copies before deploying the corresponding application release.
 
+Each successful pipeline deployment writes its immutable web, PocketBase, and worker image references into `/root/goldridr/.env`. This allows normal server-side operation without exporting pipeline variables:
+
+```bash
+cd /root/goldridr
+docker compose -f compose.production.yaml pull
+docker compose -f compose.production.yaml up -d --wait
+```
+
+Before the first pipeline deployment, the Compose file falls back to the three `latest` GHCR tags. If the packages are private, run `docker login ghcr.io` once as `root` before pulling them.
+
 Create `/root/goldridr/.env` directly on the server. Start from `.env.example`, use production values, and never commit this file. At minimum set `AUTH_SECRET`, administrator credentials, the database configuration, the public base URL, and the notification provider configuration. Set `POCKETBASE_URL=http://pocketbase:8090`; the deployment script rejects any other value. `POCKETBASE_HOST_PORT` is optional and defaults to `8091`.
 
 When using the local SQLite fallback, the web app and notification worker share `/root/goldridr/data`; the Next.js cache is under `/root/goldridr/.next-cache`; and PocketBase data is under `/root/goldridr/pocketbase-data`. The containers communicate through `http://pocketbase:8090`. PocketBase is available to host-side administration tools at `127.0.0.1:8091` but is not publicly exposed. The worker runs `npm run notifications:worker`, uses the same `.env`, restarts automatically, and receives 30 seconds to stop cleanly during releases.
