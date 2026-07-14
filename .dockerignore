@@ -1,0 +1,16 @@
+.git
+.github
+.next
+.env
+.env.*
+!.env.example
+node_modules
+driver-app
+coverage
+bookings.db
+bookings.db-shm
+bookings.db-wal
+pocketbase/pb_data
+pocketbase/pocketbase
+*.log
+.DS_Store

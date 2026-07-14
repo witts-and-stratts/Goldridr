@@ -76,7 +76,7 @@ export function Header( { className }: HeaderProps ) {
           onClick={ handleBookNow }
           className={ 'bg-black/20 border-gold/80' }
         >
-          BOOK NOW
+          RESERVE A RIDE
         </Button>
       </div>
 
@@ -87,7 +87,7 @@ export function Header( { className }: HeaderProps ) {
           onClick={ handleBookNow }
           className={ 'bg-black/20 border-gold/80 px-8 h-8 text-sm tracking-widest' }
         >
-          BOOK NOW
+          RESERVE A RIDE
         </Button>
 
         <Button

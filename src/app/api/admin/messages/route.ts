@@ -57,7 +57,7 @@ export async function POST( request: Request ) {
   if ( body.kind === "broadcast" ) {
     if ( !isAdmin( session ) ) return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
     const chauffeurIds = Array.isArray( body.chauffeurIds )
-      ? body.chauffeurIds.map( Number ).filter( ( id: number ) => Number.isInteger( id ) && id > 0 )
+      ? body.chauffeurIds.map( String ).map( ( id: string ) => id.trim() ).filter( Boolean )
       : [];
     const validChannels = channels.filter( ( channel: string ) => [ "in_app", "email", "sms" ].includes( channel ) );
     const notificationId = await createBroadcast( await getDb(), session, chauffeurIds, subject, message, validChannels );
@@ -69,7 +69,7 @@ export async function POST( request: Request ) {
       ? body.riderReferences.filter( ( value: unknown ): value is string => typeof value === "string" )
       : [];
     const chauffeurIds = Array.isArray( body.chauffeurIds )
-      ? body.chauffeurIds.map( Number ).filter( ( id: number ) => Number.isInteger( id ) && id > 0 )
+      ? body.chauffeurIds.map( String ).map( ( id: string ) => id.trim() ).filter( Boolean )
       : [];
     if ( riderReferences.length === 0 && chauffeurIds.length === 0 ) {
       return NextResponse.json( { success: false, error: "Select at least one recipient" }, { status: 400 } );

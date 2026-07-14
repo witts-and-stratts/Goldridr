@@ -12,16 +12,18 @@ import type { BookingRecord } from "../src/lib/db";
 import type { AuthSession } from "../src/lib/auth";
 import { asDatabaseLike } from "./db-like";
 
+const CHAUFFEUR_ID = "7a41f7a2-51f2-40f3-bf40-a078ef1ce68c";
+
 function createDb() {
   const db = new Database( ":memory:" );
   db.exec( `
     CREATE TABLE bookings (
       id INTEGER PRIMARY KEY, reference TEXT, tripType TEXT, date TEXT, time TEXT, duration INTEGER,
-      name TEXT, email TEXT, phone TEXT, notes TEXT, status TEXT, tripDetails TEXT, chauffeurId INTEGER,
+      name TEXT, email TEXT, phone TEXT, notes TEXT, status TEXT, tripDetails TEXT, chauffeurId TEXT,
       smsConsentVersion TEXT, smsConsentedAt TEXT, createdAt TEXT
     );
     CREATE TABLE chauffeurs (
-      id INTEGER PRIMARY KEY, name TEXT, email TEXT, phone TEXT, status TEXT, passwordHash TEXT
+      id TEXT PRIMARY KEY, name TEXT, email TEXT, phone TEXT, status TEXT, passwordHash TEXT
     );
     CREATE TABLE notifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT, eventKey TEXT UNIQUE, type TEXT, category TEXT, title TEXT,
@@ -47,6 +49,15 @@ function createDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT, customerEmail TEXT, phone TEXT, consentVersion TEXT,
       consentedAt TEXT, revokedAt TEXT, createdAt TEXT DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE pocketbase_notification_outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notificationId INTEGER NOT NULL UNIQUE,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      nextAttemptAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      lastError TEXT,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   ` );
   return db;
 }
@@ -70,7 +81,7 @@ const booking: BookingRecord = {
     flightNumber: "UA 1845",
     estimatedTotal: 148,
   } ),
-  chauffeurId: 7,
+  chauffeurId: CHAUFFEUR_ID,
   smsConsentVersion: "2026-01",
   smsConsentedAt: "2026-06-11T12:00:00.000Z",
   createdAt: "2026-06-11T12:00:00.000Z",
@@ -78,7 +89,7 @@ const booking: BookingRecord = {
 
 test( "booking creation atomically creates in-app, email, SMS reminder, and chauffeur records", async () => {
   const db = createDb();
-  db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (7, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run();
+  db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (?, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run( CHAUFFEUR_ID );
   await enqueueBookingCreated( asDatabaseLike( db ), booking );
 
   const notifications = db.prepare( "SELECT COUNT(*) AS count FROM notifications" ).get() as { count: number };
@@ -97,7 +108,7 @@ test( "booking creation atomically creates in-app, email, SMS reminder, and chau
   const customerPayload = JSON.parse( customerDelivery.payload ) as Record<string, unknown>;
 
   assert.equal( notifications.count, 2 );
-  assert.deepEqual( recipients.map( row => row.userId ), [ "admin", "chauffeur:7" ] );
+  assert.deepEqual( recipients.map( row => row.userId ), [ "admin", `chauffeur:${ CHAUFFEUR_ID }` ] );
   assert.ok( channels.some( row => row.channel === "email" ) );
   assert.ok( channels.some( row => row.channel === "sms" ) );
   assert.deepEqual( creationChannels.map( row => row.channel ), [ "email", "sms" ] );
@@ -111,6 +122,32 @@ test( "booking creation atomically creates in-app, email, SMS reminder, and chau
     estimatedTotal: 148,
   } );
   db.close();
+} );
+
+test( "PocketBase mirroring is queued only after notification records exist", async () => {
+  const previous = process.env.POCKETBASE_NOTIFICATIONS_WRITE;
+  process.env.POCKETBASE_NOTIFICATIONS_WRITE = "true";
+  const db = createDb();
+  db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (?, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run( CHAUFFEUR_ID );
+  try {
+    await enqueueBookingCreated( asDatabaseLike( db ), booking );
+    const queued = db.prepare( `
+      SELECT o.notificationId, n.eventKey
+      FROM pocketbase_notification_outbox o
+      JOIN notifications n ON n.id = o.notificationId
+      ORDER BY o.notificationId
+    ` ).all() as Array<{ notificationId: number; eventKey: string }>;
+    assert.equal( queued.length, 2 );
+    assert.ok( queued.every( item => item.notificationId > 0 ) );
+    assert.deepEqual( queued.map( item => item.eventKey ), [
+      "booking:GR-TEST123:created",
+      "booking:GR-TEST123:reminders",
+    ] );
+  } finally {
+    if ( previous === undefined ) delete process.env.POCKETBASE_NOTIFICATIONS_WRITE;
+    else process.env.POCKETBASE_NOTIFICATIONS_WRITE = previous;
+    db.close();
+  }
 } );
 
 test( "expired leases can be reclaimed without claiming active leases", async () => {
@@ -285,7 +322,7 @@ test( "every rider trip email template includes the booking QR code", async () =
 
 test( "manual reminders create auditable customer and chauffeur deliveries", async () => {
   const db = createDb();
-  db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (7, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run();
+  db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (?, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run( CHAUFFEUR_ID );
   const session: AuthSession = {
     role: "admin",
     userId: "admin",
@@ -308,7 +345,7 @@ test( "manual reminders create auditable customer and chauffeur deliveries", asy
 
 test( "booking assignment changes notify the customer and affected chauffeurs", async () => {
   const db = createDb();
-  db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (7, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run();
+  db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (?, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run( CHAUFFEUR_ID );
 
   await enqueueBookingAssignmentChanged( asDatabaseLike( db ), booking, null );
 
@@ -321,7 +358,7 @@ test( "booking assignment changes notify the customer and affected chauffeurs", 
     ORDER BY recipient, channel
   ` ).all() as Array<{ channel: string; recipient: string; template: string }>;
 
-  assert.deepEqual( recipients.map( row => row.userId ), [ "admin", "chauffeur:7" ] );
+  assert.deepEqual( recipients.map( row => row.userId ), [ "admin", `chauffeur:${ CHAUFFEUR_ID }` ] );
   assert.deepEqual( deliveries, [
     { channel: "sms", recipient: "+17135550123", template: "booking_assignment" },
     { channel: "email", recipient: "driver@example.com", template: "chauffeur_assignment" },
@@ -332,7 +369,7 @@ test( "booking assignment changes notify the customer and affected chauffeurs", 
 
 test( "booking deletion notifies all parties and cancels pending reminders", async () => {
   const db = createDb();
-  db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (7, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run();
+  db.prepare( "INSERT INTO chauffeurs (id, name, email, phone, status) VALUES (?, 'Driver', 'driver@example.com', '+17135550124', 'active')" ).run( CHAUFFEUR_ID );
   await enqueueBookingCreated( asDatabaseLike( db ), booking );
 
   await enqueueBookingDeleted( asDatabaseLike( db ), booking );
@@ -356,7 +393,7 @@ test( "booking deletion notifies all parties and cancels pending reminders", asy
     WHERE n.category = 'reminders' AND d.status = 'pending'
   ` ).get() as { count: number };
 
-  assert.deepEqual( recipients.map( row => row.userId ), [ "admin", "chauffeur:7" ] );
+  assert.deepEqual( recipients.map( row => row.userId ), [ "admin", `chauffeur:${ CHAUFFEUR_ID }` ] );
   assert.deepEqual( deliveries, [
     { channel: "sms", recipient: "+17135550123", template: "booking_deleted" },
     { channel: "email", recipient: "driver@example.com", template: "chauffeur_unassigned" },

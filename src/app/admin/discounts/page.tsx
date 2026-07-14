@@ -5,7 +5,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 import {
   BadgePercent,
-  CalendarClock,
   CheckCircle2,
   CircleDollarSign,
   Loader2,
@@ -16,7 +15,6 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/admin-ui/badge";
 import { Button } from "@/components/admin-ui/button";
 import { Card, CardContent } from "@/components/admin-ui/card";
 import { Checkbox } from "@/components/admin-ui/checkbox";
@@ -51,75 +49,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/admin-ui/table";
-
-interface DiscountUsage {
-  bookingReference: string;
-  customerName: string;
-  customerEmail: string;
-  tripType: string;
-  tripDate: string;
-  tripTime: string;
-  bookingStatus: string;
-  originalAmountCents: number;
-  discountAmountCents: number;
-  finalAmountCents: number;
-  createdAt: string;
-}
-
-interface DiscountCode {
-  id: number;
-  code: string;
-  label: string;
-  kind: "percent" | "fixed";
-  value: number;
-  active: number;
-  maxRedemptions: number | null;
-  redemptions: number;
-  trackedRedemptions: number;
-  totalDiscountCents: number;
-  totalRevenueCents: number;
-  expiresAt: string | null;
-  createdAt: string;
-  usages: DiscountUsage[];
-}
-
-const EMPTY_FORM = {
-  code: "",
-  label: "",
-  kind: "percent" as "percent" | "fixed",
-  value: "",
-  maxRedemptions: "",
-  expiresAt: "",
-  active: true,
-};
-
-function formatMoney( cents: number ) {
-  return new Intl.NumberFormat( "en-US", {
-    style: "currency",
-    currency: "USD",
-  } ).format( cents / 100 );
-}
-
-function isExpired( discount: DiscountCode ) {
-  return Boolean( discount.expiresAt && new Date( discount.expiresAt ).getTime() <= Date.now() );
-}
-
-function discountStatus( discount: DiscountCode ) {
-  if ( !discount.active ) return "disabled";
-  if ( isExpired( discount ) ) return "expired";
-  if ( discount.maxRedemptions !== null && discount.redemptions >= discount.maxRedemptions ) return "exhausted";
-  return "active";
-}
-
-function StatusBadge( { discount }: { discount: DiscountCode } ) {
-  const status = discountStatus( discount );
-  if ( status === "active" ) {
-    return <Badge className="border-green-500/30 bg-green-500/15 text-green-700 hover:bg-green-500/20">Active</Badge>;
-  }
-  if ( status === "expired" ) return <Badge variant="outline">Expired</Badge>;
-  if ( status === "exhausted" ) return <Badge variant="outline">Limit reached</Badge>;
-  return <Badge variant="secondary">Disabled</Badge>;
-}
+import type { DiscountCode } from "./types";
+import { EMPTY_FORM } from "./constants";
+import { formatMoney, discountStatus } from "./utils";
+import { StatusBadge } from "./components/status-badge";
+import { UsageDialog } from "./components/usage-dialog";
 
 export default function DiscountsPage() {
   const queryClient = useQueryClient();
@@ -412,61 +346,7 @@ export default function DiscountsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean( usageCode )} onOpenChange={open => !open && setUsageCode( null )}>
-        <DialogContent className="max-w-5xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <TicketPercent className="size-5" />
-              {usageCode?.code} usage
-            </DialogTitle>
-            <DialogDescription>
-              {usageCode?.trackedRedemptions || 0} tracked booking redemptions, {formatMoney( usageCode?.totalDiscountCents || 0 )} granted.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="max-h-[60vh] overflow-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Booking</TableHead>
-                  <TableHead>Rider</TableHead>
-                  <TableHead>Trip</TableHead>
-                  <TableHead>Original</TableHead>
-                  <TableHead>Discount</TableHead>
-                  <TableHead>Final</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {!usageCode?.usages.length ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-28 text-center text-muted-foreground">This code has not been used on a stored booking.</TableCell>
-                  </TableRow>
-                ) : usageCode.usages.map( usage => (
-                  <TableRow key={usage.bookingReference}>
-                    <TableCell>
-                      <p className="font-mono text-xs font-medium">{usage.bookingReference}</p>
-                      <p className="mt-1 text-xs capitalize text-muted-foreground">{usage.bookingStatus}</p>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm font-medium">{usage.customerName}</p>
-                      <p className="text-xs text-muted-foreground">{usage.customerEmail}</p>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm capitalize">{usage.tripType}</p>
-                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <CalendarClock className="size-3" />
-                        {usage.tripDate} at {usage.tripTime}
-                      </p>
-                    </TableCell>
-                    <TableCell>{formatMoney( usage.originalAmountCents )}</TableCell>
-                    <TableCell className="text-green-700">-{formatMoney( usage.discountAmountCents )}</TableCell>
-                    <TableCell className="font-medium">{formatMoney( usage.finalAmountCents )}</TableCell>
-                  </TableRow>
-                ) )}
-              </TableBody>
-            </Table>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <UsageDialog usageCode={usageCode} onClose={() => setUsageCode( null )} />
     </div>
   );
 }

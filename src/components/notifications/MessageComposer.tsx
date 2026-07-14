@@ -42,7 +42,7 @@ export function MessageComposer( {
   const [ audience, setAudience ] = useState<"riders" | "chauffeurs">( "riders" );
   const [ search, setSearch ] = useState( "" );
   const [ selectedRiders, setSelectedRiders ] = useState<string[]>( [] );
-  const [ selectedChauffeurs, setSelectedChauffeurs ] = useState<number[]>( [] );
+  const [ selectedChauffeurs, setSelectedChauffeurs ] = useState<string[]>( [] );
   const [ subject, setSubject ] = useState( "" );
   const [ message, setMessage ] = useState( "" );
   const [ channels, setChannels ] = useState( [ "email" ] );

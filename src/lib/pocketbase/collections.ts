@@ -1,0 +1,17 @@
+export const pocketBaseCollections = {
+  users: "app_users",
+  notifications: "notifications",
+  recipients: "notification_recipients",
+  preferences: "notification_preferences",
+  deliveries: "notification_deliveries",
+  pushTokens: "push_tokens",
+  providerEvents: "notification_provider_events",
+  vehicles: "vehicles",
+  chauffeurs: "chauffeurs",
+  bookings: "bookings",
+  payments: "payments",
+  discounts: "discount_codes",
+  blockedSlots: "blocked_slots",
+  settings: "app_settings",
+  smsConsents: "sms_consents",
+} as const;

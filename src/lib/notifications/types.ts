@@ -16,6 +16,7 @@ export interface NotificationRecord {
 
 export interface NotificationDeliveryRecord {
   id: number;
+  backendId?: string;
   notificationId: number;
   channel: NotificationChannel;
   recipient: string;

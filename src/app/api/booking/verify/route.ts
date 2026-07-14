@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { unstable_rethrow } from "next/navigation";
 import { getBookingByReference } from "@/lib/db";
 import { bookingRecordToBookingData } from "@/lib/booking-data";
 
@@ -28,6 +29,7 @@ export async function GET( req: Request ) {
       booking: await bookingRecordToBookingData( booking ),
     } );
   } catch ( error ) {
+    unstable_rethrow( error );
     console.error( "Error fetching booking:", error );
     return NextResponse.json(
       { success: false, error: "Failed to fetch booking details" },

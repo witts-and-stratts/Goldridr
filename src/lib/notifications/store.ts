@@ -11,6 +11,10 @@ import type {
 import { sendPushToUsers } from "./push";
 import { zonedDateTimeToDate } from "./time";
 import { getAppUrl } from "@/lib/admin-settings";
+import { enqueuePocketBaseNotificationSync, syncPocketBaseProviderEvent } from "./pocketbase-sync";
+import { getPocketBaseClient } from "@/lib/pocketbase/client";
+import { pocketBaseCollections } from "@/lib/pocketbase/collections";
+import { isPocketBaseConfigured, isPocketBaseDeliveryQueueEnabled } from "@/lib/pocketbase/config";
 
 interface DeliveryInput {
   channel: Exclude<NotificationChannel, "in_app">;
@@ -34,7 +38,7 @@ interface NotificationInput {
   deliveries?: DeliveryInput[];
 }
 
-async function getChauffeur( db: DatabaseLike, id?: number | null ): Promise<ChauffeurRecord | undefined> {
+async function getChauffeur( db: DatabaseLike, id?: string | null ): Promise<ChauffeurRecord | undefined> {
   if ( !id ) return undefined;
   return await db.prepare( "SELECT id, name, email, phone, status FROM chauffeurs WHERE id = ?" ).get( id ) as ChauffeurRecord | undefined;
 }
@@ -97,6 +101,7 @@ async function insertNotification( db: DatabaseLike, input: NotificationInput ):
       scheduledAt
     );
   }
+  await enqueuePocketBaseNotificationSync( db, notificationId );
   return notificationId;
 }
 
@@ -263,7 +268,7 @@ export async function enqueueBookingStatusChanged(
 export async function enqueueBookingAssignmentChanged(
   db: DatabaseLike,
   booking: BookingRecord,
-  previousChauffeurId: number | null
+  previousChauffeurId: string | null
 ): Promise<void> {
   const previous = await getChauffeur( db, previousChauffeurId );
   const next = await getChauffeur( db, booking.chauffeurId );
@@ -582,7 +587,7 @@ export async function createManualMessage(
 export async function createBroadcast(
   db: DatabaseLike,
   session: AuthSession,
-  chauffeurIds: number[],
+  chauffeurIds: string[],
   subject: string,
   message: string,
   channels: Array<"in_app" | "email" | "sms">
@@ -732,12 +737,32 @@ export async function listFailedDeliveries(
 }
 
 export async function retryDelivery( db: DatabaseLike, deliveryId: number ): Promise<boolean> {
+  const delivery = await db.prepare(
+    "SELECT id, notificationId FROM notification_deliveries WHERE id = ? AND status IN ('failed', 'dead_letter')"
+  ).get( deliveryId ) as { id: number; notificationId: number } | undefined;
+  if ( !delivery ) return false;
+  if ( isPocketBaseDeliveryQueueEnabled() ) {
+    if ( !isPocketBaseConfigured() ) throw new Error( "PocketBase delivery queue is enabled but PocketBase is not configured" );
+    const pb = getPocketBaseClient();
+    const record = await pb.collection( pocketBaseCollections.deliveries ).getFirstListItem(
+      pb.filter( "legacyId = {:legacyId}", { legacyId: deliveryId } )
+    );
+    await pb.collection( pocketBaseCollections.deliveries ).update( record.id, {
+      status: "pending",
+      attempts: 0,
+      nextAttemptAt: new Date().toISOString(),
+      leaseToken: "",
+      leaseExpiresAt: "",
+      lastError: "",
+    } );
+  }
   const result = await db.prepare( `
     UPDATE notification_deliveries
     SET status = 'pending', attempts = 0, nextAttemptAt = CURRENT_TIMESTAMP,
         leaseToken = NULL, leaseExpiresAt = NULL, lastError = NULL, updatedAt = CURRENT_TIMESTAMP
     WHERE id = ? AND status IN ('failed', 'dead_letter')
   ` ).run( deliveryId );
+  if ( result.changes > 0 ) await enqueuePocketBaseNotificationSync( db, delivery.notificationId );
   return result.changes > 0;
 }
 
@@ -772,4 +797,5 @@ export async function recordProviderEvent(
       ` ).run( status, JSON.stringify( payload ), provider, providerMessageId );
     }
   } )();
+  await syncPocketBaseProviderEvent( provider, providerEventId, providerMessageId, eventType, payload );
 }

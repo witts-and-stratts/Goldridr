@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createDiscountCode,
+  getDb,
   getDiscountCodeByCode,
   getDiscountCodesWithUsage,
   saveBooking,
@@ -58,6 +59,18 @@ test( "discount codes reduce the stored booking total and increment redemptions"
   assert.equal( tracked?.totalDiscountCents, 1000 );
   assert.equal( tracked?.totalRevenueCents, 9000 );
   assert.equal( tracked?.usages[ 0 ]?.bookingReference, booking.reference );
+
+  const outbox = await ( await getDb() ).prepare( `
+    SELECT entity, legacyKey, action
+    FROM pocketbase_core_outbox
+    WHERE (entity = 'bookings' AND legacyKey = ?)
+       OR (entity = 'discount_codes' AND legacyKey = ?)
+    ORDER BY entity
+  ` ).all( booking.reference, String( tracked?.id ) ) as Array<{ entity: string; legacyKey: string; action: string }>;
+  assert.deepEqual( outbox.map( row => ( { entity: row.entity, action: row.action } ) ), [
+    { entity: "bookings", action: "upsert" },
+    { entity: "discount_codes", action: "upsert" },
+  ] );
 } );
 
 test( "discount codes reject unknown codes", async () => {

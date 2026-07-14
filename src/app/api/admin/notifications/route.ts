@@ -5,12 +5,11 @@ import { getRequestSession } from "@/lib/driver-auth";
 import {
   deleteNotifications,
   getUnreadCount,
-  listFailedDeliveries,
   listNotifications,
   markNotificationsRead,
   markNotificationsUnread,
-  retryDelivery,
-} from "@/lib/notifications/store";
+} from "@/lib/notifications/inbox-store";
+import { listFailedDeliveries, retryDelivery } from "@/lib/notifications/store";
 
 export async function GET( request: Request ) {
   const session = await getRequestSession( request );

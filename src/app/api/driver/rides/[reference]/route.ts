@@ -12,7 +12,7 @@ type RouteContext = { params: Promise<{ reference: string }> };
 
 export async function GET( req: Request, context: RouteContext ) {
   try {
-    const session = getAppSession( req );
+    const session = await getAppSession( req );
     if ( !session ) return unauthorizedResponse();
 
     const { reference } = await context.params;
@@ -34,7 +34,7 @@ export async function GET( req: Request, context: RouteContext ) {
 
 export async function PATCH( req: Request, context: RouteContext ) {
   try {
-    const session = getAppSession( req );
+    const session = await getAppSession( req );
     if ( !session ) return unauthorizedResponse();
 
     const { reference } = await context.params;

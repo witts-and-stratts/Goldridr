@@ -18,13 +18,34 @@ import {
 } from "@/components/ui/breadcrumb";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { useAdmin } from "./context";
+
+function label( s: string ) {
+  return s.charAt( 0 ).toUpperCase() + s.slice( 1 );
+}
 
 export function AdminShell( { children }: { children: React.ReactNode } ) {
   const pathname = usePathname();
+  const { chauffeurs } = useAdmin();
   const segments = pathname.replace( /^\/admin\/?/, "" ).split( "/" ).filter( Boolean );
-  const crumb = segments.length > 0
-    ? segments[ segments.length - 1 ].charAt( 0 ).toUpperCase() + segments[ segments.length - 1 ].slice( 1 )
-    : null;
+
+  // Build breadcrumb items: resolve known dynamic segments to human-readable names.
+  type CrumbItem = { label: string; href?: string };
+  const crumbs: CrumbItem[] = [];
+
+  for ( let i = 0; i < segments.length; i++ ) {
+    const seg = segments[ i ];
+    const prev = segments[ i - 1 ];
+    const isLast = i === segments.length - 1;
+    const href = "/admin/" + segments.slice( 0, i + 1 ).join( "/" );
+
+    if ( prev === "chauffeurs" ) {
+      const name = chauffeurs.find( ( c ) => c.id === seg )?.name;
+      crumbs.push( { label: name ?? label( seg ), href: isLast ? undefined : href } );
+    } else {
+      crumbs.push( { label: label( seg ), href: isLast ? undefined : href } );
+    }
+  }
 
   return (
     <div className="admin-dashboard">
@@ -39,14 +60,18 @@ export function AdminShell( { children }: { children: React.ReactNode } ) {
                 <BreadcrumbItem>
                   <BreadcrumbLink href="/admin">Admin</BreadcrumbLink>
                 </BreadcrumbItem>
-                {crumb && (
-                  <>
+                {crumbs.map( ( c, i ) => (
+                  <React.Fragment key={i}>
                     <BreadcrumbSeparator />
                     <BreadcrumbItem>
-                      <BreadcrumbPage>{crumb}</BreadcrumbPage>
+                      {c.href ? (
+                        <BreadcrumbLink href={c.href}>{c.label}</BreadcrumbLink>
+                      ) : (
+                        <BreadcrumbPage>{c.label}</BreadcrumbPage>
+                      )}
                     </BreadcrumbItem>
-                  </>
-                )}
+                  </React.Fragment>
+                ) )}
               </BreadcrumbList>
             </Breadcrumb>
             <NotificationBell />

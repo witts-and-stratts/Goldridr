@@ -65,7 +65,7 @@ The application stores notification events and channel deliveries in the same SQ
 npm run notifications:worker
 ```
 
-Keep transport and credential secrets in `.env`, then manage runtime values like booking buffer, timezone, app URL, sender identity, pricing, and discount codes in `/admin/settings`. Set `EMAIL_TRANSPORT` to `mailpit`, `smtp`, `ses_smtp`, `ses_api`, or `resend`, then configure the matching variables in `.env.example`. Mailpit listens on `127.0.0.1:1025` and exposes the inbox at `http://localhost:8025`. Set `TWILIO_TRANSPORT=mock` to keep SMS traffic in the local SQLite-backed mock inbox, or `TWILIO_TRANSPORT=twilio` to send real messages.
+Keep transport and credential secrets in `.env`, then manage runtime values like booking buffer, timezone, app URL, sender identity, pricing, and discount codes in `/admin/settings`. Set `EMAIL_TRANSPORT` to `mailpit`, `smtp`, `ses_smtp`, `ses_api`, or `resend`, then configure the matching variables in `.env.example`. Start Mailpit with `docker compose up -d mailpit`; SMTP listens on port `1025` and its inbox is at `http://localhost:8025`. Set `TWILIO_TRANSPORT=mock` to keep SMS traffic in the local SQLite-backed mock inbox, or `TWILIO_TRANSPORT=twilio` to send real messages.
 
 The admin test bench lives at `/admin/testing` and exposes the mock SMS API at `/api/admin/testing/sms`.
 

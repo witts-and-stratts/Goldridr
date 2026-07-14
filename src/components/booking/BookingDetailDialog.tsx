@@ -8,7 +8,14 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/admin-ui/button";
 import { Badge } from "@/components/admin-ui/badge";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/admin-ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/admin-ui/dialog";
 import { ChauffeurPicker } from "@/components/admin-ui/chauffeur-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/admin-ui/input";
@@ -26,7 +33,7 @@ export interface BookingDetail {
   phone?: string;
   notes?: string;
   status: string;
-  chauffeurId?: number | null;
+  chauffeurId?: string | null;
   pin?: string | null;
   tripDetails: {
     pickupLocation?: string;
@@ -44,7 +51,7 @@ export interface BookingDetail {
   createdAt: string;
 }
 
-interface Chauffeur { id: number; name: string; email?: string; phone?: string; }
+interface Chauffeur { id: string; name: string; email?: string; phone?: string; }
 
 interface BookingDetailDialogProps {
   booking: BookingDetail | null;
@@ -55,7 +62,7 @@ interface BookingDetailDialogProps {
   role?: "admin" | "chauffeur";
   onStatusChange?: (reference: string, newStatus: string) => void;
   onDelete?: (reference: string) => void;
-  onChauffeurChange?: (reference: string, chauffeurId: number | null) => void;
+  onChauffeurChange?: (reference: string, chauffeurId: string | null) => void;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -84,6 +91,7 @@ export function BookingDetailDialog({
   onDelete,
   onChauffeurChange,
 }: BookingDetailDialogProps) {
+  const [ showMessageComposer, setShowMessageComposer ] = useState( false );
   const [ messageSubject, setMessageSubject ] = useState( "" );
   const [ messageBody, setMessageBody ] = useState( "" );
   const [ messageChannels, setMessageChannels ] = useState( [ "email" ] );
@@ -112,6 +120,7 @@ export function BookingDetailDialog({
       if ( !data.success ) throw new Error( data.error );
       setMessageSubject( "" );
       setMessageBody( "" );
+      setShowMessageComposer( false );
       toast.success( "Passenger message queued" );
     } catch ( error ) {
       toast.error( error instanceof Error ? error.message : "Unable to queue message" );
@@ -121,15 +130,34 @@ export function BookingDetailDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden gap-0">
-        <div className="sr-only">
-          <DialogTitle>Booking {booking.reference}</DialogTitle>
-          <DialogDescription>Booking details and management</DialogDescription>
-        </div>
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && showMessageComposer) return;
+          if (!nextOpen) setShowMessageComposer(false);
+          onOpenChange(nextOpen);
+        }}
+      >
+        <DialogContent
+          className="max-w-2xl p-0 overflow-hidden gap-0"
+          onEscapeKeyDown={(event) => {
+            if (showMessageComposer) event.preventDefault();
+          }}
+          onPointerDownOutside={(event) => {
+            if (showMessageComposer) event.preventDefault();
+          }}
+          onInteractOutside={(event) => {
+            if (showMessageComposer) event.preventDefault();
+          }}
+        >
+          <div className="sr-only">
+            <DialogTitle>Booking {booking.reference}</DialogTitle>
+            <DialogDescription>Booking details and management</DialogDescription>
+          </div>
 
-        <section className="booking-detail">
-          <header className="booking-detail-head">
+          <section className="booking-detail">
+            <header className="booking-detail-head">
             <div>
               <div className="flex items-center gap-3">
                 <span className="font-mono text-sm font-medium tracking-tight">{booking.reference}</span>
@@ -144,8 +172,8 @@ export function BookingDetailDialog({
               <StatusBadge status={booking.status} />
               <span className="text-xs text-muted-foreground">{new Date(booking.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })} · {booking.time}</span>
             </div>
-          </header>
-          <div className="booking-detail-body">
+            </header>
+            <div className="booking-detail-body">
             <div className="booking-detail-section">
               <p className="booking-detail-section-head">Contact</p>
               <div className="booking-detail-rows">
@@ -199,50 +227,79 @@ export function BookingDetailDialog({
                 )}
               </div>
             </div>
-            {role === "admin" && (
-              <div className="booking-detail-section">
-                <p className="booking-detail-section-head">Assignment</p>
-                <div className="booking-detail-rows">
-                  <div className="booking-detail-row">
+              {role === "admin" && (
+                <div className="booking-detail-section">
+                  <div className="booking-detail-row booking-detail-row-inline">
                     <p className="booking-detail-row-label">Chauffeur</p>
-                    <ChauffeurPicker chauffeurs={chauffeurs} value={booking.chauffeurId} onChange={(newId) => onChauffeurChange?.(booking.reference, newId)} />
+                    <ChauffeurPicker
+                      chauffeurs={chauffeurs}
+                      value={booking.chauffeurId}
+                      onChange={(newId) => onChauffeurChange?.(booking.reference, newId)}
+                      className="min-w-56"
+                    />
                   </div>
                 </div>
-              </div>
-            )}
-            <div className="booking-detail-section">
-              <p className="booking-detail-section-head">Message passenger</p>
-              <div className="space-y-3">
-                <Input value={messageSubject} onChange={event => setMessageSubject(event.target.value)} placeholder="Subject" />
-                <Textarea value={messageBody} onChange={event => setMessageBody(event.target.value)} placeholder="Write a concise passenger update" rows={3} />
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex gap-4 text-xs text-muted-foreground">
-                    {["email", "sms"].map(channel => (
-                      <label key={channel} className="flex items-center gap-2">
-                        <Checkbox checked={messageChannels.includes(channel)} onCheckedChange={checked => setMessageChannels(current => checked ? [...current, channel] : current.filter(value => value !== channel))} />
-                        {channel.toUpperCase()}
-                      </label>
-                    ))}
-                  </div>
-                  <Button size="sm" onClick={sendMessage} disabled={sending || !messageSubject || !messageBody || messageChannels.length === 0}>
-                    <Send className="size-3.5" />{sending ? "Queueing..." : "Send"}
-                  </Button>
-                </div>
-              </div>
+              )}
             </div>
-          </div>
-          {role === "admin" && (
-            <footer className="booking-detail-foot">
-              <Button variant="ghost" size="sm" onClick={() => onDelete?.(booking.reference)} className="text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="size-3.5" /> Delete</Button>
-              <div className="flex gap-2">
+            {role === "admin" && (
+              <footer className="booking-detail-foot">
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowMessageComposer(true)}
+                  aria-label="Message passenger"
+                  className="size-9"
+                >
+                  <Mail className="size-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onDelete?.(booking.reference)}
+                  aria-label={`Delete booking ${booking.reference}`}
+                  className="size-9 text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+                </div>
+                <div className="flex gap-2">
                 {booking.status === "pending" && (<><Button variant="outline" size="sm" onClick={() => onStatusChange?.(booking.reference, "rejected")}>Reject</Button><Button size="sm" onClick={() => onStatusChange?.(booking.reference, "confirmed")}>Confirm</Button></>)}
                 {(booking.status === "confirmed" || booking.status === "accepted") && <Button variant="destructive" size="sm" onClick={() => onStatusChange?.(booking.reference, "cancelled")}>Cancel</Button>}
                 {(booking.status === "cancelled" || booking.status === "rejected") && <Button size="sm" onClick={() => onStatusChange?.(booking.reference, "confirmed")}>Restore</Button>}
-              </div>
-            </footer>
-          )}
-        </section>
-      </DialogContent>
-    </Dialog>
+                </div>
+              </footer>
+            )}
+          </section>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showMessageComposer} onOpenChange={setShowMessageComposer}>
+        <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden">
+          <DialogHeader className="border-b px-6 py-5">
+            <DialogTitle>Message passenger</DialogTitle>
+            <DialogDescription>Send an update to {booking.name} for booking {booking.reference}.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 px-6 py-5">
+            <Input value={messageSubject} onChange={event => setMessageSubject(event.target.value)} placeholder="Subject" />
+            <Textarea value={messageBody} onChange={event => setMessageBody(event.target.value)} placeholder="Write a concise passenger update" rows={4} />
+            <div className="flex gap-4 text-xs text-muted-foreground">
+              {["email", "sms"].map(channel => (
+                <label key={channel} className="flex items-center gap-2">
+                  <Checkbox checked={messageChannels.includes(channel)} onCheckedChange={checked => setMessageChannels(current => checked ? [...current, channel] : current.filter(value => value !== channel))} />
+                  {channel.toUpperCase()}
+                </label>
+              ))}
+            </div>
+          </div>
+          <DialogFooter className="border-t px-6 py-4">
+            <Button variant="outline" onClick={() => setShowMessageComposer(false)} disabled={sending}>Cancel</Button>
+            <Button onClick={sendMessage} disabled={sending || !messageSubject || !messageBody || messageChannels.length === 0}>
+              <Send className="size-3.5" />{sending ? "Queueing..." : "Send"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -42,3 +42,7 @@ yarn-error.log*
 next-env.d.ts
 driver-app
 .impeccable
+
+# PocketBase runtime data and local binary
+/pocketbase/pb_data/
+/pocketbase/pocketbase

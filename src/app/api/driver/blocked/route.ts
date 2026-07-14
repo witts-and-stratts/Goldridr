@@ -12,7 +12,7 @@ const RECURRING_VALUES = [ "none", "daily", "weekly", "weekends" ];
 
 export async function GET( req: Request ) {
   try {
-    const session = getAppSession( req );
+    const session = await getAppSession( req );
     if ( !session ) return unauthorizedResponse();
 
     const blocks = session.role === "admin"
@@ -27,7 +27,7 @@ export async function GET( req: Request ) {
 
 export async function POST( req: Request ) {
   try {
-    const session = getAppSession( req );
+    const session = await getAppSession( req );
     if ( !session ) return unauthorizedResponse();
 
     const body = await req.json();
@@ -78,7 +78,7 @@ export async function POST( req: Request ) {
       recurring,
       chauffeurId: session.role === "admin"
         ? body.chauffeurId !== undefined && body.chauffeurId !== null && body.chauffeurId !== ""
-          ? Number.parseInt( String( body.chauffeurId ), 10 )
+          ? String( body.chauffeurId )
           : null
         : session.chauffeurId,
     } );
@@ -92,7 +92,7 @@ export async function POST( req: Request ) {
 
 export async function DELETE( req: Request ) {
   try {
-    const session = getAppSession( req );
+    const session = await getAppSession( req );
     if ( !session ) return unauthorizedResponse();
 
     const { searchParams } = new URL( req.url );

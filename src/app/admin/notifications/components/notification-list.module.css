@@ -1,0 +1,90 @@
+@reference "tailwindcss";
+@reference "../../../globals.css";
+
+.reminderRow {
+  @apply flex w-full gap-3 border-b px-4 py-3 text-left hover:bg-muted/40;
+}
+
+.failureRow {
+  @apply block w-full border-b px-4 py-4 text-left hover:bg-muted/40;
+}
+
+.rowActive {
+  @apply bg-muted/60;
+}
+
+.notificationRow {
+  @apply relative flex w-full cursor-pointer gap-3 border-b px-4 py-3 text-left select-none outline-none hover:bg-muted/40 focus-visible:bg-muted/40;
+}
+
+.notificationRowActive {
+  @apply bg-muted/60;
+}
+
+.notificationRowSelected {
+  @apply bg-primary/5;
+}
+
+.unreadDot {
+  @apply mt-1.5 size-2 shrink-0 rounded-full bg-primary;
+}
+
+.readDot {
+  @apply mt-1.5 size-2 shrink-0 rounded-full bg-border;
+}
+
+.rowBody {
+  @apply min-w-0 flex-1;
+}
+
+.rowHead {
+  @apply flex items-center justify-between gap-3;
+}
+
+.rowTitle {
+  @apply truncate text-sm;
+}
+
+.rowTitleUnread {
+  @apply font-semibold;
+}
+
+.rowTime {
+  @apply shrink-0 text-[11px] text-muted-foreground;
+}
+
+.rowPreview {
+  @apply mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground;
+}
+
+.rowMeta {
+  @apply mt-1.5 block text-[11px] capitalize text-muted-foreground;
+}
+
+.rowIcon {
+  @apply mt-0.5 size-4 shrink-0 text-muted-foreground;
+}
+
+.failureIcon {
+  @apply mt-0.5 size-4 shrink-0 text-destructive;
+}
+
+.failureLayout {
+  @apply flex items-start gap-3;
+}
+
+.failureError {
+  @apply mt-2 text-xs leading-5 text-muted-foreground;
+}
+
+.menuButton {
+  @apply absolute right-2 top-2 size-6 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100;
+}
+
+.menuLabel {
+  @apply px-2 py-1.5 text-[11px] font-medium text-muted-foreground;
+}
+
+.destructiveItem {
+  @apply text-destructive focus:text-destructive;
+}

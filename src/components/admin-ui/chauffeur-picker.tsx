@@ -15,15 +15,15 @@ import {
 import { cn } from "@/lib/utils"
 
 interface Chauffeur {
-  id: number
+  id: string
   name: string
   email?: string
 }
 
 interface ChauffeurPickerProps {
   chauffeurs: Chauffeur[]
-  value: number | null | undefined
-  onChange: (id: number | null) => void
+  value: string | null | undefined
+  onChange: (id: string | null) => void
   disabled?: boolean
   className?: string
 }

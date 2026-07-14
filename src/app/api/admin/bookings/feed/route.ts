@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { unstable_rethrow } from "next/navigation";
 import { verifySessionToken } from "@/lib/auth";
 import { getAllBookings, getBookingsForChauffeur } from "@/lib/db";
 import { getRequestSession } from "@/lib/driver-auth";
@@ -138,6 +139,7 @@ export async function GET( request: Request ) {
       },
     } );
   } catch ( error: unknown ) {
+    unstable_rethrow( error );
     console.error( "Failed to generate iCal feed:", error );
     return NextResponse.json( 
       { success: false, error: "Failed to generate calendar feed" }, 

@@ -1,0 +1,161 @@
+@reference "../../globals.css";
+
+.page {
+  @apply flex h-full min-h-0 flex-col;
+}
+
+.header {
+  @apply border-b px-5 py-4;
+}
+
+.headerRow {
+  @apply flex flex-wrap items-center justify-between gap-3;
+}
+
+.title {
+  @apply text-lg font-semibold tracking-tight;
+}
+
+.subtitle {
+  @apply mt-0.5 text-xs text-muted-foreground;
+}
+
+.actions {
+  @apply flex items-center gap-2;
+}
+
+.summaryGrid {
+  @apply mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4;
+}
+
+.mobileFolderSelect {
+  @apply mt-3 w-full lg:hidden;
+}
+
+.shell {
+  @apply grid min-h-0 flex-1 lg:grid-cols-[56px_350px_minmax(360px,1fr)];
+}
+
+.sidebar {
+  @apply hidden border-r bg-sidebar p-1.5 text-sidebar-foreground lg:flex lg:flex-col;
+}
+
+.sidebarNav {
+  @apply space-y-1;
+}
+
+.sidebarButton {
+  @apply relative flex size-10 w-full items-center justify-center rounded-md transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
+}
+
+.sidebarButtonActive {
+  @apply bg-sidebar-accent text-sidebar-accent-foreground;
+}
+
+.sidebarBadge {
+  @apply absolute right-0.5 top-0.5 flex min-w-3.5 items-center justify-center rounded-full bg-sidebar-primary px-1 text-[8px] leading-3.5 text-sidebar-primary-foreground;
+}
+
+.sidebarFooter {
+  @apply mt-auto border-t pt-1.5;
+}
+
+.listPane {
+  @apply min-h-0 overflow-auto border-r bg-sidebar/40;
+}
+
+.listToolbar {
+  @apply sticky top-0 z-10 border-b bg-background/95 backdrop-blur;
+}
+
+.listToolbarHeader {
+  @apply flex items-center justify-between gap-3 px-4 pt-4 pb-2;
+}
+
+.folderTitle {
+  @apply text-base font-medium;
+}
+
+.folderMeta {
+  @apply mt-0.5 text-[11px] text-muted-foreground;
+}
+
+.toolbarActions {
+  @apply flex items-center gap-1;
+}
+
+.selectedCount {
+  @apply mr-2 text-xs text-muted-foreground tabular-nums;
+}
+
+.unreadFilter {
+  @apply flex items-center gap-2 px-4 pb-3;
+}
+
+.unreadFilterLabel {
+  @apply flex items-center gap-2 text-xs font-normal text-muted-foreground;
+}
+
+.searchWrap {
+  @apply relative px-4 pb-4;
+}
+
+.searchIcon {
+  @apply absolute left-7 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground;
+}
+
+.searchInput {
+  @apply bg-background pl-9;
+}
+
+.bulkBar {
+  @apply flex flex-wrap items-center gap-2 border-t px-4 py-3;
+}
+
+.bulkDone {
+  @apply ml-auto;
+}
+
+.detailPane {
+  @apply hidden min-h-0 overflow-auto lg:block;
+}
+
+.sheetContent {
+  @apply w-full overflow-y-auto p-0 sm:max-w-md;
+}
+
+.summaryTile {
+  @apply rounded-lg border bg-card px-4 py-3;
+}
+
+.summaryTileHead {
+  @apply flex items-start justify-between gap-3;
+}
+
+.summaryLabel {
+  @apply text-xs font-medium text-muted-foreground;
+}
+
+.summaryValue {
+  @apply mt-1 text-2xl font-semibold tabular-nums tracking-tight;
+}
+
+.summaryIcon {
+  @apply mt-0.5 size-4 text-muted-foreground;
+}
+
+.summaryIconDestructive {
+  @apply text-destructive;
+}
+
+.summaryDetail {
+  @apply mt-2 truncate text-[11px] text-muted-foreground;
+}
+
+.emptyList {
+  @apply px-5 py-16 text-center text-sm text-muted-foreground;
+}
+
+.emptyDetail {
+  @apply flex h-full min-h-80 items-center justify-center p-8 text-sm text-muted-foreground;
+}

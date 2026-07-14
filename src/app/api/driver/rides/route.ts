@@ -5,7 +5,7 @@ import { bookingRecordToDriverRide } from "@/lib/driver-ride";
 
 export async function GET( req: Request ) {
   try {
-    const session = getAppSession( req );
+    const session = await getAppSession( req );
     if ( !session ) return unauthorizedResponse();
 
     // Admins get dispatcher-wide visibility; chauffeurs only their own rides.

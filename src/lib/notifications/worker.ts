@@ -4,9 +4,12 @@ import { createEmailTransport } from "./email-transports";
 import { renderNotificationEmail } from "./email-template";
 import { getSmsConfig } from "./config";
 import { createSmsTransport, type SmsTransport } from "./sms";
-import { SqliteNotificationQueue, type NotificationQueue } from "./queue";
+import { drainPocketBaseNotificationOutbox, enqueuePocketBaseNotificationSync } from "./pocketbase-sync";
+import { processPushReceipts } from "./push";
+import { createNotificationQueue, type NotificationQueue } from "./queue";
 import type { EmailTransport, NotificationDeliveryRecord } from "./types";
 import { zonedDateTimeToDate } from "./time";
+import { drainPocketBaseCoreOutbox } from "@/lib/pocketbase/core-sync";
 
 const RETRY_DELAYS_MS = [ 60_000, 300_000, 900_000, 3_600_000, 21_600_000 ];
 
@@ -73,13 +76,14 @@ async function createAdminFailureAlert( delivery: NotificationDeliveryRecord, er
   );
   const notificationId = Number( result.lastInsertRowid );
   await db.prepare( "INSERT INTO notification_recipients (notificationId, userId) VALUES (?, 'admin')" ).run( notificationId );
+  await enqueuePocketBaseNotificationSync( db, notificationId );
 }
 
 export class NotificationWorker {
   private emailTransport: EmailTransport | null = null;
   private smsTransport: SmsTransport | null = null;
 
-  constructor( private readonly queue: NotificationQueue = new SqliteNotificationQueue() ) {}
+  constructor( private readonly queue: NotificationQueue = createNotificationQueue() ) {}
 
   async verify(): Promise<void> {
     this.emailTransport = await createEmailTransport();
@@ -90,6 +94,10 @@ export class NotificationWorker {
 
   async runOnce( limit = 20 ): Promise<{ claimed: number; delivered: number; failed: number }> {
     if ( !this.emailTransport ) await this.verify();
+    const db = await getDb();
+    await drainPocketBaseCoreOutbox( db );
+    await drainPocketBaseNotificationOutbox( db, limit );
+    await processPushReceipts( db );
     const deliveries = await this.queue.claim( limit );
     let delivered = 0;
     let failed = 0;
@@ -115,11 +123,7 @@ export class NotificationWorker {
     if ( notification.category === "reminders" && notification.bookingReference ) {
       const booking = await db.prepare( "SELECT status, date, time FROM bookings WHERE reference = ?" ).get( notification.bookingReference ) as { status: string; date: string; time: string } | undefined;
       if ( !booking || [ "cancelled", "rejected" ].includes( booking.status ) || zonedDateTimeToDate( booking.date, booking.time ).getTime() <= Date.now() ) {
-        await db.prepare( `
-          UPDATE notification_deliveries
-          SET status = 'cancelled', leaseToken = NULL, leaseExpiresAt = NULL, updatedAt = CURRENT_TIMESTAMP
-          WHERE id = ?
-        ` ).run( delivery.id );
+        await this.queue.update( delivery, { status: "cancelled", leaseToken: null, leaseExpiresAt: null } );
         return;
       }
     }
@@ -160,43 +164,43 @@ export class NotificationWorker {
       throw new Error( `Unsupported delivery channel ${ delivery.channel }` );
     }
 
-    await db.prepare( `
-      UPDATE notification_deliveries
-      SET status = 'delivered', attempts = attempts + 1, provider = ?, providerMessageId = ?,
-          accepted = ?, rejected = ?, response = ?, providerMetadata = ?, lastError = NULL,
-          leaseToken = NULL, leaseExpiresAt = NULL, updatedAt = CURRENT_TIMESTAMP
-      WHERE id = ?
-    ` ).run(
-      result.provider,
-      result.messageId,
-      JSON.stringify( result.accepted ),
-      JSON.stringify( result.rejected ),
-      result.response || null,
-      JSON.stringify( result.metadata || {} ),
-      delivery.id
-    );
+    await this.queue.update( delivery, {
+      status: "delivered",
+      attempts: delivery.attempts + 1,
+      provider: result.provider,
+      providerMessageId: result.messageId,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      response: result.response || null,
+      providerMetadata: result.metadata || {},
+      lastError: null,
+      leaseToken: null,
+      leaseExpiresAt: null,
+    } );
   }
 
   private async fail( delivery: NotificationDeliveryRecord, error: unknown ): Promise<void> {
-    const db = await getDb();
     const attempts = delivery.attempts + 1;
     const retry = isTransient( error ) && attempts <= RETRY_DELAYS_MS.length;
     if ( retry ) {
-      await db.prepare( `
-        UPDATE notification_deliveries
-        SET status = 'pending', attempts = ?, nextAttemptAt = ?, lastError = ?,
-            leaseToken = NULL, leaseExpiresAt = NULL, updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
-      ` ).run( attempts, nextAttempt( attempts - 1, error ).toISOString(), error instanceof Error ? error.message : String( error ), delivery.id );
+      await this.queue.update( delivery, {
+        status: "pending",
+        attempts,
+        nextAttemptAt: nextAttempt( attempts - 1, error ).toISOString(),
+        lastError: error instanceof Error ? error.message : String( error ),
+        leaseToken: null,
+        leaseExpiresAt: null,
+      } );
       return;
     }
     const status = attempts > RETRY_DELAYS_MS.length ? "dead_letter" : "failed";
-    await db.prepare( `
-      UPDATE notification_deliveries
-      SET status = ?, attempts = ?, lastError = ?, leaseToken = NULL, leaseExpiresAt = NULL,
-          updatedAt = CURRENT_TIMESTAMP
-      WHERE id = ?
-    ` ).run( status, attempts, error instanceof Error ? error.message : String( error ), delivery.id );
+    await this.queue.update( delivery, {
+      status,
+      attempts,
+      lastError: error instanceof Error ? error.message : String( error ),
+      leaseToken: null,
+      leaseExpiresAt: null,
+    } );
     if ( status === "dead_letter" ) await createAdminFailureAlert( delivery, error );
   }
 

@@ -20,13 +20,13 @@ function createDb() {
       notes TEXT,
       status TEXT,
       tripDetails TEXT,
-      chauffeurId INTEGER,
+      chauffeurId TEXT,
       smsConsentVersion TEXT,
       smsConsentedAt TEXT,
       createdAt TEXT
     );
     CREATE TABLE chauffeurs (
-      id INTEGER PRIMARY KEY, name TEXT, email TEXT, phone TEXT, status TEXT, passwordHash TEXT
+      id TEXT PRIMARY KEY, name TEXT, email TEXT, phone TEXT, status TEXT, passwordHash TEXT
     );
     CREATE TABLE notifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT, eventKey TEXT UNIQUE, type TEXT, category TEXT, title TEXT,

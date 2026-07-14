@@ -1,0 +1,80 @@
+import PocketBase from "pocketbase";
+import { EventSource } from "eventsource";
+
+globalThis.EventSource = EventSource as unknown as typeof globalThis.EventSource;
+
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
+const url = requiredEnv("POCKETBASE_URL");
+const token = requiredEnv("POCKETBASE_SUPERUSER_TOKEN");
+
+async function main() {
+  const pb = new PocketBase(url);
+  pb.authStore.save(token);
+
+  const suffix = `${Date.now()}`;
+  const email = `verify-${suffix}@example.invalid`;
+  let userId = "";
+  let notificationId = "";
+  let recipientId = "";
+
+  try {
+  await pb.health.check();
+  const user = await pb.collection("app_users").create({
+    email,
+    password: `Verify-${suffix}-Aa1!`,
+    passwordConfirm: `Verify-${suffix}-Aa1!`,
+    name: "PocketBase verification",
+    legacyUserId: `verify-${suffix}`,
+    role: "chauffeur",
+    status: "active",
+  });
+  userId = user.id;
+
+  let received = false;
+  const unsubscribe = await pb.collection("notification_recipients").subscribe("*", (event) => {
+    if (event.record.userId === `verify-${suffix}`) received = true;
+  }, { filter: `userId = "verify-${suffix}"` });
+
+  const notification = await pb.collection("notifications").create({
+    type: "system",
+    category: "system",
+    eventKey: `verify-${suffix}`,
+    title: "PocketBase verification",
+    body: "Realtime notification verification",
+    metadata: { verification: true },
+  });
+  notificationId = notification.id;
+
+  const recipient = await pb.collection("notification_recipients").create({
+    notification: notificationId,
+    userId: `verify-${suffix}`,
+  });
+  recipientId = recipient.id;
+
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  await unsubscribe();
+  if (!received) throw new Error("Realtime recipient event was not received");
+
+  await pb.collection("notification_recipients").update(recipientId, {
+    readAt: new Date().toISOString(),
+  });
+  const updated = await pb.collection("notification_recipients").getOne(recipientId);
+  if (!updated.readAt) throw new Error("Notification read state was not persisted");
+
+  console.log("PocketBase health, auth collection, notifications, and realtime verified.");
+  } finally {
+    if (recipientId) await pb.collection("notification_recipients").delete(recipientId).catch(() => undefined);
+    if (notificationId) await pb.collection("notifications").delete(notificationId).catch(() => undefined);
+    if (userId) await pb.collection("app_users").delete(userId).catch(() => undefined);
+  }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
