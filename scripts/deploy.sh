@@ -40,6 +40,38 @@ if [[ -f "$WORKER_RELEASE_FILE" ]]; then
   previous_worker_image="$(<"$WORKER_RELEASE_FILE")"
 fi
 
+persist_release_images() {
+  local temporary
+  temporary="$(mktemp "$DEPLOY_DIR/.env.XXXXXX")"
+  awk -v web="$IMAGE_NAME" -v pocketbase="$POCKETBASE_IMAGE" -v worker="$WORKER_IMAGE" '
+    BEGIN { web_seen = pocketbase_seen = worker_seen = 0 }
+    index($0, "IMAGE_NAME=") == 1 {
+      if (!web_seen) print "IMAGE_NAME=" web
+      web_seen = 1
+      next
+    }
+    index($0, "POCKETBASE_IMAGE=") == 1 {
+      if (!pocketbase_seen) print "POCKETBASE_IMAGE=" pocketbase
+      pocketbase_seen = 1
+      next
+    }
+    index($0, "WORKER_IMAGE=") == 1 {
+      if (!worker_seen) print "WORKER_IMAGE=" worker
+      worker_seen = 1
+      next
+    }
+    { print }
+    END {
+      if (!web_seen) print "IMAGE_NAME=" web
+      if (!pocketbase_seen) print "POCKETBASE_IMAGE=" pocketbase
+      if (!worker_seen) print "WORKER_IMAGE=" worker
+    }
+  ' .env > "$temporary"
+  chmod --reference=.env "$temporary"
+  chown --reference=.env "$temporary"
+  mv "$temporary" .env
+}
+
 rollback_release() {
   if [[ -n "$previous_image" && -n "$previous_pocketbase_image" ]]; then
     echo "Rolling back the previous release" >&2
@@ -47,7 +79,9 @@ rollback_release() {
     export POCKETBASE_IMAGE="$previous_pocketbase_image"
     if [[ -n "$previous_worker_image" ]]; then
       export WORKER_IMAGE="$previous_worker_image"
-      docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans pocketbase web notifications-worker || true
+      if docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans pocketbase web notifications-worker; then
+        persist_release_images
+      fi
     else
       docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans pocketbase web || true
       docker compose --env-file .env -f "$COMPOSE_FILE" stop notifications-worker || true
@@ -70,6 +104,7 @@ status=""
 for _ in {1..30}; do
   status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")"
   if [[ "$status" == "healthy" ]]; then
+    persist_release_images
     printf '%s\n' "$IMAGE_NAME" > "$RELEASE_FILE"
     printf '%s\n' "$POCKETBASE_IMAGE" > "$POCKETBASE_RELEASE_FILE"
     printf '%s\n' "$WORKER_IMAGE" > "$WORKER_RELEASE_FILE"
