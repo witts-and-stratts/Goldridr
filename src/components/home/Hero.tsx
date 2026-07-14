@@ -1,38 +1,97 @@
+"use client";
+
 import Image from "next/image";
+import { useEffect, useRef } from "react";
+import Splide from "@splidejs/splide";
 import { Header } from "./Header";
 
 const HERO_BG = "/assets/images/arrive-better-goldridr.jpg";
 
-interface HeroProps {
-  // No props needed anymore
-}
+const HERO_SLIDES = [
+  {
+    id: 1,
+    image: HERO_BG,
+    title: "YOUR PERSONAL CHAFFEUR",
+    description: "Private transportation coordinated, professionally handled every time.",
+  },
+  {
+    id: 2,
+    image: HERO_BG,
+    title: "Houston & Beyond",
+    description: "Airport runs, city rides, and long-distance travel—structured for the way Houston moves",
+  },
+  {
+    id: 3,
+    image: HERO_BG,
+    title: "ARRIVE BETTER",
+    description: "Experience premium chauffeured services, in Houston and beyond",
+  }
+]
 
 export function Hero() {
+  const sliderRef = useRef<HTMLDivElement>( null );
+
+  useEffect( () => {
+    if ( !sliderRef.current ) return;
+
+    const slider = new Splide( sliderRef.current, {
+      type: "loop",
+      autoplay: true,
+      interval: 6000,
+      speed: 1000,
+      pauseOnHover: false,
+      arrows: false,
+      pagination: false,
+    } );
+
+    slider.mount();
+
+    return () => {
+      slider.destroy();
+    };
+  }, [] );
+
   return (
-    <section className="relative h-screen w-full overflow-hidden bg-black text-white select-none">
-      {/* Background Image */ }
-      <div className="absolute inset-0 z-0">
-        <Image
-          src={ HERO_BG }
-          alt="Luxury Chauffeured Services"
-          fill
-          className="object-cover opacity-70 max-md:object-[70%_50%]"
-          priority
-        />
-        <div className="absolute inset-0 bg-linear-to-b from-black/60 via-transparent to-black/80" />
+    <section className="isolate relative h-screen w-full overflow-hidden bg-black text-white select-none">
+      {/* Navigation */ }
+      <div className="absolute inset-x-0 top-0 z-50">
+        <Header />
       </div>
 
-      {/* Navigation */ }
-      <Header />
+      <div
+        ref={ sliderRef }
+        aria-label="Goldridr highlights"
+        className="splide absolute inset-0 z-0 h-full"
+      >
+        <div className="splide__track h-full">
+          <ul className="splide__list h-full">
+            { HERO_SLIDES.map( ( slide, index ) => (
+              <li key={ slide.id } className="splide__slide relative h-screen">
+                {/* Background Image */ }
+                <div className="absolute inset-0 z-0">
+                  <Image
+                    src={ slide.image }
+                    alt="Luxury Chauffeured Services"
+                    fill
+                    className="object-cover opacity-70 max-md:object-[70%_50%]"
+                    priority={ index === 0 }
+                  />
+                  <div className="absolute inset-0 bg-linear-to-b from-black/60 via-transparent to-black/80" />
+                </div>
 
-      {/* Main Content */ }
-      <div className="relative z-10 flex flex-1 w-full flex-col items-center justify-center py-[10%] md:py-[5%] text-center px-3">
-        <h1 className="font-serif text-3xl font-medium tracking-wide text-white md:text-5xl lg:text-6xl">
-          ARRIVE BETTER
-        </h1>
-        <p className="mt-3 md:mt-4 max-w-2xl text-sm font-light tracking-wide text-gray-200 font-sans md:text-base">
-          Experience premium chauffeured services, in Houston and beyond
-        </p>
+                {/* Main Content */ }
+                <div className="relative z-10 flex w-full flex-col items-center justify-center px-3 pt-[calc(3rem+10%)] pb-[10%] text-center md:pt-[calc(6.5rem+5%)] md:pb-[5%]">
+                  <h1 className="font-serif text-3xl font-medium tracking-wide text-white md:text-4xl lg:text-5xl">
+                    { slide.title }
+                  </h1>
+                  <p className="mt-3 max-w-2xl font-sans text-sm font-light tracking-wide text-gray-200 md:mt-4 md:text-base text-balance">
+                    { slide.description }
+                  </p>
+                </div>
+              </li>
+            ) ) }
+          </ul>
+        </div>
       </div>
 
       {/* Bottom Bar / Features */ }

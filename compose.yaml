@@ -1,0 +1,42 @@
+name: goldridr
+
+services:
+  mailpit:
+    image: axllent/mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  pocketbase:
+    build:
+      context: .
+      dockerfile: pocketbase/Dockerfile
+      args:
+        POCKETBASE_VERSION: "0.35.0"
+    image: goldridr-pocketbase:0.35.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${POCKETBASE_PORT:-8091}:8090"
+    volumes:
+      - pocketbase_data:/pb/pb_data
+      - ./pocketbase/pb_migrations:/pb/pb_migrations:ro
+    command:
+      - serve
+      - --http=0.0.0.0:8090
+      - --dir=/pb/pb_data
+      - --migrationsDir=/pb/pb_migrations
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8090"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  pocketbase_data:

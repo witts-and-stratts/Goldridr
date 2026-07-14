@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getRequestSession } from "@/lib/driver-auth";
-import { getPreferences, setPreference } from "@/lib/notifications/store";
+import { getPreferences, setPreference } from "@/lib/notifications/inbox-store";
 import type { NotificationCategory } from "@/lib/notifications/types";
 
 const CATEGORIES: NotificationCategory[] = [ "bookings", "reminders", "messages", "system" ];

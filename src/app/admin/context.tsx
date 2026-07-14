@@ -6,7 +6,7 @@ import type { AuthSession } from "@/lib/auth";
 import { qk } from "@/lib/query-keys";
 
 export interface Chauffeur {
-  id: number;
+  id: string;
   name: string;
   email: string;
   phone?: string;
@@ -14,7 +14,7 @@ export interface Chauffeur {
 
 export interface Role {
   type: "admin" | "chauffeur";
-  id?: number;
+  id?: string;
   name?: string;
 }
 
@@ -22,8 +22,8 @@ interface AdminContextValue {
   chauffeurs: Chauffeur[];
   currentRole: Role;
   session: AuthSession;
-  selectedChauffeurId: number | null;
-  setSelectedChauffeurId: ( id: number | null ) => void;
+  selectedChauffeurId: string | null;
+  setSelectedChauffeurId: ( id: string | null ) => void;
   fetchChauffeurs: () => Promise<void>;
 }
 
@@ -57,7 +57,7 @@ export function AdminProvider( {
 
   const chauffeurs = chauffeursData ?? initialChauffeurs;
 
-  const [ selectedChauffeurId, setSelectedChauffeurId ] = useState<number | null>(
+  const [ selectedChauffeurId, setSelectedChauffeurId ] = useState<string | null>(
     session.role === "chauffeur" ? session.chauffeurId ?? null : null
   );
 

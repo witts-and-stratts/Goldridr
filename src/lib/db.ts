@@ -1,3 +1,4 @@
+import { randomUUID, randomBytes, createHash } from "crypto";
 import { hashPassword } from "@/lib/password";
 import { assertFutureBookingTime } from "@/lib/booking-time";
 import { getNotificationTimeZone } from "@/lib/admin-settings";
@@ -11,6 +12,7 @@ import {
   enqueueBookingRescheduled,
   enqueueBookingStatusChanged,
 } from "@/lib/notifications/store";
+import { syncPocketBaseChauffeurCredentials } from "@/lib/pocketbase/core-sync";
 
 const SCHEMA_SQL = `
       CREATE TABLE IF NOT EXISTS bookings (
@@ -40,12 +42,13 @@ const SCHEMA_SQL = `
       );
 
       CREATE TABLE IF NOT EXISTS chauffeurs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         email TEXT NOT NULL,
         phone TEXT,
         status TEXT DEFAULT 'active',
-        passwordHash TEXT
+        passwordHash TEXT,
+        avatarUrl TEXT
       );
 
       CREATE TABLE IF NOT EXISTS notifications (
@@ -158,6 +161,35 @@ const SCHEMA_SQL = `
       CREATE INDEX IF NOT EXISTS idx_push_tokens_user
         ON push_tokens(userId);
 
+      CREATE TABLE IF NOT EXISTS push_receipts (
+        ticketId TEXT PRIMARY KEY,
+        token TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        nextCheckAt DATETIME NOT NULL,
+        receipt TEXT,
+        lastError TEXT,
+        createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_push_receipts_due
+        ON push_receipts(status, nextCheckAt);
+
+      CREATE TABLE IF NOT EXISTS pocketbase_notification_outbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        notificationId INTEGER NOT NULL UNIQUE,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        nextAttemptAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        lastError TEXT,
+        createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(notificationId) REFERENCES notifications(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_pocketbase_notification_outbox_due
+        ON pocketbase_notification_outbox(nextAttemptAt, id);
+
       CREATE TABLE IF NOT EXISTS discount_codes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT NOT NULL UNIQUE,
@@ -210,19 +242,74 @@ const SCHEMA_SQL = `
         ON payments(bookingReference, createdAt DESC);
       CREATE INDEX IF NOT EXISTS idx_payments_status
         ON payments(status, createdAt DESC);
+
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        tokenHash TEXT PRIMARY KEY,
+        chauffeurId TEXT NOT NULL,
+        expiresAt INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS pocketbase_core_outbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity TEXT NOT NULL,
+        legacyKey TEXT NOT NULL,
+        action TEXT NOT NULL DEFAULT 'upsert',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        nextAttemptAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        lastError TEXT,
+        createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(entity, legacyKey)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_pocketbase_core_outbox_due
+        ON pocketbase_core_outbox(nextAttemptAt, id);
+
     `;
+
+const POCKETBASE_CORE_TRIGGER_TARGETS = [
+  { entity: "vehicles", table: "vehicles", key: "id" },
+  { entity: "chauffeurs", table: "chauffeurs", key: "id" },
+  { entity: "bookings", table: "bookings", key: "reference" },
+  { entity: "payments", table: "payments", key: "id" },
+  { entity: "discount_codes", table: "discount_codes", key: "id" },
+  { entity: "blocked_slots", table: "blocked_slots", key: "id" },
+  { entity: "app_settings", table: "app_settings", key: "key" },
+  { entity: "sms_consents", table: "sms_consents", key: "id" },
+] as const;
+
+function pocketBaseCoreTriggers(): string[] {
+  return POCKETBASE_CORE_TRIGGER_TARGETS.flatMap( target =>
+    ( [ "insert", "update", "delete" ] as const ).map( operation => {
+      const row = operation === "delete" ? "OLD" : "NEW";
+      const action = operation === "delete" ? "delete" : "upsert";
+      return `
+        CREATE TRIGGER IF NOT EXISTS trg_pb_${ target.table }_${ operation }
+        AFTER ${ operation.toUpperCase() } ON ${ target.table }
+        BEGIN
+          INSERT INTO pocketbase_core_outbox (entity, legacyKey, action)
+          VALUES ('${ target.entity }', ${ row }.${ target.key }, '${ action }')
+          ON CONFLICT(entity, legacyKey) DO UPDATE SET
+            action = '${ action }', nextAttemptAt = CURRENT_TIMESTAMP,
+            lastError = NULL, updatedAt = CURRENT_TIMESTAMP;
+        END
+      `;
+    } )
+  );
+}
 
 const ADDITIVE_MIGRATIONS = [
   "ALTER TABLE blocked_slots ADD COLUMN endDate TEXT",
   "ALTER TABLE blocked_slots ADD COLUMN isFullDay INTEGER DEFAULT 0",
-  "ALTER TABLE bookings ADD COLUMN chauffeurId INTEGER",
-  "ALTER TABLE blocked_slots ADD COLUMN chauffeurId INTEGER",
+  "ALTER TABLE bookings ADD COLUMN chauffeurId TEXT",
+  "ALTER TABLE blocked_slots ADD COLUMN chauffeurId TEXT",
   "ALTER TABLE chauffeurs ADD COLUMN passwordHash TEXT",
   "ALTER TABLE bookings ADD COLUMN smsConsentVersion TEXT",
   "ALTER TABLE bookings ADD COLUMN smsConsentedAt DATETIME",
   "ALTER TABLE chauffeurs ADD COLUMN vehicleId INTEGER REFERENCES vehicles(id)",
   "ALTER TABLE bookings ADD COLUMN pin TEXT",
   "ALTER TABLE bookings ADD COLUMN pinConfirmedAt DATETIME",
+  "ALTER TABLE chauffeurs ADD COLUMN avatarUrl TEXT",
 ];
 
 let initialized = false;
@@ -246,6 +333,10 @@ export async function initializeDb( db?: DatabaseLike ): Promise<void> {
       await db.exec( sql );
     } catch {}
   }
+  for ( const sql of pocketBaseCoreTriggers() ) {
+    await db.prepare( sql ).run();
+  }
+  await migrateChauffeursToUuid( db );
   try {
     const rowCount = await db.prepare( "SELECT COUNT(*) as count FROM chauffeurs" ).get() as { count: number } | undefined;
     const defaultPassword = process.env.CHAUFFEUR_DEFAULT_PASSWORD;
@@ -253,16 +344,16 @@ export async function initializeDb( db?: DatabaseLike ): Promise<void> {
       if ( !defaultPassword ) throw new Error( "CHAUFFEUR_DEFAULT_PASSWORD is not configured" );
       const defaultPasswordHash = hashPassword( defaultPassword );
       const insertChauffeur = await db.prepare(
-        "INSERT INTO chauffeurs (name, email, phone, passwordHash) VALUES (?, ?, ?, ?)"
+        "INSERT INTO chauffeurs (id, name, email, phone, passwordHash) VALUES (?, ?, ?, ?, ?)"
       );
-      await insertChauffeur.run( "James Mercer", "james@goldridr.com", "+1 (713) 555-0199", defaultPasswordHash );
-      await insertChauffeur.run( "Sarah Connor", "sarah@goldridr.com", "+1 (713) 555-0211", defaultPasswordHash );
-      await insertChauffeur.run( "Michael Vance", "michael@goldridr.com", "+1 (713) 555-0288", defaultPasswordHash );
+      await insertChauffeur.run( randomUUID(), "James Mercer", "james@goldridr.com", "+1 (713) 555-0199", defaultPasswordHash );
+      await insertChauffeur.run( randomUUID(), "Sarah Connor", "sarah@goldridr.com", "+1 (713) 555-0211", defaultPasswordHash );
+      await insertChauffeur.run( randomUUID(), "Michael Vance", "michael@goldridr.com", "+1 (713) 555-0288", defaultPasswordHash );
     }
 
     const missingPasswords = await db.prepare(
       "SELECT id FROM chauffeurs WHERE passwordHash IS NULL OR passwordHash = ''"
-    ).all() as { id: number }[];
+    ).all() as { id: string }[];
     const setPassword = await db.prepare( "UPDATE chauffeurs SET passwordHash = ? WHERE id = ?" );
     for ( const chauffeur of missingPasswords ) {
       if ( !defaultPassword ) throw new Error( "CHAUFFEUR_DEFAULT_PASSWORD is not configured" );
@@ -274,6 +365,69 @@ export async function initializeDb( db?: DatabaseLike ): Promise<void> {
     }
   }
   initialized = true;
+}
+
+async function migrateChauffeursToUuid( db: DatabaseLike ): Promise<void> {
+  const columns = await db.prepare( "PRAGMA table_info(chauffeurs)" ).all() as Array<{ name: string; type: string }>;
+  const idColumn = columns.find( column => column.name === "id" );
+  if ( !idColumn || !/^INTEGER$/i.test( idColumn.type ) ) return;
+
+  await db.transaction( async () => {
+    const chauffeurs = await db.prepare( "SELECT * FROM chauffeurs" ).all() as Array<{
+      id: number;
+      name: string;
+      email: string;
+      phone: string | null;
+      status: string | null;
+      passwordHash?: string | null;
+      vehicleId?: number | null;
+      avatarUrl?: string | null;
+    }>;
+    const idMap = new Map<number, string>();
+    for ( const chauffeur of chauffeurs ) {
+      idMap.set( chauffeur.id, randomUUID() );
+    }
+
+    await db.exec( `
+      CREATE TABLE chauffeurs_uuid (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT,
+        status TEXT DEFAULT 'active',
+        passwordHash TEXT,
+        vehicleId INTEGER REFERENCES vehicles(id),
+        avatarUrl TEXT
+      )
+    ` );
+
+    const insert = await db.prepare( `
+      INSERT INTO chauffeurs_uuid (id, name, email, phone, status, passwordHash, vehicleId, avatarUrl)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ` );
+    for ( const chauffeur of chauffeurs ) {
+      const nextId = idMap.get( chauffeur.id );
+      if ( !nextId ) continue;
+      await insert.run(
+        nextId,
+        chauffeur.name,
+        chauffeur.email,
+        chauffeur.phone,
+        chauffeur.status || "active",
+        chauffeur.passwordHash || null,
+        chauffeur.vehicleId ?? null,
+        "avatarUrl" in chauffeur ? chauffeur.avatarUrl ?? null : null
+      );
+    }
+
+    for ( const [ oldId, newId ] of idMap ) {
+      await db.prepare( "UPDATE bookings SET chauffeurId = ? WHERE chauffeurId = ?" ).run( newId, oldId );
+      await db.prepare( "UPDATE blocked_slots SET chauffeurId = ? WHERE chauffeurId = ?" ).run( newId, oldId );
+    }
+
+    await db.exec( "DROP TABLE chauffeurs" );
+    await db.exec( "ALTER TABLE chauffeurs_uuid RENAME TO chauffeurs" );
+  } )();
 }
 
 export interface VehicleRecord {
@@ -288,11 +442,12 @@ export interface VehicleRecord {
 }
 
 export interface ChauffeurRecord {
-  id: number;
+  id: string;
   name: string;
   email: string;
   phone: string;
   status: string;
+  avatarUrl?: string | null;
   passwordHash?: string;
   vehicleId?: number | null;
   vehicle?: VehicleRecord | null;
@@ -311,7 +466,7 @@ export interface BookingRecord {
   notes: string;
   status: string;
   tripDetails: string; // JSON string
-  chauffeurId?: number | null;
+  chauffeurId?: string | null;
   smsConsentVersion?: string | null;
   smsConsentedAt?: string | null;
   pin?: string | null;
@@ -445,7 +600,7 @@ async function claimDiscountCode(
 }
 
 const CHAUFFEUR_VEHICLE_SELECT = `
-  SELECT c.id, c.name, c.email, c.phone, c.status, c.vehicleId,
+  SELECT c.id, c.name, c.email, c.phone, c.status, c.avatarUrl, c.vehicleId,
          v.id AS v_id, v.make AS v_make, v.model AS v_model,
          v.year AS v_year, v.colour AS v_colour, v.plate AS v_plate, v.status AS v_status
   FROM chauffeurs c
@@ -463,11 +618,12 @@ function rowToChauffeur( row: Record<string, unknown> ): ChauffeurRecord {
     status: row.v_status as string,
   } : null;
   return {
-    id: row.id as number,
+    id: String( row.id ),
     name: row.name as string,
     email: row.email as string,
     phone: row.phone as string,
     status: row.status as string,
+    avatarUrl: row.avatarUrl as string | null ?? null,
     vehicleId: row.vehicleId as number | null ?? null,
     vehicle,
   };
@@ -482,25 +638,28 @@ export async function getAllChauffeurs(): Promise<ChauffeurRecord[]> {
 }
 
 export async function createChauffeur(
-  chauffeur: Pick<ChauffeurRecord, "name" | "email" | "phone"> & { password: string }
+  chauffeur: Pick<ChauffeurRecord, "name" | "email" | "phone"> & { password: string; avatarUrl?: string | null }
 ): Promise<ChauffeurRecord> {
   const db = await getDb();
   const existing = await db.prepare(
     "SELECT id FROM chauffeurs WHERE LOWER(email) = LOWER(?) AND status = 'active'"
-  ).get( chauffeur.email ) as { id: number } | undefined;
+  ).get( chauffeur.email ) as { id: string } | undefined;
 
   if ( existing ) {
     throw new Error( "A chauffeur with this email already exists" );
   }
 
-  const result = await db.prepare(
-    "INSERT INTO chauffeurs (name, email, phone, status, passwordHash) VALUES (?, ?, ?, 'active', ?)"
-  ).run( chauffeur.name, chauffeur.email, chauffeur.phone || null, hashPassword( chauffeur.password ) );
+  const id = randomUUID();
+  await db.prepare(
+    "INSERT INTO chauffeurs (id, name, email, phone, status, passwordHash, avatarUrl) VALUES (?, ?, ?, ?, 'active', ?, ?)"
+  ).run( id, chauffeur.name, chauffeur.email, chauffeur.phone || null, hashPassword( chauffeur.password ), chauffeur.avatarUrl || null );
 
   const row = await db.prepare(
     `${ CHAUFFEUR_VEHICLE_SELECT } WHERE c.id = ?`
-  ).get( result.lastInsertRowid ) as Record<string, unknown>;
-  return rowToChauffeur( row );
+  ).get( id ) as Record<string, unknown>;
+  const created = rowToChauffeur( row );
+  await syncPocketBaseChauffeurCredentials( created, chauffeur.password );
+  return created;
 }
 
 export async function getChauffeurByEmail( email: string ): Promise<ChauffeurRecord | undefined> {
@@ -510,12 +669,65 @@ export async function getChauffeurByEmail( email: string ): Promise<ChauffeurRec
   ).get( email ) as ChauffeurRecord | undefined;
 }
 
-export async function getChauffeurById( id: number ): Promise<ChauffeurRecord | undefined> {
+export async function getChauffeurById( id: string ): Promise<ChauffeurRecord | undefined> {
   const db = await getDb();
   const row = await db.prepare(
     `${ CHAUFFEUR_VEHICLE_SELECT } WHERE c.id = ? AND c.status = 'active'`
   ).get( id ) as Record<string, unknown> | undefined;
   return row ? rowToChauffeur( row ) : undefined;
+}
+
+export async function updateChauffeurAvatar( id: string, avatarUrl: string | null ): Promise<ChauffeurRecord | undefined> {
+  const db = await getDb();
+  const result = await db.prepare(
+    "UPDATE chauffeurs SET avatarUrl = ? WHERE id = ? AND status = 'active'"
+  ).run( avatarUrl, id );
+  if ( result.changes === 0 ) return undefined;
+  return await getChauffeurById( id );
+}
+
+export async function updateChauffeur(
+  id: string,
+  updates: {
+    name?: string;
+    email?: string;
+    phone?: string | null;
+    password?: string | null;
+  }
+): Promise<ChauffeurRecord | undefined> {
+  const db = await getDb();
+  const existing = await getChauffeurById( id );
+  if ( !existing ) return undefined;
+
+  const nextName = updates.name?.trim() || existing.name;
+  const nextEmail = updates.email?.trim().toLowerCase() || existing.email;
+  const nextPhone = updates.phone !== undefined
+    ? updates.phone?.trim() || null
+    : existing.phone || null;
+
+  if ( nextEmail !== existing.email ) {
+    const duplicate = await db.prepare(
+      "SELECT id FROM chauffeurs WHERE LOWER(email) = LOWER(?) AND id <> ? AND status = 'active'"
+    ).get( nextEmail ) as { id: string } | undefined;
+    if ( duplicate ) {
+      throw new Error( "A chauffeur with this email already exists" );
+    }
+  }
+
+  const nextPasswordHash = updates.password?.trim()
+    ? hashPassword( updates.password.trim() )
+    : existing.passwordHash ?? null;
+
+  const result = await db.prepare( `
+    UPDATE chauffeurs
+    SET name = ?, email = ?, phone = ?, passwordHash = ?
+    WHERE id = ? AND status = 'active'
+  ` ).run( nextName, nextEmail, nextPhone, nextPasswordHash, id );
+
+  if ( result.changes === 0 ) return undefined;
+  const updated = await getChauffeurById( id );
+  if ( updated ) await syncPocketBaseChauffeurCredentials( updated, updates.password );
+  return updated;
 }
 
 export async function getAllVehicles(): Promise<VehicleRecord[]> {
@@ -561,7 +773,7 @@ export async function deleteVehicle( id: number ): Promise<boolean> {
   return result.changes > 0;
 }
 
-export async function assignVehicleToChauffeur( chauffeurId: number | null, vehicleId: number ): Promise<boolean> {
+export async function assignVehicleToChauffeur( chauffeurId: string | null, vehicleId: number ): Promise<boolean> {
   const db = await getDb();
   return await db.transaction( async () => {
     const vehicle = await db.prepare( "SELECT id FROM vehicles WHERE id = ? AND status = 'active'" ).get( vehicleId );
@@ -581,14 +793,42 @@ export async function unassignVehicle( vehicleId: number ): Promise<void> {
   await (await getDb()).prepare( "UPDATE chauffeurs SET vehicleId = NULL WHERE vehicleId = ?" ).run( vehicleId );
 }
 
-export async function getBookingsForChauffeur( chauffeurId: number ): Promise<BookingRecord[]> {
+export async function getBookingsForChauffeur( chauffeurId: string ): Promise<BookingRecord[]> {
   const db = await getDb();
   return await db.prepare(
     "SELECT * FROM bookings WHERE chauffeurId = ? ORDER BY createdAt DESC"
   ).all( chauffeurId ) as BookingRecord[];
 }
 
-export async function deleteChauffeur( id: number ): Promise<boolean> {
+const RESET_TOKEN_TTL_SECONDS = 60 * 60; // 1 hour
+
+export async function createPasswordResetToken( chauffeurId: string ): Promise<string> {
+  const db = await getDb();
+  const token = randomBytes( 32 ).toString( "hex" );
+  const tokenHash = createHash( "sha256" ).update( token ).digest( "hex" );
+  const expiresAt = Math.floor( Date.now() / 1000 ) + RESET_TOKEN_TTL_SECONDS;
+  await db.prepare(
+    "DELETE FROM password_reset_tokens WHERE chauffeurId = ?"
+  ).run( chauffeurId );
+  await db.prepare(
+    "INSERT INTO password_reset_tokens (tokenHash, chauffeurId, expiresAt) VALUES (?, ?, ?)"
+  ).run( tokenHash, chauffeurId, expiresAt );
+  return token;
+}
+
+export async function consumePasswordResetToken( token: string ): Promise<string | null> {
+  const db = await getDb();
+  const tokenHash = createHash( "sha256" ).update( token ).digest( "hex" );
+  const now = Math.floor( Date.now() / 1000 );
+  const row = await db.prepare(
+    "SELECT chauffeurId, expiresAt FROM password_reset_tokens WHERE tokenHash = ?"
+  ).get( tokenHash ) as { chauffeurId: string; expiresAt: number } | undefined;
+  if ( !row || row.expiresAt < now ) return null;
+  await db.prepare( "DELETE FROM password_reset_tokens WHERE tokenHash = ?" ).run( tokenHash );
+  return row.chauffeurId;
+}
+
+export async function deleteChauffeur( id: string ): Promise<boolean> {
   const db = await getDb();
   const remove = db.transaction( async () => {
     const assignedBookings = await db.prepare(
@@ -913,7 +1153,7 @@ export async function updateBookingStatus( reference: string, status: string ): 
   } )() as boolean;
 }
 
-export async function updateBookingChauffeur( reference: string, chauffeurId: number | null ): Promise<boolean> {
+export async function updateBookingChauffeur( reference: string, chauffeurId: string | null ): Promise<boolean> {
   const db = await getDb();
   return await db.transaction( async () => {
     const booking = await db.prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( reference ) as BookingRecord | undefined;
@@ -1145,7 +1385,7 @@ export async function checkBookingClash(
   date: string,
   time: string,
   durationMinutes: number,
-  chauffeurId?: number | null
+  chauffeurId?: string | null
 ): Promise<{ clash: boolean; conflictingBooking?: BookingRecord }> {
   try {
     const db = await getDb();
@@ -1199,7 +1439,7 @@ export interface BlockedSlotRecord {
   time: string;
   duration: number;
   recurring: string; // 'none', 'daily', 'weekly', 'weekends'
-  chauffeurId?: number | null;
+  chauffeurId?: string | null;
   createdAt: string;
 }
 
@@ -1231,7 +1471,7 @@ export async function getAllBlockedSlots(): Promise<BlockedSlotRecord[]> {
   return await db.prepare( "SELECT * FROM blocked_slots ORDER BY id DESC" ).all() as BlockedSlotRecord[];
 }
 
-export async function getBlockedSlotsForChauffeur( chauffeurId: number ): Promise<BlockedSlotRecord[]> {
+export async function getBlockedSlotsForChauffeur( chauffeurId: string ): Promise<BlockedSlotRecord[]> {
   const db = await getDb();
   return await db.prepare(
     "SELECT * FROM blocked_slots WHERE chauffeurId IS NULL OR chauffeurId = ? ORDER BY id DESC"
@@ -1245,7 +1485,7 @@ export async function deleteBlockedSlot( id: number ): Promise<boolean> {
   return result.changes > 0;
 }
 
-export async function deleteChauffeurBlockedSlot( id: number, chauffeurId: number ): Promise<boolean> {
+export async function deleteChauffeurBlockedSlot( id: number, chauffeurId: string ): Promise<boolean> {
   const db = await getDb();
   const result = await db.prepare(
     "DELETE FROM blocked_slots WHERE id = ? AND chauffeurId = ?"
@@ -1257,7 +1497,7 @@ export async function checkBlockedClash(
   date: string,
   time: string,
   durationMinutes: number,
-  chauffeurId?: number | null
+  chauffeurId?: string | null
 ): Promise<{ clash: boolean; conflictingBlock?: BlockedSlotRecord }> {
   try {
     const db = await getDb();

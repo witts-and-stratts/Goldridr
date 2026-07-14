@@ -19,6 +19,7 @@ loadEnvFile( path.join( process.cwd(), ".env" ) );
 loadEnvFile( path.join( process.cwd(), ".env.local" ) );
 
 const pollMs = Number( process.env.NOTIFICATION_POLL_MS || 5000 );
+const readinessFile = process.env.NOTIFICATION_READY_FILE;
 let stopping = false;
 
 for ( const signal of [ "SIGINT", "SIGTERM" ] as const ) {
@@ -32,6 +33,7 @@ async function main() {
   const worker = new NotificationWorker();
   try {
     await worker.verify();
+    if ( readinessFile ) fs.writeFileSync( readinessFile, String( process.pid ) );
     console.log( "Notification worker configuration verified" );
     while ( !stopping ) {
       const result = await worker.runOnce();
@@ -39,6 +41,7 @@ async function main() {
       await new Promise( resolve => setTimeout( resolve, pollMs ) );
     }
   } finally {
+    if ( readinessFile ) fs.rmSync( readinessFile, { force: true } );
     await worker.close();
   }
 }

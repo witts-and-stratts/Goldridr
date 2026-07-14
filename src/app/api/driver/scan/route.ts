@@ -45,7 +45,7 @@ function parseScanPayload( raw: string ): ScanPayload | null {
 
 export async function POST( req: Request ) {
   try {
-    const session = getAppSession( req );
+    const session = await getAppSession( req );
     if ( !session ) return unauthorizedResponse();
 
     const body = await req.json();

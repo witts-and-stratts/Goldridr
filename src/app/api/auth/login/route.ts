@@ -3,6 +3,8 @@ import { timingSafeEqual } from "crypto";
 import { setSession } from "@/lib/auth";
 import { getChauffeurByEmail } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
+import { authenticatePocketBaseUser } from "@/lib/pocketbase/auth";
+import { isPocketBaseAuthEnabled } from "@/lib/pocketbase/config";
 
 function secureStringEqual( left: string, right: string ): boolean {
   const leftBuffer = Buffer.from( left );
@@ -22,6 +24,15 @@ export async function POST( request: Request ) {
         { success: false, error: "Email and password are required" },
         { status: 400 }
       );
+    }
+
+    if ( isPocketBaseAuthEnabled() ) {
+      const session = await authenticatePocketBaseUser( email, password );
+      if ( !session ) {
+        return NextResponse.json( { success: false, error: "Invalid email or password" }, { status: 401 } );
+      }
+      await setSession( session );
+      return NextResponse.json( { success: true, role: session.role } );
     }
 
     const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase();

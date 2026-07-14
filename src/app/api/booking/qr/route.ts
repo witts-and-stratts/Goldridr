@@ -4,7 +4,7 @@ import QRCodeGenerator from "qr.js/lib/QRCode";
 import { getAppUrl } from "@/lib/admin-settings";
 import { getBookingVerifyUrl } from "@/lib/booking-qr";
 
-export const runtime = "nodejs";
+// export const runtime = "nodejs";
 
 export async function GET( request: Request ) {
   const url = new URL( request.url );

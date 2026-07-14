@@ -10,7 +10,7 @@ const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7;
 export interface AuthSession {
   role: "admin" | "chauffeur";
   userId: string;
-  chauffeurId?: number;
+  chauffeurId?: string;
   name: string;
   email: string;
   expiresAt: number;
@@ -76,7 +76,7 @@ export async function getSession(): Promise<AuthSession | null> {
     }
   }
 
-  if ( session?.role === "chauffeur" && !getChauffeurById( session.chauffeurId! ) ) {
+  if ( session?.role === "chauffeur" && !await getChauffeurById( session.chauffeurId! ) ) {
     return null;
   }
   return session;

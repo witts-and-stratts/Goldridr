@@ -1,0 +1,159 @@
+name: Build and deploy
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: goldridr-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+  publish:
+    name: Build image
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      pocketbase_image: ${{ steps.image.outputs.pocketbase_image }}
+      worker_image: ${{ steps.image.outputs.worker_image }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set image name
+        id: image
+        shell: bash
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "pocketbase_image=ghcr.io/${GITHUB_REPOSITORY,,}-pocketbase:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "worker_image=ghcr.io/${GITHUB_REPOSITORY,,}-worker:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.image.outputs.image }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+          build-args: |
+            DEPLOYMENT_VERSION=${{ github.sha }}
+            NEXT_PUBLIC_BASE_URL=${{ vars.NEXT_PUBLIC_BASE_URL }}
+            NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ vars.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+            NEXT_PUBLIC_MAILPIT_UI_URL=${{ vars.NEXT_PUBLIC_MAILPIT_UI_URL }}
+
+      - name: Build PocketBase image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: pocketbase/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.image.outputs.pocketbase_image }}
+          cache-from: type=gha,scope=pocketbase
+          cache-to: type=gha,mode=max,scope=pocketbase
+
+      - name: Build notification worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: worker
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.image.outputs.worker_image }}
+          cache-from: |
+            type=gha,scope=worker
+            type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=worker
+
+  deploy:
+    name: Deploy to Hetzner
+    if: github.event_name != 'pull_request'
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    environment:
+      name: production
+      url: ${{ vars.NEXT_PUBLIC_BASE_URL }}
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+          SSH_KEY_PASSPHRASE: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE }}
+          SSH_KNOWN_HOSTS: ${{ secrets.HETZNER_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          key_file="$RUNNER_TEMP/hetzner_deploy_key"
+          askpass_file="$RUNNER_TEMP/hetzner_ssh_askpass"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key_file"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$SSH_KEY_PASSPHRASE"\n' > "$askpass_file"
+          chmod 600 "$key_file" ~/.ssh/known_hosts
+          chmod 700 "$askpass_file"
+          eval "$(ssh-agent -s)"
+          SSH_ASKPASS="$askpass_file" SSH_ASKPASS_REQUIRE=force setsid ssh-add "$key_file" </dev/null
+          printf 'SSH_AUTH_SOCK=%s\n' "$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          printf 'SSH_AGENT_PID=%s\n' "$SSH_AGENT_PID" >> "$GITHUB_ENV"
+          rm -f "$key_file" "$askpass_file"
+
+      - name: Run server-side Compose deployment
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_NAME: ${{ needs.publish.outputs.image }}
+          POCKETBASE_IMAGE: ${{ needs.publish.outputs.pocketbase_image }}
+          WORKER_IMAGE: ${{ needs.publish.outputs.worker_image }}
+          SSH_HOST: ${{ secrets.HETZNER_HOST }}
+          SSH_USER: ${{ secrets.HETZNER_USER }}
+          SSH_PORT: ${{ vars.HETZNER_SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.HETZNER_DEPLOY_PATH || '/root/goldridr' }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh -o BatchMode=yes -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "set -e; export DOCKER_CONFIG=\$(mktemp -d); trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT; docker login ghcr.io -u '${{ github.actor }}' --password-stdin; IMAGE_NAME='$IMAGE_NAME' POCKETBASE_IMAGE='$POCKETBASE_IMAGE' WORKER_IMAGE='$WORKER_IMAGE' DEPLOY_DIR='$DEPLOY_PATH' bash '$DEPLOY_PATH/scripts/deploy.sh'"

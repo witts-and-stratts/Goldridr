@@ -180,6 +180,22 @@ body:has(.admin-dashboard) [data-slot="scroll-area-thumb"] {
   gap: 0.25rem;
 }
 
+.booking-detail-row-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.booking-detail-row-inline .booking-detail-row-label {
+  flex: 0 0 auto;
+  padding-top: 0;
+}
+
+.booking-detail-row-inline > :not(.booking-detail-row-label) {
+  flex: 0 1 16rem;
+}
+
 .booking-detail-row-label {
   font-size: 0.75rem;
   letter-spacing: 0.08em;
@@ -195,4 +211,16 @@ body:has(.admin-dashboard) [data-slot="scroll-area-thumb"] {
   gap: 0.75rem;
   padding: 0.875rem 1.25rem;
   border-top: 1px solid var(--border);
+}
+
+@media (max-width: 520px) {
+  .booking-detail-row-inline {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .booking-detail-row-inline > :not(.booking-detail-row-label) {
+    flex-basis: auto;
+  }
 }

@@ -20,24 +20,30 @@ export function NotificationBell() {
 
   useEffect( () => {
     let active = true;
-    fetch( "/api/admin/notifications?limit=5" )
+    let stream: EventSource | undefined;
+    const seenIds = new Set<number>();
+    void fetch( "/api/admin/notifications?limit=5" )
       .then( response => response.json() )
       .then( data => {
         if ( !active || !data.success ) return;
-        setItems( data.notifications );
+        const notifications = data.notifications as NotificationItem[];
+        notifications.forEach( item => seenIds.add( item.recipientId ) );
+        setItems( notifications );
         setUnreadCount( data.unreadCount );
+        const after = Math.max( 0, ...notifications.map( item => item.recipientId ) );
+        stream = new EventSource( `/api/admin/notifications/stream?after=${ after }` );
+        stream.addEventListener( "notification", event => {
+          const notification = JSON.parse( ( event as MessageEvent ).data ) as NotificationItem;
+          if ( seenIds.has( notification.recipientId ) ) return;
+          seenIds.add( notification.recipientId );
+          setItems( current => [ notification, ...current ].slice( 0, 5 ) );
+          setUnreadCount( count => count + ( notification.readAt ? 0 : 1 ) );
+        } );
       } )
       .catch( () => {} );
-
-    const stream = new EventSource( "/api/admin/notifications/stream" );
-    stream.addEventListener( "notification", event => {
-      const notification = JSON.parse( ( event as MessageEvent ).data ) as NotificationItem;
-      setItems( current => [ notification, ...current.filter( item => item.recipientId !== notification.recipientId ) ].slice( 0, 5 ) );
-      setUnreadCount( count => count + ( notification.readAt ? 0 : 1 ) );
-    } );
     return () => {
       active = false;
-      stream.close();
+      stream?.close();
     };
   }, [] );
 

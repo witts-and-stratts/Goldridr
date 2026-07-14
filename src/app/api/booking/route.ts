@@ -84,7 +84,7 @@ function shiftDateString( date: string, days: number ): string {
   return `${ year }-${ month }-${ day }`;
 }
 
-async function isSlotFree( date: string, time: string, durationMinutes: number, chauffeurId?: number | null ): Promise<boolean> {
+async function isSlotFree( date: string, time: string, durationMinutes: number, chauffeurId?: string | null ): Promise<boolean> {
   if ( !isBookingTimeInFuture( date, time, new Date(), await getNotificationTimeZone() ) ) {
     return false;
   }
@@ -97,7 +97,7 @@ async function isSlotFree( date: string, time: string, durationMinutes: number, 
   return !!await findAvailableChauffeur( date, time, durationMinutes );
 }
 
-async function getAlternativeSlots( date: string, time: string, durationMinutes: number, chauffeurId?: number | null ): Promise<AlternativeSlot[]> {
+async function getAlternativeSlots( date: string, time: string, durationMinutes: number, chauffeurId?: string | null ): Promise<AlternativeSlot[]> {
   const alternatives: AlternativeSlot[] = [];
   const timeZone = await getNotificationTimeZone();
   const requestedDate = zonedDateTimeToDate( date, time, timeZone );
@@ -132,7 +132,7 @@ async function checkSlotAvailability(
   date: string,
   time: string,
   durationMinutes: number,
-  chauffeurId?: number | null
+  chauffeurId?: string | null
 ): Promise<{
   available: boolean;
   alternativeSlots: AlternativeSlot[];
@@ -256,10 +256,10 @@ export async function GET( req: Request ) {
     );
   }
 
-  const chauffeurId = chauffeurIdParam ? Number( chauffeurIdParam ) : undefined;
-  if ( chauffeurIdParam && !Number.isInteger( chauffeurId ) ) {
+  const chauffeurId = chauffeurIdParam?.trim() || undefined;
+  if ( chauffeurIdParam && !chauffeurId ) {
     return NextResponse.json(
-      { success: false, error: "chauffeurId must be a whole number" },
+      { success: false, error: "chauffeurId is invalid" },
       { status: 400 }
     );
   }

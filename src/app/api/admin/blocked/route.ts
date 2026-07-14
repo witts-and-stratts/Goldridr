@@ -72,7 +72,7 @@ export async function POST( request: Request ) {
       chauffeurId: session.role === "chauffeur"
         ? session.chauffeurId
         : chauffeurId !== undefined && chauffeurId !== "" && chauffeurId !== null
-          ? parseInt( chauffeurId )
+          ? String( chauffeurId )
           : null
     } );
 

@@ -1,0 +1,230 @@
+@reference "tailwindcss";
+@reference "../../../globals.css";
+
+.article {
+  @apply mx-auto max-w-3xl p-8;
+}
+
+.detailHeader {
+  @apply flex flex-wrap items-center justify-between gap-3;
+}
+
+.badgeRow {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.actionRow {
+  @apply flex items-center gap-1;
+}
+
+.ghostAction {
+  @apply text-xs;
+}
+
+.destructiveAction {
+  @apply text-xs text-destructive hover:text-destructive;
+}
+
+.heading {
+  @apply mt-5 text-xl font-semibold tracking-tight;
+}
+
+.timestamp {
+  @apply mt-2 text-xs text-muted-foreground;
+}
+
+.mutedText {
+  @apply mt-2 text-sm text-muted-foreground;
+}
+
+.bodySection {
+  @apply mt-8 border-t pt-6;
+}
+
+.bodyToggle {
+  @apply flex w-full max-w-2xl items-start gap-3 text-left text-sm leading-7 text-foreground/90 hover:text-foreground;
+}
+
+.chevron {
+  @apply mt-1.5 size-4 shrink-0 text-muted-foreground transition-transform;
+}
+
+.chevronClosed {
+  @apply -rotate-90;
+}
+
+.detailGridPanel {
+  @apply mt-4 grid gap-5 rounded-md border bg-muted/20 p-4 sm:grid-cols-2;
+}
+
+.detailGrid {
+  @apply mt-8 grid gap-5 border-t pt-6 sm:grid-cols-2;
+}
+
+.detailLabel {
+  @apply text-xs font-medium text-muted-foreground;
+}
+
+.detailValue {
+  @apply mt-1 break-words text-sm;
+}
+
+.errorPanel {
+  @apply mt-6 rounded-md border border-destructive/30 bg-destructive/5 p-4;
+}
+
+.failureErrorPanel {
+  @apply mt-8 rounded-md border border-destructive/30 bg-destructive/5 p-4;
+}
+
+.errorLabel {
+  @apply text-xs font-medium text-destructive;
+}
+
+.errorText {
+  @apply mt-1 text-sm text-muted-foreground;
+}
+
+.failureErrorText {
+  @apply mt-2 text-sm leading-6 text-muted-foreground;
+}
+
+.metadata {
+  @apply mt-8 border-t pt-6;
+}
+
+.metadataHead {
+  @apply flex items-center justify-between gap-3;
+}
+
+.metadataTitle {
+  @apply text-sm font-medium;
+}
+
+.metadataEmpty {
+  @apply mt-4 rounded-md border px-4 py-6 text-sm text-muted-foreground;
+}
+
+.metadataRows {
+  @apply mt-4 divide-y rounded-md border;
+}
+
+.metadataRow {
+  @apply grid gap-1 px-4 py-3 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4;
+}
+
+.metadataValue {
+  @apply min-w-0 break-words text-sm;
+}
+
+.metadataNested {
+  @apply divide-y rounded-md border bg-muted/20;
+}
+
+.metadataNestedRow {
+  @apply grid gap-1 px-3 py-2 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-3;
+}
+
+.metadataList {
+  @apply space-y-2;
+}
+
+.metadataListItem {
+  @apply rounded-md border bg-muted/20 px-3 py-2;
+}
+
+.bookingCard {
+  @apply mt-4 rounded-lg border bg-card p-4;
+}
+
+.bookingCardHead {
+  @apply flex flex-wrap items-start justify-between gap-3;
+}
+
+.bookingTitleWrap {
+  @apply min-w-0;
+}
+
+.bookingEyebrow {
+  @apply text-xs font-medium text-muted-foreground;
+}
+
+.bookingTitle {
+  @apply mt-1 flex min-w-0 items-center gap-2 text-base font-semibold;
+}
+
+.bookingTitleIcon {
+  @apply size-4 shrink-0 text-muted-foreground;
+}
+
+.bookingTitleText {
+  @apply truncate;
+}
+
+.bookingBadges {
+  @apply flex flex-wrap justify-end gap-2;
+}
+
+.factBox {
+  @apply mt-4 flex min-w-0 gap-3 rounded-md border bg-muted/20 p-4;
+}
+
+.factIcon {
+  @apply mt-0.5 size-4 shrink-0 text-muted-foreground;
+}
+
+.factContent {
+  @apply min-w-0;
+}
+
+.factLabel {
+  @apply text-xs font-medium text-muted-foreground;
+}
+
+.factPrimary {
+  @apply mt-1 break-words text-sm font-medium;
+}
+
+.factSecondary {
+  @apply mt-1 break-words text-sm text-muted-foreground;
+}
+
+.routeFact {
+  @apply mt-5 grid rounded-md border bg-muted/20 sm:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)];
+}
+
+.routeLocation {
+  @apply flex min-w-0 gap-3 p-4;
+}
+
+.routeDivider {
+  @apply relative hidden items-center justify-center sm:flex;
+}
+
+.routeDividerLine {
+  @apply absolute inset-y-3 w-px bg-border;
+}
+
+.routeDividerIcon {
+  @apply relative z-10 flex size-8 items-center justify-center rounded-full border bg-background;
+}
+
+.routeDropoff {
+  @apply flex min-w-0 gap-3 border-t p-4 sm:border-t-0;
+}
+
+.cardFacts {
+  @apply mt-5 grid gap-4 sm:grid-cols-2;
+}
+
+.cardFact {
+  @apply flex min-w-0 gap-3;
+}
+
+.cardFactWide {
+  @apply sm:col-span-2;
+}
+
+.noneText {
+  @apply text-muted-foreground;
+}

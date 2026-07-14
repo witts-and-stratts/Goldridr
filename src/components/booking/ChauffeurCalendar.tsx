@@ -10,16 +10,16 @@ export interface Booking {
   id: number; reference: string; tripType: string;
   date: string; time: string; duration: number;
   name: string; email: string; phone?: string; notes?: string;
-  status: string; chauffeurId?: number | null;
+  status: string; chauffeurId?: string | null;
   tripDetails: Record<string, string | number | boolean | null | undefined>;
   createdAt: string;
 }
 export interface BlockedSlot {
   id: number; title: string; date: string; endDate?: string;
   isFullDay?: number; time: string; duration: number;
-  recurring: string; chauffeurId?: number | null;
+  recurring: string; chauffeurId?: string | null;
 }
-export interface Chauffeur { id: number; name: string; email?: string; phone?: string; }
+export interface Chauffeur { id: string; name: string; email?: string; phone?: string; }
 
 interface ChauffeurCalendarProps {
   bookings: Booking[];

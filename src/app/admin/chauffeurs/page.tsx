@@ -1,114 +1,136 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { qk } from "@/lib/query-keys";
-import {
-  User, RefreshCw, Loader2, BookOpen, Clock, CalendarDays,
-  Plus, Trash2, Car,
-} from "lucide-react";
-import { Button, buttonVariants } from "@/components/admin-ui/button";
-import { Badge } from "@/components/admin-ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/admin-ui/card";
-import { Separator } from "@/components/admin-ui/separator";
-import { Skeleton } from "@/components/admin-ui/skeleton";
+import { User, RefreshCw, Loader2, Clock, Plus } from "lucide-react";
+import { Button } from "@/components/admin-ui/button";
 import { Input } from "@/components/admin-ui/input";
+import { Card, CardContent } from "@/components/admin-ui/card";
+import { Skeleton } from "@/components/admin-ui/skeleton";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/admin-ui/dialog";
 import { useAdmin } from "../context";
 import Link from "next/link";
-
-interface Booking {
-  id: number;
-  reference: string;
-  date: string;
-  status: string;
-  chauffeurId?: number | null;
-  tripDetails: { estimatedTotal?: number; estimatedPrice?: number };
-}
-
-interface Vehicle {
-  id: number;
-  make: string;
-  model: string;
-  year?: number | null;
-  colour?: string | null;
-  plate?: string | null;
-  status: string;
-}
-
-interface AdminChauffeur {
-  id: number;
-  name: string;
-  email: string;
-  phone?: string;
-  status: string;
-  vehicle?: Vehicle | null;
-}
-
-const formatPrice = (n?: number) =>
-  Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
+import type { AdminChauffeur, Booking, Vehicle } from "./types";
+import { getStats } from "./utils";
+import { ChauffeurCard } from "./components/chauffeur-card";
+import { AddChauffeurDialog } from "./components/add-chauffeur-dialog";
+import { EditChauffeurDialog } from "./components/edit-chauffeur-dialog";
+import { AssignVehicleDialog } from "./components/assign-vehicle-dialog";
+import { DeleteChauffeurDialog } from "./components/delete-chauffeur-dialog";
 
 export default function ChauffeursPage() {
   const queryClient = useQueryClient();
   const { chauffeurs: rawChauffeurs } = useAdmin();
   const chauffeurs = rawChauffeurs as AdminChauffeur[];
 
-  const { data: bookingsData, isPending: bookingsPending } = useQuery( {
+  const { data: bookingsData, isPending: bookingsPending } = useQuery({
     queryKey: qk.bookings(),
     queryFn: async () => {
-      const res = await fetch( "/api/admin/bookings" );
+      const res = await fetch("/api/admin/bookings");
       const data = await res.json();
-      if ( !data.success ) throw new Error( data.error );
+      if (!data.success) throw new Error(data.error);
       return data.bookings as Booking[];
     },
-  } );
+  });
 
-  const { data: vehiclesData } = useQuery( {
-    queryKey: [ "vehicles" ],
+  const { data: vehiclesData } = useQuery({
+    queryKey: ["vehicles"],
     queryFn: async () => {
-      const res = await fetch( "/api/admin/vehicles" );
+      const res = await fetch("/api/admin/vehicles");
       const data = await res.json();
-      if ( !data.success ) throw new Error( data.error );
+      if (!data.success) throw new Error(data.error);
       return data.vehicles as Vehicle[];
     },
-  } );
+  });
 
   const vehicles = vehiclesData ?? [];
   const bookings = bookingsData ?? [];
   const loading = bookingsPending;
 
   const [addOpen, setAddOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string; email: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; email: string } | null>(null);
   const [assignVehicleTarget, setAssignVehicleTarget] = useState<AdminChauffeur | null>(null);
   const [assignVehicleId, setAssignVehicleId] = useState<string>("");
   const [assigningSaving, setAssigningSaving] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<AdminChauffeur | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
+  const [editForm, setEditForm] = useState({ name: "", email: "", phone: "" });
+  const [pwTarget, setPwTarget] = useState<AdminChauffeur | null>(null);
+  const [pwForm, setPwForm] = useState({ password: "", confirm: "" });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarUploadTarget, setAvatarUploadTarget] = useState<AdminChauffeur | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleAdd = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/chauffeurs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const formData = new FormData();
+      formData.set("name", form.name);
+      formData.set("email", form.email);
+      formData.set("phone", form.phone);
+      formData.set("password", form.password);
+      if (avatarFile) formData.set("avatar", avatarFile);
+      const res = await fetch("/api/admin/chauffeurs", { method: "POST", body: formData });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || "Failed to add chauffeur");
-
-      await queryClient.invalidateQueries( { queryKey: qk.chauffeurs() } );
+      await queryClient.invalidateQueries({ queryKey: qk.chauffeurs() });
       setForm({ name: "", email: "", phone: "", password: "" });
+      setAvatarFile(null);
       setAddOpen(false);
       toast.success("Chauffeur added");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to add chauffeur");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAvatarUpload = async (chauffeur: AdminChauffeur, file: File | null) => {
+    if (!file) return;
+    try {
+      const formData = new FormData();
+      formData.set("id", chauffeur.id);
+      formData.set("avatar", file);
+      const res = await fetch("/api/admin/chauffeurs", { method: "PATCH", body: formData });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to upload avatar");
+      await queryClient.invalidateQueries({ queryKey: qk.chauffeurs() });
+      toast.success("Avatar updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to upload avatar");
+    }
+  };
+
+  const handleEdit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editTarget) return;
+    setEditSaving(true);
+    try {
+      const res = await fetch("/api/admin/chauffeurs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editTarget.id, name: editForm.name, email: editForm.email, phone: editForm.phone || null }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to update chauffeur");
+      await queryClient.invalidateQueries({ queryKey: qk.chauffeurs() });
+      setEditTarget(null);
+      setMenuOpenId(null);
+      toast.success("Chauffeur updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update chauffeur");
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -128,7 +150,7 @@ export default function ChauffeursPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || "Failed to assign vehicle");
-      await queryClient.invalidateQueries( { queryKey: qk.chauffeurs() } );
+      await queryClient.invalidateQueries({ queryKey: qk.chauffeurs() });
       setAssignVehicleTarget(null);
       toast.success(vehicleId ? "Vehicle assigned" : "Vehicle unassigned");
     } catch (error) {
@@ -145,9 +167,8 @@ export default function ChauffeursPage() {
       const res = await fetch(`/api/admin/chauffeurs?id=${deleteTarget.id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || "Failed to delete chauffeur");
-
-      await queryClient.invalidateQueries( { queryKey: qk.chauffeurs() } );
-      await queryClient.invalidateQueries( { queryKey: qk.bookings() } );
+      await queryClient.invalidateQueries({ queryKey: qk.chauffeurs() });
+      await queryClient.invalidateQueries({ queryKey: qk.bookings() });
       setDeleteTarget(null);
       toast.success("Chauffeur deleted");
     } catch (error) {
@@ -157,24 +178,55 @@ export default function ChauffeursPage() {
     }
   };
 
-  const getStats = (id: number) => {
-    const assigned = bookings.filter((b) => b.chauffeurId === id);
-    const confirmed = assigned.filter((b) => b.status === "confirmed" || b.status === "accepted");
-    const pending = assigned.filter((b) => b.status === "pending");
-    const revenue = confirmed.reduce((sum, b) => sum + (b.tripDetails?.estimatedTotal || b.tripDetails?.estimatedPrice || 0), 0);
-    const upcoming = assigned.filter((b) => {
-      const d = new Date(`${b.date}T00:00:00`);
-      return d >= new Date() && (b.status === "confirmed" || b.status === "accepted");
-    });
-    return { total: assigned.length, confirmed: confirmed.length, pending: pending.length, revenue, upcoming: upcoming.length };
+  const handleChangePassword = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!pwTarget) return;
+    if (pwForm.password !== pwForm.confirm) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    setPwSaving(true);
+    try {
+      const res = await fetch("/api/admin/chauffeurs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pwTarget.id, password: pwForm.password }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to change password");
+      setPwTarget(null);
+      setPwForm({ password: "", confirm: "" });
+      toast.success("Password changed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to change password");
+    } finally {
+      setPwSaving(false);
+    }
   };
 
-  const unassigned = bookings.filter((b) => !b.chauffeurId && b.status !== "cancelled" && b.status !== "rejected");
+  const openEditDialog = (chauffeur: AdminChauffeur) => {
+    setEditTarget(chauffeur);
+    setEditForm({ name: chauffeur.name, email: chauffeur.email, phone: chauffeur.phone ?? "" });
+    setMenuOpenId(null);
+  };
+
+  const openChangePassword = (chauffeur: AdminChauffeur) => {
+    setPwTarget(chauffeur);
+    setPwForm({ password: "", confirm: "" });
+    setMenuOpenId(null);
+  };
+
+  const openAvatarPicker = (chauffeur: AdminChauffeur) => {
+    setAvatarUploadTarget(chauffeur);
+    setMenuOpenId(null);
+    avatarInputRef.current?.click();
+  };
+
+  const pendingUnassigned = bookings.filter((b) => !b.chauffeurId && b.status === "pending");
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
 
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Chauffeurs</h1>
@@ -182,8 +234,8 @@ export default function ChauffeursPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => {
-            queryClient.invalidateQueries( { queryKey: qk.chauffeurs() } );
-            queryClient.invalidateQueries( { queryKey: qk.bookings() } );
+            queryClient.invalidateQueries({ queryKey: qk.chauffeurs() });
+            queryClient.invalidateQueries({ queryKey: qk.bookings() });
           }} disabled={loading}>
             {loading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
             Refresh
@@ -195,25 +247,38 @@ export default function ChauffeursPage() {
         </div>
       </div>
 
-      {/* Unassigned alert */}
-      {!loading && unassigned.length > 0 && (
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          if (file && avatarUploadTarget) {
+            void handleAvatarUpload(avatarUploadTarget, file);
+          }
+          setAvatarUploadTarget(null);
+          event.currentTarget.value = "";
+        }}
+      />
+
+      {!loading && pendingUnassigned.length > 0 && (
         <Card className="border-yellow-500/30 bg-yellow-500/5">
           <CardContent className="p-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <Clock className="size-4 text-yellow-500 shrink-0" />
               <div>
-                <p className="text-sm font-medium">{unassigned.length} booking{unassigned.length !== 1 ? "s" : ""} unassigned</p>
-                <p className="text-xs text-muted-foreground">These bookings have no chauffeur assigned yet</p>
+                <p className="text-sm font-medium">{pendingUnassigned.length} pending booking{pendingUnassigned.length !== 1 ? "s" : ""} unassigned</p>
+                <p className="text-xs text-muted-foreground">These pending bookings have no chauffeur assigned yet</p>
               </div>
             </div>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/admin/bookings">Assign now</Link>
+              <Link href="/admin/bookings?status=pending&assignment=unassigned">Assign now</Link>
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Chauffeur cards */}
       {loading ? (
         <div className="grid sm:grid-cols-2 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -235,144 +300,94 @@ export default function ChauffeursPage() {
         </Card>
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
-          {chauffeurs.map((c) => {
-            const s = getStats(c.id);
-            return (
-              <Card key={c.id} className="hover:border-border/80 transition-colors">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold">
-                      {c.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <CardTitle className="text-base">{c.name}</CardTitle>
-                      <CardDescription className="truncate">{c.email}</CardDescription>
-                    </div>
-                    {s.pending > 0 && (
-                      <Badge className="ml-auto bg-yellow-500/15 text-yellow-600 border-yellow-500/30 text-xs">
-                        {s.pending} pending
-                      </Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                <Separator />
-                <CardContent className="pt-4">
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div>
-                      <p className="text-lg font-bold">{s.total}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</p>
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold text-green-500">{s.confirmed}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Confirmed</p>
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold">{s.upcoming}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Upcoming</p>
-                    </div>
-                  </div>
-                  <Separator className="my-3" />
-                  {c.vehicle ? (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
-                      <Car className="size-3.5 shrink-0" />
-                      <span className="truncate">
-                        {[c.vehicle.year, c.vehicle.make, c.vehicle.model].filter(Boolean).join(" ")}
-                        {c.vehicle.plate ? ` · ${c.vehicle.plate}` : ""}
-                      </span>
-                    </div>
-                  ) : null}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Revenue generated</p>
-                      <p className="text-sm font-semibold">{formatPrice(s.revenue)}</p>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setAssignVehicleTarget(c);
-                          setAssignVehicleId(c.vehicle ? String(c.vehicle.id) : "");
-                        }}
-                      >
-                        <Car className="size-3.5" /> Vehicle
-                      </Button>
-                      <Link
-                        href={`/admin/bookings?chauffeur=${c.id}`}
-                        className={buttonVariants({ variant: "outline", size: "sm" })}
-                      >
-                        <BookOpen className="size-3.5" /> Bookings
-                      </Link>
-                      <Link
-                        href={`/admin/calendar?chauffeur=${c.id}`}
-                        className={buttonVariants({ variant: "outline", size: "sm" })}
-                      >
-                        <CalendarDays className="size-3.5" /> Calendar
-                      </Link>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-9 text-muted-foreground hover:text-destructive"
-                        onClick={() => setDeleteTarget(c)}
-                        aria-label={`Delete ${c.name}`}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {chauffeurs.map((c) => (
+            <ChauffeurCard
+              key={c.id}
+              chauffeur={c}
+              stats={getStats(bookings, c.id)}
+              menuOpenId={menuOpenId}
+              onMenuOpenChange={setMenuOpenId}
+              onEdit={() => openEditDialog(c)}
+              onChangePassword={() => openChangePassword(c)}
+              onAvatarPick={() => openAvatarPicker(c)}
+              onAssignVehicle={() => {
+                setAssignVehicleTarget(c);
+                setAssignVehicleId(c.vehicle ? String(c.vehicle.id) : "");
+                setMenuOpenId(null);
+              }}
+              onDelete={() => {
+                setDeleteTarget(c);
+                setMenuOpenId(null);
+              }}
+            />
+          ))}
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <AddChauffeurDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        form={form}
+        onFormChange={setForm}
+        avatarFile={avatarFile}
+        onAvatarChange={setAvatarFile}
+        saving={saving}
+        onSubmit={handleAdd}
+      />
+
+      <EditChauffeurDialog
+        editTarget={editTarget}
+        onClose={() => setEditTarget(null)}
+        form={editForm}
+        onFormChange={setEditForm}
+        saving={editSaving}
+        onSubmit={handleEdit}
+      />
+
+      <AssignVehicleDialog
+        target={assignVehicleTarget}
+        onClose={() => setAssignVehicleTarget(null)}
+        vehicles={vehicles}
+        vehicleId={assignVehicleId}
+        onVehicleIdChange={setAssignVehicleId}
+        saving={assigningSaving}
+        onSave={handleAssignVehicle}
+      />
+
+      <DeleteChauffeurDialog
+        target={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        deleting={deleting}
+        onConfirm={handleDelete}
+      />
+
+      <Dialog open={Boolean(pwTarget)} onOpenChange={(open) => !open && setPwTarget(null)}>
         <DialogContent>
-          <form onSubmit={handleAdd} className="space-y-5">
+          <form onSubmit={handleChangePassword} className="space-y-5">
             <DialogHeader>
-              <DialogTitle>Add chauffeur</DialogTitle>
-              <DialogDescription>Add a driver to booking assignments and the operations calendar.</DialogDescription>
+              <DialogTitle>Change password</DialogTitle>
+              <DialogDescription>Set a new password for {pwTarget?.name}.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <label className="grid gap-1.5 text-sm font-medium">
-                Name
-                <Input
-                  value={form.name}
-                  onChange={(event) => setForm({ ...form, name: event.target.value })}
-                  placeholder="Full name"
-                  autoComplete="name"
-                  required
-                />
-              </label>
-              <label className="grid gap-1.5 text-sm font-medium">
-                Email
-                <Input
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => setForm({ ...form, email: event.target.value })}
-                  placeholder="driver@goldridr.com"
-                  autoComplete="email"
-                  required
-                />
-              </label>
-              <label className="grid gap-1.5 text-sm font-medium">
-                Phone <span className="font-normal text-muted-foreground">(optional)</span>
-                <Input
-                  type="tel"
-                  value={form.phone}
-                  onChange={(event) => setForm({ ...form, phone: event.target.value })}
-                  placeholder="+1 (713) 555-0100"
-                  autoComplete="tel"
-                />
-              </label>
-              <label className="grid gap-1.5 text-sm font-medium">
-                Initial password
+                New password
                 <Input
                   type="password"
-                  value={form.password}
-                  onChange={(event) => setForm({ ...form, password: event.target.value })}
+                  value={pwForm.password}
+                  onChange={(event) => setPwForm({ ...pwForm, password: event.target.value })}
                   placeholder="At least 8 characters"
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-medium">
+                Confirm password
+                <Input
+                  type="password"
+                  value={pwForm.confirm}
+                  onChange={(event) => setPwForm({ ...pwForm, confirm: event.target.value })}
+                  placeholder="Repeat the new password"
                   autoComplete="new-password"
                   minLength={8}
                   required
@@ -380,69 +395,15 @@ export default function ChauffeursPage() {
               </label>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setAddOpen(false)} disabled={saving}>
+              <Button type="button" variant="outline" onClick={() => setPwTarget(null)} disabled={pwSaving}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
-                {saving && <Loader2 className="animate-spin" />}
-                Add chauffeur
+              <Button type="submit" disabled={pwSaving}>
+                {pwSaving && <Loader2 className="animate-spin" />}
+                Change password
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(assignVehicleTarget)} onOpenChange={(open) => !open && setAssignVehicleTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Assign vehicle</DialogTitle>
-            <DialogDescription>
-              Select a vehicle for {assignVehicleTarget?.name}. Choose "None" to unassign.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-2">
-            <select
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={assignVehicleId}
-              onChange={(e) => setAssignVehicleId(e.target.value)}
-            >
-              <option value="">None</option>
-              {vehicles.filter(v => v.status === "active").map(v => (
-                <option key={v.id} value={String(v.id)}>
-                  {[v.year, v.make, v.model].filter(Boolean).join(" ")}{v.plate ? ` · ${v.plate}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignVehicleTarget(null)} disabled={assigningSaving}>
-              Cancel
-            </Button>
-            <Button onClick={handleAssignVehicle} disabled={assigningSaving}>
-              {assigningSaving && <Loader2 className="animate-spin" />}
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete chauffeur?</DialogTitle>
-            <DialogDescription>
-              {deleteTarget?.name} will be removed from assignments. Their existing bookings will become unassigned.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
-              Delete chauffeur
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -3,12 +3,15 @@
 import { FormEvent, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, LockKeyhole } from "lucide-react";
+import { Eye, EyeOff, Loader2, LockKeyhole, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/admin-ui/button";
 import { Input } from "@/components/admin-ui/input";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/admin-ui/card";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/admin-ui/dialog";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,6 +21,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/session")
@@ -26,6 +33,23 @@ export default function LoginPage() {
       })
       .finally(() => setChecking(false));
   }, [router]);
+
+  const handleForgotPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setForgotLoading(true);
+    try {
+      await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      setForgotSent(true);
+    } catch {
+      setForgotSent(true); // still show success to avoid leaking info
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -117,6 +141,15 @@ export default function LoginPage() {
                 </button>
               </div>
             </label>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => { setForgotEmail(email); setForgotSent(false); setForgotOpen(true); }}
+                className="text-xs text-white/40 hover:text-white/70 underline underline-offset-2"
+              >
+                Forgot password?
+              </button>
+            </div>
             {error && (
               <p role="alert" className="border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-300">
                 {error}
@@ -133,6 +166,54 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+
+      <Dialog open={forgotOpen} onOpenChange={(open) => { setForgotOpen(open); if (!open) setForgotSent(false); }}>
+        <DialogContent className="bg-[#111] border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white">Forgot password</DialogTitle>
+            <DialogDescription className="text-white/55">
+              Enter your chauffeur email and we&apos;ll send a reset link if an account exists.
+            </DialogDescription>
+          </DialogHeader>
+          {forgotSent ? (
+            <div className="flex flex-col items-center gap-3 py-4 text-center">
+              <CheckCircle2 className="size-9 text-[#b99a56]" />
+              <p className="font-medium">Check your email</p>
+              <p className="text-sm text-white/50">
+                If a chauffeur account exists for that address, a reset link has been sent.
+              </p>
+              <Button variant="outline" className="mt-2 border-white/15 text-white hover:bg-white/10" onClick={() => setForgotOpen(false)}>
+                Close
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <label className="grid gap-2 text-sm font-medium">
+                Email
+                <Input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  autoComplete="email"
+                  placeholder="driver@goldridr.com"
+                  className="rounded-none border-white/15 bg-white/5 text-white placeholder:text-white/30"
+                  required
+                  autoFocus
+                />
+              </label>
+              <DialogFooter>
+                <Button type="button" variant="outline" className="border-white/15 text-white hover:bg-white/10" onClick={() => setForgotOpen(false)} disabled={forgotLoading}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="rounded-none bg-[#b99a56] text-black hover:bg-[#c8aa64]" disabled={forgotLoading}>
+                  {forgotLoading && <Loader2 className="animate-spin" />}
+                  Send reset link
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
