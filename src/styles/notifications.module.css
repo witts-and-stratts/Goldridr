@@ -1,4 +1,4 @@
-@reference "../../globals.css";
+@reference "./globals.css";
 
 .page {
   @apply flex h-full min-h-0 flex-col;

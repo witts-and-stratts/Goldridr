@@ -22,7 +22,7 @@ import { Button } from "@/components/admin-ui/button";
 import { cn } from "@/lib/utils";
 import type { FailedDelivery, NotificationItem, ReminderDelivery } from "../types";
 import { getString, humanizeKey, isRecord, parseNestedJson, statusVariant } from "../utils";
-import styles from "./notification-details.module.css";
+import styles from "@/styles/notification-details.module.css";
 
 export function NotificationDetail( {
   item,

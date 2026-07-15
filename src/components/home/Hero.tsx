@@ -77,17 +77,17 @@ export function Hero() {
                     src={ slide.image }
                     alt="Luxury Chauffeured Services"
                     fill
-                    className="object-cover opacity-70 max-md:object-[70%_50%]"
+                    className="object-cover object-bottom opacity-70 max-md:object-[70%_50%]"
                     priority={ index === 0 }
                   />
-                  <div className="absolute inset-0 bg-linear-to-b from-black/60 via-transparent to-black/80" />
+                  <div className="absolute inset-0 bg-linear-to-b from-black/60 via-transparent via-35% to-black/90" />
                 </div>
 
                 <div className="relative z-10 flex h-full w-full flex-col items-center justify-end px-3 pb-16 text-center md:pb-24">
-                  <h1 className="font-serif text-3xl font-medium tracking-wide text-white md:text-4xl lg:text-5xl">
+                  <h1 className="site-heading site-heading--display text-white">
                     { slide.title }
                   </h1>
-                  <p className="mt-3 max-w-2xl font-sans text-sm font-light tracking-wide text-gray-200 text-balance md:mt-4 md:text-base">
+                  <p className="text-base mt-3 tracking-wide text-gray-200 text-balance md:mt-2">
                     { slide.description }
                   </p>
                   <div className="mt-6">

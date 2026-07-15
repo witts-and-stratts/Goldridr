@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import styles from "../notifications.module.css";
+import styles from "@/styles/notifications.module.css";
 
 export function SummaryTile( {
   icon: Icon,

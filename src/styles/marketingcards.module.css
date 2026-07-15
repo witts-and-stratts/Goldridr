@@ -1,0 +1,38 @@
+@reference "tailwindcss";
+@reference "./globals.css";
+
+.serviceCard {
+  @apply bg-[#090909] p-8 pt-12;
+}
+
+.serviceIconArea {
+  @apply size-24;
+}
+
+.serviceIcon {
+  @apply relative mb-8 size-14;
+}
+
+.serviceTitle {
+  @apply mb-3 font-wide text-xl tracking-widest text-white;
+}
+
+.serviceCopy {
+  @apply font-sans text-base font-light leading-6 text-white;
+}
+
+.standardItem {
+  @apply flex flex-col items-start;
+}
+
+.standardIconArea {
+  @apply mb-6 flex size-20 items-end text-gold;
+}
+
+.standardTitle {
+  @apply mb-3 text-xl font-medium text-gold;
+}
+
+.standardCopy {
+  @apply font-sans text-base font-light leading-6 text-black;
+}

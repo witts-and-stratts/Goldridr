@@ -1,38 +1,28 @@
 'use client';
 
-import { useState } from "react";
 import { Button } from "../ui/button";
-import { AirportsOverlay } from "./AirportsOverlay";
 
 export function InfoSection() {
-  const [ isAirportOverlayOpen, setIsAirportOverlayOpen ] = useState( false );
-
   return (
-    <section className="bg-black px-4 py-10 text-white md:px-16 lg:py-32">
-      <div className="mx-auto max-w-7xl">
-        <h2 className="mb-6 font-serif text-3xl md:text-4xl uppercase leading-tight tracking-wide">
-          Available Everywhere
-          <br />
-          and Anytime in Houston
+    <section className="bg-black py-10 text-white lg:py-32">
+      <div className="site-container">
+        <h2 className="site-heading">
+          Chauffeured Personally
         </h2>
-        <p className="mb-12 max-w-2xl text-sm font-light leading-relaxed text-gray-300 md:text-base">
-          From promises of long-distance travel arrivals or departures, we use smart
-          technology to make your experience seamless—we’re used to our service
-          profiles and serious stiffness, creative aims, simulation, and even
-          without ice to fix sides.
+        <h3 className="site-lead mb-4">Gold Ridr is built around a simple idea: professional black SUV transportation for the way Houston moves. </h3>
+        <p className="site-copy">
+          Every booking is professionally coordinated and handled with warm communication, thoughtful timing and a clear standard of care and attentiveness from start to finish.
+        </p>
+        <p className="site-copy mb-12">
+          This is not ride share. It’s for you — specifically.
         </p>
         <Button
-          onClick={ () => setIsAirportOverlayOpen( true ) }
           size={ 'lg' }
           variant='outline'
         >
-          SEE ALL AIRPORT LOCATIONS
+          ABOUT GOLDRIDR
         </Button>
       </div>
-      <AirportsOverlay
-        isOpen={ isAirportOverlayOpen }
-        onClose={ () => setIsAirportOverlayOpen( false ) }
-      />
     </section>
   );
 }

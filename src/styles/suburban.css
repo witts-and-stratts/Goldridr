@@ -1,0 +1,54 @@
+@reference "tailwindcss";
+@reference "./globals.css";
+
+.suburban {
+  @apply relative min-h-screen w-full overflow-hidden bg-black text-white;
+}
+
+.suburban__image {
+  @apply absolute left-0 h-full w-full object-cover md:top-0 max-md:top-[-20%] max-md:h-[120%] max-md:object-[40%_100%];
+}
+
+.suburban__content {
+  @apply relative mx-auto flex min-h-screen w-full flex-col justify-between py-8 md:py-12;
+}
+
+.suburban__intro {
+  @apply mb-12;
+}
+
+/* .suburban__heading {
+  @apply font-serif text-3xl font-medium uppercase leading-tight tracking-wide md:text-4xl;
+} */
+
+.suburban__lead {
+  @apply max-w-[50ch];
+}
+
+.suburban__copy {
+  @apply max-w-[70ch] text-gray-300;
+}
+
+.suburban__feature-tags {
+  @apply mt-4 flex flex-wrap gap-2 md:mt-8 md:gap-4;
+}
+
+.suburban__feature-tag {
+  @apply border border-white/20 px-6 py-2 font-wide text-sm tracking-[0.2em];
+}
+
+.suburban__features {
+  @apply mt-auto grid grid-cols-2 justify-between gap-2 border-white/10 pt-4 md:grid-cols-3 lg:grid-cols-5 md:gap-4 md:pt-12 max-md:bg-black/30 max-md:px-2 max-md:pb-4;
+}
+
+.suburban__feature {
+  @apply flex flex-col items-start gap-2 border-b-[0.5px] border-b-white/30 px-2 py-2 last-of-type:border-b-0 md:px-4 md:py-1 md:nth-last-[-n+2]:border-b-0 lg:border-b-0 lg:border-r-[0.5px] lg:border-r-white/30 lg:last-of-type:border-r-0;
+}
+
+.suburban__feature-icon {
+  @apply size-10 md:mb-2 md:size-14;
+}
+
+.suburban__feature-title {
+  @apply text-[12px] font-light text-white md:text-base max-md:leading-4;
+}

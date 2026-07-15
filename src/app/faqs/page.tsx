@@ -87,10 +87,10 @@ export default function FaqPage() {
       <div className="min-h-screen text-white selection:bg-gold/30 relative mt-20 md:mt-20 lg:mt-80">
         {/* Header Section */ }
         <div className="container mx-auto px-4 pt-32 pb-16">
-          <h1 className="text-2xl md:text-4xl font-bold tracking-tight mb-6 text-center font-serif">
+          <h1 className="site-heading mb-6 text-center">
             Frequently Asked <span className="text-gold">Questions</span>
           </h1>
-          <p className="text-xl text-gray-400 text-center max-w-2xl mx-auto mb-12">
+          <p className="site-copy mx-auto mb-12 text-center text-xl text-gray-400">
             Everything you need to know about Goldridr services, booking, and accounts.
           </p>
 

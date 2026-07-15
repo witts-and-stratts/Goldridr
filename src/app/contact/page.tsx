@@ -54,19 +54,19 @@ export default function ContactPage() {
   } );
 
   return (
-    <main className="flex min-h-screen flex-col bg-black text-white">
+    <main className="site-page">
       <Header />
 
-      <div className="flex-1 w-full max-w-7xl mx-auto px-8 py-12 md:py-24">
+      <div className="site-container flex-1 py-12 md:py-24">
         <div className="grid md:grid-cols-2 gap-16 lg:gap-24">
 
           {/* Contact Information */ }
           <div className="space-y-12">
             <div>
-              <h1 className="font-serif text-3xl md:text-5xl text-white mb-6">
+              <h1 className="site-heading site-heading--display mb-6 text-white">
                 GET IN TOUCH
               </h1>
-              <p className="text-gray-400 font-light text-lg leading-relaxed max-w-md">
+              <p className="site-copy max-w-md text-lg text-gray-400">
                 We are here to help with any questions or specific needs you may have.
                 Reach out to us and experience the Goldridr difference.
               </p>

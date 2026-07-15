@@ -1,23 +1,26 @@
 export function Testimonials() {
   return (
-    <section className="bg-[#E5E5E5] px-4 py-4 text-black md:px-16 lg:py-64">
-      <div className="mx-auto max-w-7xl">
-        <h2 className="mb-16 max-w-2xl font-serif text-2xl uppercase leading-tight tracking-wide md:text-4xl">
-          Everyone is talking about the experience
+    <section className="bg-[#E5E5E5] py-4 text-black lg:py-64">
+      <div className="site-container">
+        <h2 className="site-heading mb-16 max-w-2xl">
+          Why Clients Ride GoldRidr Again
         </h2>
+        <p className="mb-16 -mt-10 max-w-xl font-light leading-relaxed text-gray-800">
+          Professional handling that keeps clients coming back.
+        </p>
 
         <div className="grid gap-12 md:grid-cols-3">
           <TestimonialItem
-            text="From the moment I stepped out of the vehicle, everything felt effortless and refined. The service was discreet, punctual, and truly world-class."
-            author="Amara Okoye"
+            text="What stood out most was the consistency. The timing, the communication, and the overall professionalism were exactly what I needed for repeat business travel."
+            author="Jose Salvador"
           />
           <TestimonialItem
-            text="The epitome of executive transportation should feel—calm, professional, and impeccably delivered. I couldn't ask for a better start to my business trip."
-            author="Daniel Foster"
+            text="Traveling across Houston with luggage and family can be stressful, but Gold Ridr made the entire trip feel calm and organized. Plenty of room, comfortable ride, and no guesswork."
+            author="Adnan Haddi"
           />
           <TestimonialItem
-            text="It isn't just a ride, it's a part of the experience. Elegant, seamless, and thoughtfully executed from start to finish."
-            author="Sophie Laurent"
+            text="For client arrivals, executive pickups, and event-day transportation, Gold Ridr has been dependable, responsive, and easy to coordinate with. Having a transportation partner that communicates clearly makes a noticeable difference."
+            author="Maya Burden for ‘Houston Traveler’"
           />
         </div>
       </div>
