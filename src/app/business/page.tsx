@@ -20,7 +20,7 @@ export default function BusinessPage() {
       <section className="relative h-screen w-full flex justify-center overflow-hidden -mt-40 max-md:h-[120vh]">
         <div className="absolute inset-0">
           <Image
-            src="/assets/images/event-chauffeur.jpg"
+            src="/assets/images/business-hero-event-chauffeur.webp"
             alt="Corporate Transportation"
             fill
             className="object-cover h-full w-full"
@@ -97,7 +97,7 @@ export default function BusinessPage() {
       <section className="relative bg-[#d9d9d9]">
         <div className="relative top-0 left-0 right-0 min-h-[50vh]">
           <Image
-            src="/assets/images/business-man-in-suburban.jpg"
+            src="/assets/images/business-partnership-chauffeur.webp"
             alt="Corporate Partnership"
             fill
             className="object-cover"

@@ -27,7 +27,7 @@ export default function RidePage() {
       <section className="relative h-screen w-full flex justify-center overflow-hidden -mt-40 max-md:h-[110vh]">
         <div className="absolute inset-0">
           <Image
-            src="/images/ce01f6e595c1c6b99ab43fd61cf48705c434161f.png"
+            src="/assets/images/ride-hero-chauffeur-pickup.webp"
             alt="Luxury Chauffeur Service"
             fill
             className="object-cover"
@@ -98,7 +98,7 @@ export default function RidePage() {
       <section className="relative bg-[#d9d9d9]">
         <div className="relative top-0 left-0 right-0 min-h-[50vh]">
           <Image
-            src="/images/0324a046a4585009531aef744e67eaf78bc1915c.png"
+            src="/assets/images/ride-standards-chauffeur-arrival.webp"
             alt=""
             fill
             className="object-cover"
@@ -220,4 +220,3 @@ function StandardItem( {
     </div>
   );
 }
-

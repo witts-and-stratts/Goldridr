@@ -202,13 +202,13 @@ test( "React Email renders both HTML and useful plain text", async () => {
     "test-key"
   );
   assert.match( rendered.html, /Booking request received/ );
-  assert.match( rendered.html, /goldridr-logo-email\.png/ );
+  assert.match( rendered.html, /email-brand-logo\.webp/ );
   assert.match( rendered.html, /Your trip QR code/ );
   assert.match( rendered.html, /\/api\/booking\/qr\?reference=GR-TEST123(?:&|&amp;)email=passenger%40example\.com/ );
   assert.match( rendered.html, /\/verify\?reference=GR-TEST123(?:&|&amp;)email=passenger%40example\.com/ );
   assert.match( rendered.html, /QR code for booking GR-TEST123/ );
-  assert.match( rendered.html, /email-pickup\.png/ );
-  assert.match( rendered.html, /email-dropoff\.png/ );
+  assert.match( rendered.html, /email-pickup-marker\.webp/ );
+  assert.match( rendered.html, /email-dropoff-marker\.webp/ );
   assert.match( rendered.html, /background-color:#050505/ );
   assert.match( rendered.html, /background-color:#1a1a18/ );
   assert.match( rendered.html, /George Bush Intercontinental Airport/ );
@@ -248,8 +248,8 @@ test( "confirmed booking email reuses the complete booking card", async () => {
   assert.equal( rendered.subject, "Booking GR-CONFIRMED confirmed" );
   assert.match( rendered.html, /Booking confirmed/ );
   assert.match( rendered.html, />Confirmed</ );
-  assert.match( rendered.html, /email-pickup\.png/ );
-  assert.match( rendered.html, /email-dropoff\.png/ );
+  assert.match( rendered.html, /email-pickup-marker\.webp/ );
+  assert.match( rendered.html, /email-dropoff-marker\.webp/ );
   assert.match( rendered.html, /George Bush Intercontinental Airport/ );
   assert.match( rendered.html, /The Post Oak Hotel/ );
   assert.match( rendered.html, /UA 1845/ );

@@ -358,7 +358,7 @@ function BookingCard( {
         <Row>
           <Column style={{ paddingRight: booking.dropoff ? 18 : 0, verticalAlign: "top", width: booking.dropoff ? "50%" : "100%" }}>
             <Img
-              src={ `${ assetUrl }/assets/images/email-pickup.png` }
+              src={ `${ assetUrl }/assets/images/email-pickup-marker.webp` }
               alt=""
               width="24"
               height="24"
@@ -370,7 +370,7 @@ function BookingCard( {
           { booking.dropoff ? (
             <Column style={{ borderLeft: `1px solid ${ colors.hairline }`, paddingLeft: 18, verticalAlign: "top", width: "50%" }}>
               <Img
-                src={ `${ assetUrl }/assets/images/email-dropoff.png` }
+                src={ `${ assetUrl }/assets/images/email-dropoff-marker.webp` }
                 alt=""
                 width="24"
                 height="24"
@@ -465,7 +465,7 @@ function GoldridrEmail( { content }: { content: EmailContent } ) {
         <Container style={{ backgroundColor: colors.ink, border: `1px solid ${ colors.hairline }`, margin: "0 auto", maxWidth: 600 }}>
           <Section style={{ borderBottom: `1px solid ${ colors.hairline }`, padding: "24px 30px" }}>
             <Img
-              src={ `${ assetUrl }/assets/images/goldridr-logo-email.png` }
+              src={ `${ assetUrl }/assets/images/email-brand-logo.webp` }
               alt="Goldridr"
               width="173"
               height="36"

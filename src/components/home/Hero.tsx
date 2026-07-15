@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import Splide from "@splidejs/splide";
 import { Header } from "./Header";
 
-const HERO_BG = "/assets/images/arrive-better-goldridr.jpg";
+const HERO_BG = "/assets/images/homepage-hero-chauffeur.webp";
 
 const HERO_SLIDES = [
   {
