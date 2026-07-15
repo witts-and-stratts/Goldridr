@@ -2,10 +2,16 @@
 
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
-import { useState, useLayoutEffect, useEffect, useEffectEvent } from "react";
+import { useEffect, useState } from "react";
+
+type SliderImage = string | {
+  img: string;
+  alt: string;
+  mobileImg?: string;
+};
 
 interface ImageSliderProps {
-  images: string[] | { img: string, alt: string; }[];
+  images: SliderImage[];
   timeout?: number;
   containerClassName?: string;
   imgClassName?: string;
@@ -24,63 +30,51 @@ export function ImageSlider( {
 }: ImageSliderProps ) {
   const [ slide, setSlide ] = useState( 0 );
 
-  const changeSlider = useEffectEvent( () => {
+  useEffect( () => {
     const interval = setInterval( () => {
       setSlide( ( prevSlide ) => ( prevSlide + 1 ) % images.length );
     }, timeout );
     return () => clearInterval( interval );
-  } );
+  }, [ images.length, timeout ] );
 
-  useLayoutEffect( () => {
-    changeSlider();
-  }, [] );
-
-  const slideKey = typeof images[ slide ] === 'string' ? images[ slide ] : images[ slide ]?.img;
-  const slideSrc = typeof images[ slide ] === 'string' ? images[ slide ] : images[ slide ]?.img;
-  const slideAlt = typeof images[ slide ] === 'string' ? images[ slide ] : images[ slide ]?.alt;
+  const activeImage = images[ slide ];
+  const slideSrc = typeof activeImage === 'string' ? activeImage : activeImage?.img;
+  const slideAlt = typeof activeImage === 'string' ? undefined : activeImage?.alt;
+  const mobileSlideSrc = typeof activeImage === 'string' ? undefined : activeImage?.mobileImg;
+  const slideKey = slideSrc;
 
   return (
     <div className={ containerClassName }>
       <AnimatePresence>
-        <motion.div
+        <motion.picture
           key={ slideKey }
+          className="absolute inset-0 block"
           initial={ {
-            height: 0,
+            clipPath: 'inset(0 100% 0 0)',
           } }
           animate={ {
-            height: "100%", transition: {
+            clipPath: 'inset(0 0 0 0)', transition: {
               duration: animationDuration,
               ease: 'easeIn'
             }
           } }
           exit={ {
-            height: 0, transition: {
+            opacity: 0, transition: {
+              delay: animationDuration,
               duration: exitAnimationDuration,
               ease: 'easeOut'
             }
           } }
         >
-          <motion.img
+          { mobileSlideSrc && (
+            <source media="(max-width: 767px)" srcSet={ mobileSlideSrc } />
+          ) }
+          <img
             src={ slideSrc }
             alt={ slideAlt }
             className={ imgClassName }
-            initial={ {
-              opacity: 0, y: 100,
-            } }
-            animate={ {
-              opacity: 1, y: 0, transition: {
-                duration: animationDuration,
-                ease: 'easeIn'
-              }
-            } }
-            exit={ {
-              opacity: 0, y: -100, transition: {
-                duration: exitAnimationDuration,
-                ease: 'easeOut'
-              }
-            } }
           />
-        </motion.div>
+        </motion.picture>
       </AnimatePresence>
       <div className={ "absolute w-full h-full top-0 left-0" } style={ { backgroundColor: `rgba(0, 0, 0, ${ overlayOpacity })` } } />
     </div>

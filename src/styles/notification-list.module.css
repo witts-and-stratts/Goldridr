@@ -1,5 +1,5 @@
 @reference "tailwindcss";
-@reference "../../../globals.css";
+@reference "./globals.css";
 
 .reminderRow {
   @apply flex w-full gap-3 border-b px-4 py-3 text-left hover:bg-muted/40;

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import type { FailedDelivery, Folder, NotificationItem, ReminderDelivery } from "../types";
 import { relativeTime, statusVariant } from "../utils";
 import { EmptyList } from "./empty-states";
-import styles from "./notification-list.module.css";
+import styles from "@/styles/notification-list.module.css";
 
 interface NotificationListProps {
   folder: Folder;

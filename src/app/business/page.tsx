@@ -4,8 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { Header } from "@/components/home/Header";
 import { Footer } from "@/components/home/Footer";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ServiceCard } from "@/components/marketing/ServiceCard";
+import { StandardItem } from "@/components/marketing/StandardItem";
 
 import { useBookingOverlay } from "@/components/booking/BookingContext";
 
@@ -13,7 +14,7 @@ export default function BusinessPage() {
   const { setIsOpen } = useBookingOverlay();
 
   return (
-    <main className="flex min-h-screen flex-col bg-black text-white">
+    <main className="site-page">
       <Header />
 
       {/* Hero Section */ }
@@ -33,10 +34,10 @@ export default function BusinessPage() {
 
         <div className="relative z-10 text-center px-2 md:px-4 mx-auto mt-50">
           <div className="flex flex-col items-center">
-            <h1 className="font-serif text-3xl font-medium tracking-wide text-white md:text-5xl">
+            <h1 className="site-heading site-heading--display text-white">
               ARRIVE IN STYLE, <br className="max-md:hidden" /> EVERY TIME
             </h1>
-            <p className="font-light text-sm leading-6 md:text-base md:leading-7 mt-4 mb-12 max-w-[600px] mx-auto">
+            <p className="site-copy mx-auto mt-4 mb-12 max-w-[600px] text-sm leading-6 md:leading-7">
               Efficiency, reliability, and precision for your business needs.
               Manage your Houston corporate transportation with a partner you can trust.
             </p>
@@ -53,11 +54,11 @@ export default function BusinessPage() {
       </section>
 
       {/* Corporate Services */ }
-      <section className="py-20 md:py-24 px-8 md:px-16 max-w-[1440px] mx-auto w-full">
-        <h2 className="font-serif text-3xl md:text-[38px] uppercase md:leading-[52px] mb-8 md:mb-16">
+      <section className="site-content py-20 md:py-24">
+        <h2 className="site-heading mb-8 md:mb-16">
           CORPORATE SERVICES
         </h2>
-        <p className="font-light text-base leading-7 max-w-[725px] mb-16">
+        <p className="site-copy mb-16 max-w-[725px] leading-7">
           From executive transfers to company-wide logistics, we deliver
           dependable corporate transportation designed to keep your business
           moving seamlessly across Houston and beyond.
@@ -103,7 +104,7 @@ export default function BusinessPage() {
             className="object-cover"
           />
           <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-linear-to-t from-black/50 to-transparent">
-            <h2 className="font-serif text-3xl md:text-5xl uppercase text-white px-8 md:px-12 absolute bottom-8">
+            <h2 className="site-heading site-heading--display absolute bottom-8 px-8 text-white md:px-12">
               WHY PARTNER
               <br />
               WITH US
@@ -111,8 +112,8 @@ export default function BusinessPage() {
           </div>
         </div>
 
-        <div className="relative z-10 px-8 md:px-16 max-w-[1440px] mx-auto">
-          <p className="font-light font-sans text-base leading-7 text-black max-w-[725px] py-8 mb-20">
+        <div className="site-content relative z-10">
+          <p className="site-copy site-copy--dark mb-20 max-w-[725px] py-8 leading-7">
             We go beyond transportation. Our corporate program is built around
             accountability, transparency, and the kind of personal attention that
             only an owner-operated service can deliver.
@@ -147,15 +148,15 @@ export default function BusinessPage() {
       </section>
 
       {/* CTA */ }
-      <section className="py-12 md:py-32 px-8 md:px-16 max-w-[1440px] mx-auto w-full">
+      <section className="site-content py-12 md:py-32">
         <div className="grid md:grid-cols-2 gap-16 items-start">
           <div>
-            <h2 className="font-serif text-3xl md:text-4xl uppercase leading-tight tracking-wide mb-6">
+            <h2 className="site-heading mb-6">
               Ready to Elevate
               <br />
               Your Corporate Travel?
             </h2>
-            <p className="font-light text-base leading-7 text-gray-300 max-w-[500px] mb-10">
+            <p className="site-copy mb-10 max-w-[500px] leading-7">
               Contact our specialized corporate team to discuss your specific
               requirements and set up your account. We&apos;ll tailor a solution
               that fits your business.
@@ -188,54 +189,6 @@ export default function BusinessPage() {
 
       <Footer />
     </main>
-  );
-}
-
-function ServiceCard( {
-  iconSrc,
-  title,
-  description,
-  className,
-}: {
-  iconSrc: string;
-  title: string;
-  description: string;
-  className?: string;
-} ) {
-  return (
-    <div className="bg-[#090909] p-8 pt-12">
-      <div className="size-24">
-        <div className={ cn( `mb-8 size-14 relative`, className ) }>
-          <Image src={ iconSrc } alt="" fill className="object-contain" />
-        </div>
-      </div>
-      <h3 className="font-wide text-xl tracking-widest text-white mb-3">
-        { title }
-      </h3>
-      <p className="font-light text-base leading-6 text-white">{ description }</p>
-    </div>
-  );
-}
-
-function StandardItem( {
-  title,
-  description,
-  src,
-  className,
-}: {
-  title: string;
-  description: string;
-  src: string;
-  className?: string;
-} ) {
-  return (
-    <div className="flex flex-col items-start">
-      <div className="mb-6 text-gold size-20 flex items-end">
-        <Image src={ src } alt="" width={ 48 } height={ 48 } className={ cn( `size-14`, className ) } />
-      </div>
-      <h4 className="text-gold font-medium text-xl mb-3">{ title }</h4>
-      <p className="text-black text-base font-light leading-6">{ description }</p>
-    </div>
   );
 }
 

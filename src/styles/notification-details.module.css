@@ -1,5 +1,5 @@
 @reference "tailwindcss";
-@reference "../../../globals.css";
+@reference "./globals.css";
 
 .article {
   @apply mx-auto max-w-3xl p-8;

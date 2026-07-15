@@ -33,7 +33,7 @@ import { activeReminderStatuses, folders } from "./constants";
 import { useNotificationsInbox } from "./hooks/use-notifications-inbox";
 import type { Folder, NotificationItem } from "./types";
 import { filterFailures, filterNotifications, filterReminders } from "./utils";
-import styles from "./notifications.module.css";
+import styles from "@/styles/notifications.module.css";
 
 export default function NotificationsPage() {
   const { session } = useAdmin();

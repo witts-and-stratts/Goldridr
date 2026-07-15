@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth"
 import { AdminProvider } from "./context"
 import { AdminShell } from "./admin-shell"
 import { QueryProvider } from "./query-provider"
-import "./admin.css"
+import "@/styles/admin.css"
 
 export const instant = false
 

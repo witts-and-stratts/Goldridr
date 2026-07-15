@@ -1,18 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { Header } from "@/components/home/Header";
 import { Footer } from "@/components/home/Footer";
-import {
-  ShieldCheck,
-  UserCheck,
-  Armchair,
-  Star,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Suburban } from "@/components/home/Suburban";
 import { Button } from "@/components/ui/button";
+import { ServiceCard } from "@/components/marketing/ServiceCard";
+import { StandardItem } from "@/components/marketing/StandardItem";
 
 import { useBookingOverlay } from "@/components/booking/BookingContext";
 
@@ -20,7 +14,7 @@ export default function RidePage() {
   const { setIsOpen } = useBookingOverlay();
 
   return (
-    <main className="flex min-h-screen flex-col bg-black text-white">
+    <main className="site-page">
       <Header />
 
       {/* Hero Section */ }
@@ -39,12 +33,12 @@ export default function RidePage() {
 
         <div className="relative z-10 text-center px-4 mx-auto mt-50">
           <div className="flex flex-col items-between h-full relative">
-            <h1 className="font-serif text-3xl font-medium tracking-wide text-white md:text-5xl">
+            <h1 className="site-heading site-heading--display text-white">
               your personal
               <br />
               chauffeur
             </h1>
-            <p className="font-light text-sm leading-6 md:text-base md:leading-7 mt-4 mb-12 max-w-[600px] mx-auto">
+            <p className="site-copy mx-auto mt-4 mb-12 max-w-[600px] text-sm leading-6 md:leading-7">
               Experience the pinnacle of chauffeured services. Where every journey
               is crafted with precision, comfort, and elegance.
             </p></div>
@@ -60,11 +54,11 @@ export default function RidePage() {
       </section>
 
       {/* Our Services */ }
-      <section className="py-10 md:py-24 px-8 md:px-16 max-w-[1440px] mx-auto w-full">
-        <h2 className="font-serif text-3xl md:text-5xl uppercase leading-[52px] mb-8 md:mb-16">
+      <section className="site-content py-10 md:py-24">
+        <h2 className="site-heading site-heading--display mb-8 md:mb-16">
           OUR SERVICES
         </h2>
-        <p className="font-light text-base leading-7 max-w-[725px] mb-16">
+        <p className="site-copy mb-16 max-w-[725px] leading-7">
           From short rides to long-distance travel, arrivals or departures, we
           use smart technology to make your experience seamless—while keeping our
           service professional without stiffness, attentive without intrusion,
@@ -104,7 +98,7 @@ export default function RidePage() {
             className="object-cover"
           />
           <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-linear-to-t from-black/50 to-transparent" >
-            <h2 className="font-serif text-2xl md:text-5xl uppercase text-white px-8 md:px-12 absolute bottom-8">
+            <h2 className="site-heading site-heading--display absolute bottom-8 px-8 text-white md:px-12">
               UNCOMPROMISING
               <br />
               STANDARDS
@@ -112,8 +106,8 @@ export default function RidePage() {
           </div>
         </div>
 
-        <div className="relative z-10 px-8 md:px-16 max-w-[1440px] mx-auto">
-          <p className="font-light text-base leading-7 text-black max-w-[725px] py-8 mb-20">
+        <div className="site-content relative z-10">
+          <p className="site-copy site-copy--dark mb-20 max-w-[725px] py-8 leading-7">
             From short rides to long-distance travel, arrivals or departures, we
             use smart technology to make your experience seamless—while keeping
             our service professional without stiffness, attentive without
@@ -149,74 +143,5 @@ export default function RidePage() {
 
       <Footer />
     </main>
-  );
-}
-
-function ServiceCard( {
-  iconSrc,
-  title,
-  description,
-  className,
-}: {
-  iconSrc: string;
-  title: string;
-  description: string;
-  className?: string;
-} ) {
-  return (
-    <div className="bg-[#090909] p-8 pt-12">
-      <div className="size-24">
-        <div className={ cn( `mb-8 size-14 relative`, className ) }>
-          <Image src={ iconSrc } alt="" fill className="object-contain" />
-        </div>
-      </div>
-      <h3 className="font-wide text-xl tracking-widest text-white mb-3">
-        { title }
-      </h3>
-      <p className="font-light text-base leading-6 text-white">{ description }</p>
-    </div>
-  );
-}
-
-function AmenityItem( {
-  iconSrc,
-  label,
-  showDivider = false,
-}: {
-  iconSrc: string;
-  label: React.ReactNode;
-  showDivider?: boolean;
-} ) {
-  return (
-    <div
-      className={ `flex-1 flex flex-col items-start gap-4 ${ showDivider ? "md:border-r md:border-white/20 md:pr-12 md:mr-12" : "" }` }
-    >
-      <div className="size-30 relative">
-        <Image src={ iconSrc } alt="" fill className="object-contain" />
-      </div>
-      <p className="font-light text-sm leading-[22px] text-white">{ label }</p>
-    </div>
-  );
-}
-
-function StandardItem( {
-  title,
-  description,
-  src,
-  className
-}: {
-  title: string;
-  description: string;
-  src: string;
-  className?: string;
-} ) {
-  return (
-    <div className="flex flex-col items-start">
-      <div className="flex mb-6 text-gold size-20 items-end">
-        <Image src={ src } alt="" width={ 48 } height={ 48 } className={ cn( `size-14`, className ) } />
-      </div>
-      <h4 className="text-gold font-medium text-xl mb-3">{ title }</h4>
-      <p className="text-black text-base font-light leading-6">{ description }</p>
-    </div>
   );
 }
