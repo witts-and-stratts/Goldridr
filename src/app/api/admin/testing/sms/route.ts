@@ -4,11 +4,11 @@ import { getTwilioFromNumber } from "@/lib/admin-settings";
 import { isAdmin, type AuthSession } from "@/lib/auth";
 import { getRequestSession } from "@/lib/driver-auth";
 import {
-  clearMockSmsMessages,
-  insertMockSmsMessage,
-  listMockSmsMessages,
-  updateMockSmsMessageStatus,
-} from "@/lib/db";
+  clearPocketBaseMockSmsMessages,
+  insertPocketBaseMockSmsMessage,
+  listPocketBaseMockSmsMessages,
+  updatePocketBaseMockSmsMessageStatus,
+} from "@/lib/pocketbase/operations";
 
 const SmsStatusSchema = z.enum( [ "queued", "sent", "delivered", "failed", "undelivered" ] );
 
@@ -16,7 +16,7 @@ function requireAdmin( session: AuthSession | null ) {
   return session && isAdmin( session );
 }
 
-function toMessage( record: Awaited<ReturnType<typeof listMockSmsMessages>>[number] ) {
+function toMessage( record: Awaited<ReturnType<typeof listPocketBaseMockSmsMessages>>[number] ) {
   return {
     sid: record.sid,
     accountSid: record.accountSid,
@@ -38,7 +38,7 @@ export async function GET( request: Request ) {
 
   const { searchParams } = new URL( request.url );
   const limit = Math.max( 1, Math.min( 100, Number( searchParams.get( "limit" ) || "25" ) || 25 ) );
-  const messages = await listMockSmsMessages( limit );
+  const messages = await listPocketBaseMockSmsMessages( limit );
 
   return NextResponse.json( {
     success: true,
@@ -69,7 +69,7 @@ export async function POST( request: Request ) {
     );
   }
 
-  const record = await insertMockSmsMessage( {
+  const record = await insertPocketBaseMockSmsMessage( {
     accountSid: typeof body.accountSid === "string" ? body.accountSid.trim() : null,
     fromNumber: from,
     toNumber: to,
@@ -103,7 +103,7 @@ export async function PATCH( request: Request ) {
     );
   }
 
-  const updated = await updateMockSmsMessageStatus(
+  const updated = await updatePocketBaseMockSmsMessageStatus(
     sid,
     status,
     typeof body.errorMessage === "string" ? body.errorMessage.trim() || null : null
@@ -122,6 +122,6 @@ export async function DELETE( request: Request ) {
     return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
   }
 
-  const deleted = await clearMockSmsMessages();
+  const deleted = await clearPocketBaseMockSmsMessages();
   return NextResponse.json( { success: true, deleted } );
 }

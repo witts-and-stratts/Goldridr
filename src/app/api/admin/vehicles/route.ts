@@ -9,7 +9,7 @@ import {
   assignVehicleToChauffeur,
   unassignVehicle,
   getVehicleById,
-} from "@/lib/db";
+} from "@/lib/pocketbase/repository";
 
 export async function GET( req: Request ) {
   try {

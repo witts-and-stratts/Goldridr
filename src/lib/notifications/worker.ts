@@ -1,15 +1,15 @@
 import { randomUUID } from "crypto";
-import { getDb } from "@/lib/db";
 import { createEmailTransport } from "./email-transports";
 import { renderNotificationEmail } from "./email-template";
 import { getSmsConfig } from "./config";
 import { createSmsTransport, type SmsTransport } from "./sms";
-import { drainPocketBaseNotificationOutbox, enqueuePocketBaseNotificationSync } from "./pocketbase-sync";
 import { processPushReceipts } from "./push";
 import { createNotificationQueue, type NotificationQueue } from "./queue";
 import type { EmailTransport, NotificationDeliveryRecord } from "./types";
 import { zonedDateTimeToDate } from "./time";
-import { drainPocketBaseCoreOutbox } from "@/lib/pocketbase/core-sync";
+import { getPocketBaseClient } from "@/lib/pocketbase/client";
+import { pocketBaseCollections } from "@/lib/pocketbase/collections";
+import { first, legacyId } from "@/lib/pocketbase/core";
 
 const RETRY_DELAYS_MS = [ 60_000, 300_000, 900_000, 3_600_000, 21_600_000 ];
 
@@ -65,18 +65,16 @@ function nextAttempt( attempts: number, error: unknown ): Date {
 }
 
 async function createAdminFailureAlert( delivery: NotificationDeliveryRecord, error: unknown ): Promise<void> {
-  const db = await getDb();
-  const result = await db.prepare( `
-    INSERT INTO notifications (eventKey, type, category, title, body, metadata)
-    VALUES (?, 'delivery.failed', 'system', 'Notification delivery failed', ?, ?)
-  ` ).run(
-    `delivery:${ delivery.id }:dead:${ randomUUID() }`,
-    `Delivery ${ delivery.id } to ${ delivery.recipient } exhausted retries: ${ error instanceof Error ? error.message : "Unknown error" }`,
-    JSON.stringify( { deliveryId: delivery.id } )
-  );
-  const notificationId = Number( result.lastInsertRowid );
-  await db.prepare( "INSERT INTO notification_recipients (notificationId, userId) VALUES (?, 'admin')" ).run( notificationId );
-  await enqueuePocketBaseNotificationSync( db, notificationId );
+  const pb = getPocketBaseClient();
+  const notification = await pb.collection( pocketBaseCollections.notifications ).create( {
+    legacyId: legacyId(), eventKey: `delivery:${ delivery.id }:dead:${ randomUUID() }`, type: "delivery.failed", category: "system",
+    title: "Notification delivery failed", bookingReference: "", actorUserId: "", metadata: { deliveryId: delivery.id },
+    body: `Delivery ${ delivery.id } to ${ delivery.recipient } exhausted retries: ${ error instanceof Error ? error.message : "Unknown error" }`,
+    sourceCreatedAt: new Date().toISOString(),
+  } );
+  await pb.collection( pocketBaseCollections.recipients ).create( {
+    legacyId: legacyId(), notification: notification.id, userId: "admin", sourceCreatedAt: new Date().toISOString(),
+  } );
 }
 
 export class NotificationWorker {
@@ -94,10 +92,7 @@ export class NotificationWorker {
 
   async runOnce( limit = 20 ): Promise<{ claimed: number; delivered: number; failed: number }> {
     if ( !this.emailTransport ) await this.verify();
-    const db = await getDb();
-    await drainPocketBaseCoreOutbox( db );
-    await drainPocketBaseNotificationOutbox( db, limit );
-    await processPushReceipts( db );
+    await processPushReceipts( undefined );
     const deliveries = await this.queue.claim( limit );
     let delivered = 0;
     let failed = 0;
@@ -114,14 +109,11 @@ export class NotificationWorker {
   }
 
   private async deliver( delivery: NotificationDeliveryRecord ): Promise<void> {
-    const db = await getDb();
-    const notification = await db.prepare(
-      "SELECT * FROM notifications WHERE id = ?"
-    ).get( delivery.notificationId ) as { id: number; bookingReference: string | null; category: string } | undefined;
+    const notification = await first( pocketBaseCollections.notifications, "legacyId = {:legacyId}", { legacyId: delivery.notificationId } );
     if ( !notification ) throw new Error( "Notification no longer exists" );
 
     if ( notification.category === "reminders" && notification.bookingReference ) {
-      const booking = await db.prepare( "SELECT status, date, time FROM bookings WHERE reference = ?" ).get( notification.bookingReference ) as { status: string; date: string; time: string } | undefined;
+      const booking = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: String( notification.bookingReference ) } );
       if ( !booking || [ "cancelled", "rejected" ].includes( booking.status ) || zonedDateTimeToDate( booking.date, booking.time ).getTime() <= Date.now() ) {
         await this.queue.update( delivery, { status: "cancelled", leaseToken: null, leaseExpiresAt: null } );
         return;

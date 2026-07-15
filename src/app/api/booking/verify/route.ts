@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { unstable_rethrow } from "next/navigation";
-import { getBookingByReference } from "@/lib/db";
+import { getBookingByReference } from "@/lib/pocketbase/repository";
 import { bookingRecordToBookingData } from "@/lib/booking-data";
 
 export async function GET( req: Request ) {

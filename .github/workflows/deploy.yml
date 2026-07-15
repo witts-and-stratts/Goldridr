@@ -13,6 +13,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   NODE_VERSION: "22"
@@ -53,11 +54,27 @@ jobs:
       packages: write
     outputs:
       image: ${{ steps.image.outputs.image }}
-      pocketbase_image: ${{ steps.image.outputs.pocketbase_image }}
-      worker_image: ${{ steps.image.outputs.worker_image }}
+      pocketbase_image: ${{ (github.event_name == 'workflow_dispatch' || steps.changes.outputs.pocketbase == 'true') && steps.image.outputs.pocketbase_image || '' }}
+      worker_image: ${{ (github.event_name == 'workflow_dispatch' || steps.changes.outputs.worker == 'true') && steps.image.outputs.worker_image || '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+
+      - name: Detect service image changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            pocketbase:
+              - 'pocketbase/Dockerfile'
+              - 'pocketbase/pb_migrations/**'
+            worker:
+              - 'Dockerfile'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.json'
+              - 'scripts/**'
+              - 'src/**'
 
       - name: Set image name
         id: image
@@ -98,6 +115,7 @@ jobs:
             NEXT_PUBLIC_MAILPIT_UI_URL=${{ vars.NEXT_PUBLIC_MAILPIT_UI_URL }}
 
       - name: Build PocketBase image
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.pocketbase == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -110,6 +128,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=pocketbase
 
       - name: Build notification worker image
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.worker == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -167,7 +186,7 @@ jobs:
           SSH_HOST: ${{ secrets.HETZNER_HOST }}
           SSH_USER: ${{ secrets.HETZNER_USER }}
           SSH_PORT: ${{ vars.HETZNER_SSH_PORT || '22' }}
-          DEPLOY_PATH: ${{ vars.HETZNER_DEPLOY_PATH || '/root/goldridr' }}
+          DEPLOY_PATH: ${{ vars.HETZNER_DEPLOY_PATH }}
         run: |
           printf '%s' "$GHCR_TOKEN" | ssh -o BatchMode=yes -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
             "set -e; export DOCKER_CONFIG=\$(mktemp -d); trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT; docker login ghcr.io -u '${{ github.actor }}' --password-stdin; IMAGE_NAME='$IMAGE_NAME' POCKETBASE_IMAGE='$POCKETBASE_IMAGE' WORKER_IMAGE='$WORKER_IMAGE' DEPLOY_DIR='$DEPLOY_PATH' bash '$DEPLOY_PATH/scripts/deploy.sh'"

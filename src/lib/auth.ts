@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies, headers } from "next/headers";
-import { getChauffeurById } from "@/lib/db";
+import { getPocketBaseChauffeurById } from "@/lib/pocketbase/operations";
 
 export const SESSION_COOKIE = "goldridr_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7;
@@ -76,7 +76,7 @@ export async function getSession(): Promise<AuthSession | null> {
     }
   }
 
-  if ( session?.role === "chauffeur" && !await getChauffeurById( session.chauffeurId! ) ) {
+  if ( session?.role === "chauffeur" && !await getPocketBaseChauffeurById( session.chauffeurId! ) ) {
     return null;
   }
   return session;

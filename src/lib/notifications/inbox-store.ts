@@ -1,19 +1,4 @@
-import type { DatabaseLike } from "@/lib/db-client";
-import {
-  isPocketBaseConfigured,
-  isPocketBaseNotificationReadEnabled,
-  isPocketBaseNotificationWriteEnabled,
-} from "@/lib/pocketbase/config";
 import type { NotificationCategory } from "./types";
-import {
-  deleteNotifications as deleteSqliteNotifications,
-  getPreferences as getSqlitePreferences,
-  getUnreadCount as getSqliteUnreadCount,
-  listNotifications as listSqliteNotifications,
-  markNotificationsRead as markSqliteNotificationsRead,
-  markNotificationsUnread as markSqliteNotificationsUnread,
-  setPreference as setSqlitePreference,
-} from "./store";
 import {
   deletePocketBaseNotifications,
   getPocketBasePreferences,
@@ -24,84 +9,40 @@ import {
   setPocketBasePreference,
 } from "./pocketbase-inbox";
 
-function usePocketBase(): boolean {
-  if ( !isPocketBaseNotificationReadEnabled() ) return false;
-  if ( !isPocketBaseConfigured() ) {
-    throw new Error( "PocketBase notification reads are enabled but PocketBase is not configured" );
-  }
-  return true;
-}
-
-function mirrorPocketBaseWrites(): boolean {
-  if ( !isPocketBaseNotificationWriteEnabled() ) return false;
-  if ( !isPocketBaseConfigured() ) {
-    throw new Error( "PocketBase notification writes are enabled but PocketBase is not configured" );
-  }
-  return true;
-}
-
+// The unused first argument preserves the existing route contracts.
 export function listNotifications(
-  db: DatabaseLike,
+  _store: unknown,
   userId: string,
   options: { unreadOnly?: boolean; category?: string; limit?: number; afterId?: number } = {}
 ) {
-  return usePocketBase()
-    ? listPocketBaseNotifications( userId, options )
-    : listSqliteNotifications( db, userId, options );
+  return listPocketBaseNotifications( userId, options );
 }
 
-export function getUnreadCount( db: DatabaseLike, userId: string ) {
-  return usePocketBase() ? getPocketBaseUnreadCount( userId ) : getSqliteUnreadCount( db, userId );
+export function getUnreadCount( _store: unknown, userId: string ) {
+  return getPocketBaseUnreadCount( userId );
 }
 
-export async function markNotificationsRead( db: DatabaseLike, userId: string, recipientIds?: number[] ) {
-  if ( usePocketBase() ) {
-    const updated = await markPocketBaseNotificationsRead( userId, recipientIds );
-    await markSqliteNotificationsRead( db, userId, recipientIds );
-    return updated;
-  }
-  const updated = await markSqliteNotificationsRead( db, userId, recipientIds );
-  if ( mirrorPocketBaseWrites() ) await markPocketBaseNotificationsRead( userId, recipientIds );
-  return updated;
+export function markNotificationsRead( _store: unknown, userId: string, recipientIds?: number[] ) {
+  return markPocketBaseNotificationsRead( userId, recipientIds );
 }
 
-export async function markNotificationsUnread( db: DatabaseLike, userId: string, recipientIds?: number[] ) {
-  if ( usePocketBase() ) {
-    const updated = await markPocketBaseNotificationsUnread( userId, recipientIds );
-    await markSqliteNotificationsUnread( db, userId, recipientIds );
-    return updated;
-  }
-  const updated = await markSqliteNotificationsUnread( db, userId, recipientIds );
-  if ( mirrorPocketBaseWrites() ) await markPocketBaseNotificationsUnread( userId, recipientIds );
-  return updated;
+export function markNotificationsUnread( _store: unknown, userId: string, recipientIds?: number[] ) {
+  return markPocketBaseNotificationsUnread( userId, recipientIds );
 }
 
-export async function deleteNotifications( db: DatabaseLike, userId: string, recipientIds?: number[] ) {
-  if ( usePocketBase() ) {
-    const deleted = await deletePocketBaseNotifications( userId, recipientIds );
-    await deleteSqliteNotifications( db, userId, recipientIds );
-    return deleted;
-  }
-  const deleted = await deleteSqliteNotifications( db, userId, recipientIds );
-  if ( mirrorPocketBaseWrites() ) await deletePocketBaseNotifications( userId, recipientIds );
-  return deleted;
+export function deleteNotifications( _store: unknown, userId: string, recipientIds?: number[] ) {
+  return deletePocketBaseNotifications( userId, recipientIds );
 }
 
-export function getPreferences( db: DatabaseLike, userId: string ) {
-  return usePocketBase() ? getPocketBasePreferences( userId ) : getSqlitePreferences( db, userId );
+export function getPreferences( _store: unknown, userId: string ) {
+  return getPocketBasePreferences( userId );
 }
 
-export async function setPreference(
-  db: DatabaseLike,
+export function setPreference(
+  _store: unknown,
   userId: string,
   category: NotificationCategory,
   preference: { inApp: boolean; email: boolean; sms: boolean }
 ) {
-  if ( usePocketBase() ) {
-    await setPocketBasePreference( userId, category, preference );
-    await setSqlitePreference( db, userId, category, preference );
-    return;
-  }
-  await setSqlitePreference( db, userId, category, preference );
-  if ( mirrorPocketBaseWrites() ) await setPocketBasePreference( userId, category, preference );
+  return setPocketBasePreference( userId, category, preference );
 }

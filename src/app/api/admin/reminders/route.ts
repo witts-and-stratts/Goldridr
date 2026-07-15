@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getAllBookings, getBookingsForChauffeur, getDb } from "@/lib/db";
+import { getAllBookings, getBookingsForChauffeur } from "@/lib/pocketbase/repository";
 import { getRequestSession } from "@/lib/driver-auth";
-import { createManualReminder, listReminderDeliveries } from "@/lib/notifications/store";
+import { createPocketBaseManualReminder, listPocketBaseReminderDeliveries } from "@/lib/pocketbase/notifications";
 
 export async function GET( request: Request ) {
   const session = await getRequestSession( request );
@@ -11,7 +11,7 @@ export async function GET( request: Request ) {
     : await getBookingsForChauffeur( session.chauffeurId! );
   return NextResponse.json( {
     success: true,
-    reminders: await listReminderDeliveries( await getDb(), session ),
+    reminders: await listPocketBaseReminderDeliveries(),
     bookings: bookings.map( booking => ( {
       reference: booking.reference,
       name: booking.name,
@@ -46,6 +46,6 @@ export async function POST( request: Request ) {
   if ( channels.includes( "sms" ) && !( booking.phone && booking.smsConsentedAt ) ) {
     return NextResponse.json( { success: false, error: "Passenger has not consented to SMS" }, { status: 422 } );
   }
-  const notificationId = await createManualReminder( await getDb(), session, booking, channels );
+  const notificationId = await createPocketBaseManualReminder( session, booking, channels );
   return NextResponse.json( { success: true, notificationId }, { status: 201 } );
 }

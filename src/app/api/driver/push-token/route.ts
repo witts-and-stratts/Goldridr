@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
 import { getAppSession, unauthorizedResponse } from "@/lib/driver-auth";
 import { deletePushToken, savePushToken } from "@/lib/notifications/push";
 
@@ -21,7 +20,7 @@ export async function POST( req: Request ) {
       return NextResponse.json( { success: false, error: "Invalid push token" }, { status: 400 } );
     }
     const platform = typeof body.platform === "string" ? body.platform : "unknown";
-    await savePushToken( await getDb(), session.userId, token, platform );
+    await savePushToken( undefined, session.userId, token, platform );
     return NextResponse.json( { success: true } );
   } catch ( err: unknown ) {
     const message = err instanceof Error ? err.message : "Failed to register push token";
@@ -39,7 +38,7 @@ export async function DELETE( req: Request ) {
     if ( !token ) {
       return NextResponse.json( { success: false, error: "Invalid push token" }, { status: 400 } );
     }
-    await deletePushToken( await getDb(), token, session.userId );
+    await deletePushToken( undefined, token, session.userId );
     return NextResponse.json( { success: true } );
   } catch ( err: unknown ) {
     const message = err instanceof Error ? err.message : "Failed to remove push token";

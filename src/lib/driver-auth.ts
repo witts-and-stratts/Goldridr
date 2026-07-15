@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getSession, verifySessionToken, type AuthSession } from "@/lib/auth";
-import { getChauffeurById } from "@/lib/db";
+import { getPocketBaseChauffeurById } from "@/lib/pocketbase/operations";
 
 export type DriverSession = AuthSession & { role: "chauffeur"; chauffeurId: string };
 
@@ -27,7 +27,7 @@ export async function getAppSession( req: Request ): Promise<AuthSession | null>
   const session = verifySessionToken( header.slice( "Bearer ".length ).trim() );
   if ( !session ) return null;
   if ( session.role === "chauffeur" ) {
-    if ( !session.chauffeurId || !await getChauffeurById( session.chauffeurId ) ) return null;
+    if ( !session.chauffeurId || !await getPocketBaseChauffeurById( session.chauffeurId ) ) return null;
   }
   return session;
 }

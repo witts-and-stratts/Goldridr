@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { getChauffeurByEmail, createPasswordResetToken } from "@/lib/db";
+import { createPocketBasePasswordResetToken, getPocketBaseChauffeurByEmail } from "@/lib/pocketbase/operations";
 import { createEmailTransport } from "@/lib/notifications/email-transports";
 import { getEmailConfig } from "@/lib/notifications/config";
 
@@ -12,10 +12,10 @@ export async function POST( request: Request ) {
       return NextResponse.json( { success: false, error: "Email is required" }, { status: 400 } );
     }
 
-    const chauffeur = await getChauffeurByEmail( email );
+    const chauffeur = await getPocketBaseChauffeurByEmail( email );
 
     if ( chauffeur ) {
-      const token = await createPasswordResetToken( chauffeur.id );
+      const token = await createPocketBasePasswordResetToken( chauffeur.id );
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.BASE_URL || "http://localhost:3000";
       const resetUrl = `${ baseUrl }/reset-password/${ token }`;
 

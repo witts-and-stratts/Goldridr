@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { unstable_rethrow } from "next/navigation";
 import { verifySessionToken } from "@/lib/auth";
-import { getAllBookings, getBookingsForChauffeur } from "@/lib/db";
+import { getAllBookings, getBookingsForChauffeur } from "@/lib/pocketbase/repository";
 import { getRequestSession } from "@/lib/driver-auth";
 
 // Helper to format date strings to RFC 5545 iCal format: YYYYMMDDTHHMMSSZ

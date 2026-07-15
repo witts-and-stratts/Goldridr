@@ -1,5 +1,5 @@
 import { zonedDateTimeToDate } from "@/lib/notifications/time";
-import type { BookingRecord } from "@/lib/db";
+import type { BookingRecord } from "@/lib/pocketbase/repository";
 import { getNotificationTimeZone } from "@/lib/admin-settings";
 import type { BookingData, BookingResponses } from "@/types/booking";
 

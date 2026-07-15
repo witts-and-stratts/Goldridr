@@ -1,4 +1,6 @@
-import { getAppSetting, setAppSetting } from "@/lib/db";
+import { first } from "@/lib/pocketbase/core";
+import { getPocketBaseClient } from "@/lib/pocketbase/client";
+import { pocketBaseCollections } from "@/lib/pocketbase/collections";
 
 export const DEFAULT_NOTIFICATION_TIME_ZONE = "America/Chicago";
 export const DEFAULT_APP_URL = "http://localhost:3000";
@@ -12,7 +14,7 @@ export const DEFAULT_TWILIO_FROM_NUMBER = "+10000000000";
 
 async function readTextSetting( key: string, envName: string, fallback: string ): Promise<string> {
   try {
-    const stored = ( await getAppSetting( key ) )?.trim();
+    const stored = String( ( await first( pocketBaseCollections.settings, "key = {:key}", { key } ) )?.value || "" ).trim();
     if ( stored ) return stored;
   } catch {}
 
@@ -28,7 +30,10 @@ async function readNumberSetting( key: string, envName: string, fallback: number
 
 async function writeSetting( key: string, value: string | number | undefined ): Promise<void> {
   if ( value === undefined || value === null ) return;
-  await setAppSetting( key, String( value ) );
+  const existing = await first( pocketBaseCollections.settings, "key = {:key}", { key } );
+  const data = { key, value: String( value ), sourceUpdatedAt: new Date().toISOString() };
+  if ( existing ) await getPocketBaseClient().collection( pocketBaseCollections.settings ).update( existing.id, data );
+  else await getPocketBaseClient().collection( pocketBaseCollections.settings ).create( data );
 }
 
 export async function getNotificationTimeZone(): Promise<string> {

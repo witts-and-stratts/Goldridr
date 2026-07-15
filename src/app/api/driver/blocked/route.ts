@@ -5,7 +5,7 @@ import {
   getBlockedSlotsForChauffeur,
   deleteBlockedSlot,
   deleteChauffeurBlockedSlot,
-} from "@/lib/db";
+} from "@/lib/pocketbase/repository";
 import { getAppSession, unauthorizedResponse } from "@/lib/driver-auth";
 
 const RECURRING_VALUES = [ "none", "daily", "weekly", "weekends" ];

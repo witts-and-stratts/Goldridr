@@ -150,11 +150,11 @@ function bookingContent(
   };
 }
 
-function contentFor( template: string, payload: Record<string, unknown> ): EmailContent {
+async function contentFor( template: string, payload: Record<string, unknown> ): Promise<EmailContent> {
   const reference = String( payload.bookingReference || "" );
   const passenger = String( payload.passengerName || "Passenger" );
   const dateTime = payload.date && payload.time ? `${ payload.date } at ${ payload.time }` : "";
-  const appUrl = String( payload.appUrl || getAppUrl() );
+  const appUrl = String( payload.appUrl || await getAppUrl() );
   const status = String( payload.status || "" );
   const message = String( payload.message || "" );
   const subject = String( payload.subject || "" );
@@ -518,7 +518,7 @@ export async function renderNotificationEmail(
   idempotencyKey: string
 ): Promise<RenderedEmail> {
   const config = await getEmailConfig();
-  const baseContent = contentFor( template, payload );
+  const baseContent = await contentFor( template, payload );
   const reference = stringValue( payload.bookingReference );
   const passengerEmail = stringValue( payload.passengerEmail ) || recipient;
   const content = RIDER_TRIP_EMAIL_TEMPLATES.has( template ) && reference && passengerEmail

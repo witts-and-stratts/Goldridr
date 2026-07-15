@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
-import { recordProviderEvent } from "@/lib/notifications/store";
+import { recordPocketBaseProviderEvent } from "@/lib/pocketbase/notifications";
 import { verifySnsMessage, type SnsMessage } from "@/lib/notifications/sns";
 
 export async function POST( request: Request ) {
@@ -22,8 +21,7 @@ export async function POST( request: Request ) {
       notificationType?: string;
       mail?: { messageId?: string };
     };
-    recordProviderEvent(
-      await getDb(),
+    recordPocketBaseProviderEvent(
       "ses_api",
       envelope.MessageId,
       event.mail?.messageId,

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { getAllBookings, getBookingsForChauffeur, getDb, type BookingRecord } from "@/lib/db";
+import { getAllBookings, getBookingByReference, getBookingsForChauffeur, type BookingRecord } from "@/lib/pocketbase/repository";
 import { getRequestSession } from "@/lib/driver-auth";
-import { createBroadcast, createManualMessage } from "@/lib/notifications/store";
+import { createPocketBaseBroadcast, createPocketBaseManualMessage } from "@/lib/pocketbase/notifications";
 
 export async function GET( request: Request ) {
   const session = await getRequestSession( request );
@@ -41,7 +41,7 @@ export async function POST( request: Request ) {
   }
 
   if ( body.kind === "booking" ) {
-    const booking = await ( await getDb() ).prepare( "SELECT * FROM bookings WHERE reference = ?" ).get( body.reference ) as BookingRecord | undefined;
+    const booking = await getBookingByReference( String( body.reference || "" ) );
     if ( !booking ) return NextResponse.json( { success: false, error: "Booking not found" }, { status: 404 } );
     if ( session.role === "chauffeur" && booking.chauffeurId !== session.chauffeurId ) {
       return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
@@ -50,7 +50,7 @@ export async function POST( request: Request ) {
     if ( requestedChannels.includes( "sms" ) && !( booking.phone && booking.smsConsentedAt ) ) {
       return NextResponse.json( { success: false, error: "Passenger has not consented to SMS" }, { status: 422 } );
     }
-    const notificationId = await createManualMessage( await getDb(), session, booking, subject, message, requestedChannels );
+    const notificationId = await createPocketBaseManualMessage( session, booking, subject, message, requestedChannels );
     return NextResponse.json( { success: true, notificationId }, { status: 201 } );
   }
 
@@ -60,7 +60,7 @@ export async function POST( request: Request ) {
       ? body.chauffeurIds.map( String ).map( ( id: string ) => id.trim() ).filter( Boolean )
       : [];
     const validChannels = channels.filter( ( channel: string ) => [ "in_app", "email", "sms" ].includes( channel ) );
-    const notificationId = await createBroadcast( await getDb(), session, chauffeurIds, subject, message, validChannels );
+    const notificationId = await createPocketBaseBroadcast( session, chauffeurIds, subject, message, validChannels );
     return NextResponse.json( { success: true, notificationId }, { status: 201 } );
   }
 
@@ -96,13 +96,13 @@ export async function POST( request: Request ) {
         return false;
       } );
       if ( riderChannels.length > 0 ) {
-        notificationIds.push( await createManualMessage( await getDb(), session, booking, subject, message, riderChannels ) );
+        notificationIds.push( await createPocketBaseManualMessage( session, booking, subject, message, riderChannels ) );
       }
     }
 
     if ( chauffeurIds.length > 0 ) {
       const chauffeurChannels = channels.filter( ( channel: string ) => [ "in_app", "email", "sms" ].includes( channel ) );
-      notificationIds.push( await createBroadcast( await getDb(), session, chauffeurIds, subject, message, chauffeurChannels ) );
+      notificationIds.push( await createPocketBaseBroadcast( session, chauffeurIds, subject, message, chauffeurChannels ) );
     }
 
     if ( notificationIds.length === 0 ) {

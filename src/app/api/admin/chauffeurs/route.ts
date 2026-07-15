@@ -9,10 +9,10 @@ import {
   deleteChauffeur,
   getAllChauffeurs,
   getChauffeurById,
-  getDb,
   updateChauffeur,
   updateChauffeurAvatar,
-} from "@/lib/db";
+  unassignVehicle,
+} from "@/lib/pocketbase/repository";
 import { getRequestSession } from "@/lib/driver-auth";
 
 const MAX_AVATAR_BYTES = 3 * 1024 * 1024;
@@ -180,7 +180,8 @@ export async function PATCH( req: Request ) {
       }
       try {
         if ( vehicleId === null ) {
-          await ( await getDb() ).prepare( "UPDATE chauffeurs SET vehicleId = NULL WHERE id = ?" ).run( chauffeurId );
+          const current = await getChauffeurById( chauffeurId );
+          if ( current?.vehicleId ) await unassignVehicle( current.vehicleId );
         } else {
           await assignVehicleToChauffeur( chauffeurId, vehicleId );
         }

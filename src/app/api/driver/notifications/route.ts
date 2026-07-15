@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
 import { getAppSession, unauthorizedResponse } from "@/lib/driver-auth";
 import {
   deleteNotifications,
@@ -14,7 +13,7 @@ export async function GET( req: Request ) {
     if ( !session ) return unauthorizedResponse();
 
     const url = new URL( req.url );
-    const notifications = await listNotifications( await getDb(), session.userId, {
+    const notifications = await listNotifications( undefined, session.userId, {
       unreadOnly: url.searchParams.get( "unread" ) === "true",
       category: url.searchParams.get( "category" ) || undefined,
       limit: Number( url.searchParams.get( "limit" ) || 50 ),
@@ -23,7 +22,7 @@ export async function GET( req: Request ) {
     return NextResponse.json( {
       success: true,
       notifications,
-      unreadCount: await getUnreadCount( await getDb(), session.userId ),
+      unreadCount: await getUnreadCount( undefined, session.userId ),
     } );
   } catch ( err: unknown ) {
     const message = err instanceof Error ? err.message : "Failed to load notifications";
@@ -41,14 +40,14 @@ export async function PATCH( req: Request ) {
       const ids = Array.isArray( body.recipientIds )
         ? body.recipientIds.map( Number ).filter( Number.isInteger )
         : undefined;
-      const updated = await markNotificationsRead( await getDb(), session.userId, ids );
+      const updated = await markNotificationsRead( undefined, session.userId, ids );
       return NextResponse.json( { success: true, updated } );
     }
     if ( body.action === "delete" ) {
       const ids = Array.isArray( body.recipientIds )
         ? body.recipientIds.map( Number ).filter( Number.isInteger )
         : undefined;
-      const deleted = await deleteNotifications( await getDb(), session.userId, ids );
+      const deleted = await deleteNotifications( undefined, session.userId, ids );
       return NextResponse.json( { success: true, deleted } );
     }
     return NextResponse.json( { success: false, error: "Unsupported action" }, { status: 400 } );

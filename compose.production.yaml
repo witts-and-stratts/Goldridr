@@ -53,7 +53,6 @@ services:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
       PORT: 3000
-      DATABASE_URL: ${DATABASE_URL:-file:/data/bookings.db}
       POCKETBASE_URL: ${POCKETBASE_URL:?POCKETBASE_URL must be http://pocketbase:8090}
     depends_on:
       pocketbase:
@@ -61,7 +60,6 @@ services:
     expose:
       - "3000"
     volumes:
-      - ./data:/data
       - ./.next-cache:/app/.next/cache
     healthcheck:
       test:
@@ -83,14 +81,12 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL:-file:/data/bookings.db}
       POCKETBASE_URL: ${POCKETBASE_URL:?POCKETBASE_URL must be http://pocketbase:8090}
       NOTIFICATION_READY_FILE: /tmp/notification-worker.ready
     depends_on:
       pocketbase:
         condition: service_healthy
     volumes:
-      - ./data:/data
     healthcheck:
       test: ["CMD-SHELL", "test -f /tmp/notification-worker.ready"]
       interval: 5s
