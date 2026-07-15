@@ -85,7 +85,7 @@ export function Header( { className }: HeaderProps ) {
         <Button
           variant="outline"
           onClick={ handleBookNow }
-          className={ 'bg-black/20 border-gold/80 px-8 h-8 text-sm tracking-widest' }
+          className={ 'bg-black/20 border-gold/80 px-3 h-8 text-sm tracking-widest' }
         >
           RESERVE A RIDE
         </Button>

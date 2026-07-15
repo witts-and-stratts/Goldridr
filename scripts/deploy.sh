@@ -14,6 +14,7 @@ cd "$DEPLOY_DIR"
 
 install -d -o 1001 -g 1001 "$DEPLOY_DIR/data" "$DEPLOY_DIR/.next-cache"
 install -d -o 1000 -g 1000 "$DEPLOY_DIR/pocketbase-data"
+chown -R 1000:1000 "$DEPLOY_DIR/pocketbase-data"
 
 if [[ ! -f .env ]]; then
   echo "Missing $DEPLOY_DIR/.env" >&2
