@@ -38,34 +38,17 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Database
 
-The app uses `@libsql/client` so the same database layer works with Turso in production and a local SQLite-compatible file during development.
-
-Local development defaults to `file:bookings.db` when `TURSO_DATABASE_URL` is not set. For Turso, create/import the database, then set these environment variables:
-
-```bash
-TURSO_DATABASE_URL=libsql://your-database.turso.io
-TURSO_AUTH_TOKEN=your-token
-```
-
-To migrate the existing local database into Turso, use the Turso CLI:
-
-```bash
-turso db import ./bookings.db
-turso db show --url <database-name>
-turso db tokens create <database-name>
-```
-
-After the env vars are configured, the existing schema initialization runs through Turso on app startup.
+PocketBase is the sole application data store. Start it with `docker compose up -d pocketbase`, configure `POCKETBASE_URL` and the server-only `POCKETBASE_SUPERUSER_TOKEN`, and include `pocketbase/pb_data` in backups.
 
 # Notifications
 
-The application stores notification events and channel deliveries in the same SQLite transaction as booking changes. Run the durable worker as a separate process:
+PocketBase stores notification events, deliveries, preferences, device tokens, and receipts. Run the durable worker as a separate process:
 
 ```bash
 npm run notifications:worker
 ```
 
-Keep transport and credential secrets in `.env`, then manage runtime values like booking buffer, timezone, app URL, sender identity, pricing, and discount codes in `/admin/settings`. Set `EMAIL_TRANSPORT` to `mailpit`, `smtp`, `ses_smtp`, `ses_api`, or `resend`, then configure the matching variables in `.env.example`. Start Mailpit with `docker compose up -d mailpit`; SMTP listens on port `1025` and its inbox is at `http://localhost:8025`. Set `TWILIO_TRANSPORT=mock` to keep SMS traffic in the local SQLite-backed mock inbox, or `TWILIO_TRANSPORT=twilio` to send real messages.
+Keep transport and credential secrets in `.env`, then manage runtime values like booking buffer, timezone, app URL, sender identity, pricing, and discount codes in `/admin/settings`. Set `EMAIL_TRANSPORT` to `mailpit`, `smtp`, `ses_smtp`, `ses_api`, or `resend`, then configure the matching variables in `.env.example`. Start Mailpit with `docker compose up -d mailpit`; SMTP listens on port `1025` and its inbox is at `http://localhost:8025`. Set `TWILIO_TRANSPORT=mock` to keep SMS traffic in the PocketBase-backed mock inbox, or `TWILIO_TRANSPORT=twilio` to send real messages.
 
 The admin test bench lives at `/admin/testing` and exposes the mock SMS API at `/api/admin/testing/sms`.
 

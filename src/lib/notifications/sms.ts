@@ -1,5 +1,5 @@
 import twilio, { type Twilio } from "twilio";
-import { insertMockSmsMessage } from "@/lib/db";
+import { insertPocketBaseMockSmsMessage } from "@/lib/pocketbase/operations";
 import { getSmsConfig } from "./config";
 
 export interface RenderedSms {
@@ -63,7 +63,7 @@ class MockSmsTransport implements SmsTransport {
   async verify(): Promise<void> {}
 
   async send( message: RenderedSms ): Promise<SmsSendResult> {
-    const record = await insertMockSmsMessage( {
+    const record = await insertPocketBaseMockSmsMessage( {
       fromNumber: message.from,
       toNumber: message.to,
       body: message.body,

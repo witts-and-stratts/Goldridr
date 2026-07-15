@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { consumePasswordResetToken, updateChauffeur } from "@/lib/db";
+import { consumePocketBasePasswordResetToken, updatePocketBaseChauffeur } from "@/lib/pocketbase/operations";
 
 export async function POST( request: Request ) {
   try {
@@ -14,12 +14,12 @@ export async function POST( request: Request ) {
       return NextResponse.json( { success: false, error: "Password must be at least 8 characters" }, { status: 400 } );
     }
 
-    const chauffeurId = await consumePasswordResetToken( token );
+    const chauffeurId = await consumePocketBasePasswordResetToken( token );
     if ( !chauffeurId ) {
       return NextResponse.json( { success: false, error: "This reset link is invalid or has expired" }, { status: 400 } );
     }
 
-    await updateChauffeur( chauffeurId, { password } );
+    await updatePocketBaseChauffeur( chauffeurId, { password } );
     return NextResponse.json( { success: true } );
   } catch {
     return NextResponse.json( { success: false, error: "Something went wrong" }, { status: 500 } );

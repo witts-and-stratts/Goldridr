@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import {
   saveBlockedSlot, getAllBlockedSlots, getBlockedSlotsForChauffeur,
   deleteBlockedSlot, deleteChauffeurBlockedSlot,
-} from "@/lib/db";
+} from "@/lib/pocketbase/repository";
 
 // GET all blocked slots
 export async function GET() {

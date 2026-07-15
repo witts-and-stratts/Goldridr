@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSessionToken } from "@/lib/auth";
-import { getChauffeurByEmail } from "@/lib/db";
-import { verifyPassword } from "@/lib/password";
 import { authenticatePocketBaseUser } from "@/lib/pocketbase/auth";
-import { isPocketBaseAuthEnabled } from "@/lib/pocketbase/config";
+import { getPocketBaseChauffeurByEmail } from "@/lib/pocketbase/operations";
 
 export async function POST( request: Request ) {
   try {
@@ -18,46 +16,19 @@ export async function POST( request: Request ) {
       );
     }
 
-    if ( isPocketBaseAuthEnabled() ) {
-      const session = await authenticatePocketBaseUser( email, password );
-      if ( !session || session.role !== "chauffeur" || !session.chauffeurId ) {
-        return NextResponse.json( { success: false, error: "Invalid email or password" }, { status: 401 } );
-      }
-      const chauffeur = await getChauffeurByEmail( session.email );
-      if ( !chauffeur ) {
-        return NextResponse.json( { success: false, error: "Chauffeur profile is unavailable" }, { status: 503 } );
-      }
-      return NextResponse.json( {
-        success: true,
-        token: createSessionToken( session ),
-        chauffeur: {
-          id: chauffeur.id,
-          name: chauffeur.name,
-          email: chauffeur.email,
-          phone: chauffeur.phone,
-        },
-      } );
-    }
-
-    const chauffeur = await getChauffeurByEmail( email );
-    if ( !chauffeur?.passwordHash || !verifyPassword( password, chauffeur.passwordHash ) ) {
+    const session = await authenticatePocketBaseUser( email, password );
+    if ( !session || session.role !== "chauffeur" || !session.chauffeurId ) {
       return NextResponse.json(
         { success: false, error: "Invalid email or password" },
         { status: 401 }
       );
     }
-
-    const token = createSessionToken( {
-      role: "chauffeur",
-      userId: `chauffeur:${ chauffeur.id }`,
-      chauffeurId: chauffeur.id,
-      name: chauffeur.name,
-      email: chauffeur.email,
-    } );
+    const chauffeur = await getPocketBaseChauffeurByEmail( session.email );
+    if ( !chauffeur ) return NextResponse.json( { success: false, error: "Chauffeur profile is unavailable" }, { status: 503 } );
 
     return NextResponse.json( {
       success: true,
-      token,
+      token: createSessionToken( session ),
       chauffeur: {
         id: chauffeur.id,
         name: chauffeur.name,

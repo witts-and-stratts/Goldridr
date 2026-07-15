@@ -7,7 +7,7 @@ import {
   deletePayment,
   getAllPayments,
   updatePayment,
-} from "@/lib/db";
+} from "@/lib/pocketbase/repository";
 
 const PaymentStatus = z.enum( [ "pending", "paid", "refunded", "failed" ] );
 const PaymentMethod = z.enum( [ "card", "cash", "bank_transfer", "other" ] );

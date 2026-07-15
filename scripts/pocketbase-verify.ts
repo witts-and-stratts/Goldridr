@@ -17,6 +17,7 @@ async function main() {
   pb.authStore.save(token);
 
   const suffix = `${Date.now()}`;
+  const legacyId = Number(suffix);
   const email = `verify-${suffix}@example.invalid`;
   let userId = "";
   let notificationId = "";
@@ -41,6 +42,7 @@ async function main() {
   }, { filter: `userId = "verify-${suffix}"` });
 
   const notification = await pb.collection("notifications").create({
+    legacyId,
     type: "system",
     category: "system",
     eventKey: `verify-${suffix}`,
@@ -51,6 +53,7 @@ async function main() {
   notificationId = notification.id;
 
   const recipient = await pb.collection("notification_recipients").create({
+    legacyId: legacyId + 1,
     notification: notificationId,
     userId: `verify-${suffix}`,
   });

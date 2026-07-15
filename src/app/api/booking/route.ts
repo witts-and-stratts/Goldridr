@@ -6,7 +6,7 @@ import {
   findAvailableChauffeur,
   DiscountCodeError,
   saveBooking,
-} from "@/lib/db";
+} from "@/lib/pocketbase/repository";
 import { bookingRecordToBookingData } from "@/lib/booking-data";
 import { getNotificationTimeZone } from "@/lib/admin-settings";
 import {
@@ -187,7 +187,7 @@ export async function POST( req: Request ) {
     }
 
     const bookingReference = generateBookingReference();
-    const sqliteBooking = await saveBooking( {
+    const savedBooking = await saveBooking( {
       reference: bookingReference,
       tripType: input.tripType || "airport",
       date: input.date,
@@ -207,8 +207,8 @@ export async function POST( req: Request ) {
 
     return NextResponse.json( {
       success: true,
-      booking: await bookingRecordToBookingData( sqliteBooking ),
-      bookingId: sqliteBooking.id,
+      booking: await bookingRecordToBookingData( savedBooking ),
+      bookingId: savedBooking.id,
       message: "Booking confirmed successfully",
     } );
   } catch ( error: unknown ) {

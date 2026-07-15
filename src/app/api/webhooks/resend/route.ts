@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { getDb } from "@/lib/db";
-import { recordProviderEvent } from "@/lib/notifications/store";
+import { recordPocketBaseProviderEvent } from "@/lib/pocketbase/notifications";
 
 export async function POST( request: Request ) {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
@@ -19,8 +18,7 @@ export async function POST( request: Request ) {
       webhookSecret: secret,
     } ) as { id?: string; type: string; created_at?: string; data?: { email_id?: string; id?: string } };
     const providerEventId = event.id || `${ event.type }:${ event.data?.email_id || event.data?.id }:${ event.created_at || "" }`;
-    recordProviderEvent(
-      await getDb(),
+    recordPocketBaseProviderEvent(
       "resend",
       providerEventId,
       event.data?.email_id || event.data?.id,

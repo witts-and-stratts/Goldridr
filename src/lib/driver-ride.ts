@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { BookingRecord } from "@/lib/db";
+import type { BookingRecord } from "@/lib/pocketbase/repository";
 import { bookingRecordToResponses } from "@/lib/booking-data";
 
 export interface DriverRide {

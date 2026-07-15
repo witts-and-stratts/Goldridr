@@ -69,10 +69,10 @@ When spawning subagents (Agent/Task tool), the routing block is automatically in
 
 Goldridr is a luxury chauffeur booking platform with two apps:
 
-- **Web admin** (`/src`) — Next.js 15, TypeScript, Tailwind, SQLite (via `bookings.db`). Admin dashboard for managing bookings, chauffeurs, discounts, payments, and settings.
+- **Web admin** (`/src`) — Next.js 15, TypeScript, Tailwind, PocketBase. Admin dashboard for managing bookings, chauffeurs, discounts, payments, and settings.
 - **Driver app** (`/driver-app`) — Expo 56 (SDK 56), React Native 0.85, Expo Router. Used by drivers and admins on mobile.
 
-Both share the same SQLite database and a set of REST API routes under `/src/app/api/`.
+Both share PocketBase and a set of REST API routes under `/src/app/api/`.
 
 ---
 
@@ -190,7 +190,7 @@ import { colors, plate } from "@/lib/colors";
 ## Web Admin
 
 - Next.js 15 App Router, TypeScript, Tailwind CSS.
-- SQLite via `bookings.db` at the project root.
+- PocketBase is the sole application data store.
 - API routes live under `src/app/api/`.
 - Admin UI components in `src/components/admin-ui/` (shadcn-style).
 - Booking flow components in `src/components/booking/`.

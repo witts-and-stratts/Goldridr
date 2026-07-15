@@ -3,8 +3,6 @@
 set -Eeuo pipefail
 
 : "${IMAGE_NAME:?IMAGE_NAME is required}"
-: "${POCKETBASE_IMAGE:?POCKETBASE_IMAGE is required}"
-: "${WORKER_IMAGE:?WORKER_IMAGE is required}"
 
 DEPLOY_DIR="${DEPLOY_DIR:-/root/goldridr}"
 COMPOSE_FILE="$DEPLOY_DIR/compose.production.yaml"
@@ -38,6 +36,22 @@ if [[ -f "$POCKETBASE_RELEASE_FILE" ]]; then
 fi
 if [[ -f "$WORKER_RELEASE_FILE" ]]; then
   previous_worker_image="$(<"$WORKER_RELEASE_FILE")"
+fi
+
+update_pocketbase=false
+update_worker=false
+[[ -n "${POCKETBASE_IMAGE:-}" ]] && update_pocketbase=true
+[[ -n "${WORKER_IMAGE:-}" ]] && update_worker=true
+
+if [[ -z "${POCKETBASE_IMAGE:-}" ]]; then
+  POCKETBASE_IMAGE="$previous_pocketbase_image"
+fi
+if [[ -z "${WORKER_IMAGE:-}" ]]; then
+  WORKER_IMAGE="$previous_worker_image"
+fi
+if [[ -z "$POCKETBASE_IMAGE" || -z "$WORKER_IMAGE" ]]; then
+  echo "PocketBase and worker images are required for the first deployment" >&2
+  exit 1
 fi
 
 persist_release_images() {
@@ -91,8 +105,16 @@ rollback_release() {
 
 export IMAGE_NAME POCKETBASE_IMAGE WORKER_IMAGE
 docker compose --env-file .env -f "$COMPOSE_FILE" config --quiet
-docker compose --env-file .env -f "$COMPOSE_FILE" pull pocketbase web notifications-worker nginx
-if ! docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans --wait --wait-timeout 90 pocketbase web notifications-worker nginx; then
+services=(nginx web)
+if [[ "$update_pocketbase" == true ]]; then
+  services+=(pocketbase)
+fi
+if [[ "$update_worker" == true ]]; then
+  services+=(notifications-worker)
+fi
+
+docker compose --env-file .env -f "$COMPOSE_FILE" pull "${services[@]}"
+if ! docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans --wait --wait-timeout 90 "${services[@]}"; then
   docker compose --env-file .env -f "$COMPOSE_FILE" logs --tail=100 pocketbase web notifications-worker nginx >&2
   rollback_release
   exit 1

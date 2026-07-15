@@ -7,7 +7,7 @@ import {
   deleteDiscountCode,
   getDiscountCodesWithUsage,
   updateDiscountCode,
-} from "@/lib/db";
+} from "@/lib/pocketbase/repository";
 
 const KindSchema = z.enum( [ "percent", "fixed" ] );
 

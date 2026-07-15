@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getBookingByReference } from "@/lib/db";
+import { getBookingByReference } from "@/lib/pocketbase/repository";
 import { getAppSession, unauthorizedResponse } from "@/lib/driver-auth";
 import { bookingRecordToDriverRide } from "@/lib/driver-ride";
 

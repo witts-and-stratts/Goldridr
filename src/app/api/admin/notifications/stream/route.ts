@@ -1,9 +1,8 @@
 import type { RecordModel } from "pocketbase";
 import { getSession, type AuthSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
 import { listNotifications } from "@/lib/notifications/inbox-store";
 import { mapPocketBaseRecipient } from "@/lib/notifications/pocketbase-inbox";
-import { isPocketBaseConfigured, isPocketBaseNotificationReadEnabled } from "@/lib/pocketbase/config";
+import { isPocketBaseConfigured } from "@/lib/pocketbase/config";
 import { pocketBaseCollections } from "@/lib/pocketbase/collections";
 import { getPocketBaseServerClient } from "@/lib/pocketbase/server";
 
@@ -16,43 +15,6 @@ function response( stream: ReadableStream<Uint8Array> ) {
       "X-Accel-Buffering": "no",
     },
   } );
-}
-
-function sqliteStream( request: Request, session: AuthSession, initialCursor: number ) {
-  let cursor = initialCursor;
-  let timer: ReturnType<typeof setInterval> | undefined;
-  const stream = new ReadableStream<Uint8Array>( {
-    start( controller ) {
-      const encoder = new TextEncoder();
-      const write = ( value: string ) => controller.enqueue( encoder.encode( value ) );
-      const poll = async () => {
-        const events = ( await listNotifications( await getDb(), session.userId, { afterId: cursor, limit: 100 } ) ).reverse();
-        for ( const event of events ) {
-          cursor = Math.max( cursor, event.recipientId );
-          write( `id: ${ event.recipientId }\nevent: notification\ndata: ${ JSON.stringify( event ) }\n\n` );
-        }
-      };
-      void poll();
-      write( ": connected\n\n" );
-      timer = setInterval( () => {
-        try {
-          void poll();
-          write( ": keepalive\n\n" );
-        } catch {
-          if ( timer ) clearInterval( timer );
-          controller.close();
-        }
-      }, 3000 );
-      request.signal.addEventListener( "abort", () => {
-        if ( timer ) clearInterval( timer );
-        try { controller.close(); } catch {}
-      } );
-    },
-    cancel() {
-      if ( timer ) clearInterval( timer );
-    },
-  } );
-  return response( stream );
 }
 
 function pocketBaseStream( request: Request, session: AuthSession, cursor: number ) {
@@ -91,7 +53,7 @@ function pocketBaseStream( request: Request, session: AuthSession, cursor: numbe
           }
         );
 
-        const backlog = ( await listNotifications( await getDb(), session.userId, { afterId: cursor, limit: 100 } ) ).reverse();
+        const backlog = ( await listNotifications( undefined, session.userId, { afterId: cursor, limit: 100 } ) ).reverse();
         for ( const notification of backlog ) {
           write( `id: ${ notification.recipientId }\nevent: notification\ndata: ${ JSON.stringify( notification ) }\n\n` );
         }
@@ -118,11 +80,6 @@ export async function GET( request: Request ) {
   const url = new URL( request.url );
   const headerId = Number( request.headers.get( "last-event-id" ) || 0 );
   const cursor = Number( url.searchParams.get( "after" ) || headerId || 0 );
-  if ( isPocketBaseNotificationReadEnabled() ) {
-    if ( !isPocketBaseConfigured() ) {
-      return new Response( "PocketBase is not configured", { status: 503 } );
-    }
-    return pocketBaseStream( request, session, cursor );
-  }
-  return sqliteStream( request, session, cursor );
+  if ( !isPocketBaseConfigured() ) return new Response( "PocketBase is not configured", { status: 503 } );
+  return pocketBaseStream( request, session, cursor );
 }

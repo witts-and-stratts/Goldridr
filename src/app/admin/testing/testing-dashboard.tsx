@@ -191,7 +191,7 @@ export function TestingDashboard( { mailpitUrl, emailTransport, smsTransport }: 
                 <MessageSquareText className="size-4" />
                 Twilio mock
               </CardTitle>
-              <CardDescription>Queue fake SMS messages into SQLite and inspect status changes here.</CardDescription>
+              <CardDescription>Queue fake SMS messages into PocketBase and inspect status changes here.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-md border bg-muted/30 p-3 text-sm">
