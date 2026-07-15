@@ -2,8 +2,8 @@ import Image from "next/image";
 import { ImageSlider } from "../image-slider";
 
 const SUBURBAN_IMAGES = [
-  "/assets/images/1e141ce887d3a30045b7dceb10747c1658343708.png",
-  "/assets/images/193eb7d3de6fd89f5df76f1f0cae7d91d3fa738d.png"
+  "/assets/images/fleet-suburban-interior-top-view.webp",
+  "/assets/images/fleet-suburban-exterior.webp"
 ];
 
 export function Suburban( { showFeatureTag = false }: { showFeatureTag?: boolean; } ) {

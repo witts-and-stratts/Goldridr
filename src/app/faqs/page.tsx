@@ -83,7 +83,7 @@ export default function FaqPage() {
   return (
     <>
       <Header />
-      <Image src="/assets/images/goldridr-chaffeur.png" width={ 1600 } height={ 1600 } alt="Goldridr Chaffeur" className="absolute -mt-40 opacity-50 max-md:h-[70vh] max-md:object-cover" />
+      <Image src="/assets/images/faq-chauffeur-background.webp" width={ 1600 } height={ 1600 } alt="Goldridr Chauffeur" className="absolute -mt-40 opacity-50 max-md:h-[70vh] max-md:object-cover" />
       <div className="min-h-screen text-white selection:bg-gold/30 relative mt-20 md:mt-20 lg:mt-80">
         {/* Header Section */ }
         <div className="container mx-auto px-4 pt-32 pb-16">

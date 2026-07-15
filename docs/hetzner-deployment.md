@@ -7,16 +7,17 @@ The production workflow tests the app, builds it explicitly with Turbopack, publ
 Install Docker Engine with the Compose plugin and prepare the deployment directory while logged in as `root`:
 
 ```bash
-mkdir -p /root/goldridr/data /root/goldridr/.next-cache /root/goldridr/pocketbase-data /root/goldridr/scripts
+mkdir -p /root/goldridr/data /root/goldridr/.next-cache /root/goldridr/pocketbase-data /root/goldridr/scripts /root/goldridr/nginx
 chown -R 1001:1001 /root/goldridr/data /root/goldridr/.next-cache
 chown -R 1000:1000 /root/goldridr/pocketbase-data
 ```
 
-Copy `compose.production.yaml` and `scripts/deploy.sh` to the server once. From a trusted computer in the repository root:
+Copy `compose.production.yaml`, `scripts/deploy.sh`, and the Nginx configuration to the server once. From a trusted computer in the repository root:
 
 ```bash
 scp compose.production.yaml root@YOUR_HETZNER_IP:/root/goldridr/compose.production.yaml
 scp scripts/deploy.sh root@YOUR_HETZNER_IP:/root/goldridr/scripts/deploy.sh
+scp nginx/nginx.conf root@YOUR_HETZNER_IP:/root/goldridr/nginx/nginx.conf
 ssh root@YOUR_HETZNER_IP 'chmod 700 /root/goldridr/scripts/deploy.sh'
 ```
 
@@ -36,7 +37,7 @@ Create `/root/goldridr/.env` directly on the server. Start from `.env.example`, 
 
 When using the local SQLite fallback, the web app and notification worker share `/root/goldridr/data`; the Next.js cache is under `/root/goldridr/.next-cache`; and PocketBase data is under `/root/goldridr/pocketbase-data`. The containers communicate through `http://pocketbase:8090`. PocketBase is available to host-side administration tools at `127.0.0.1:8091` but is not publicly exposed. The worker runs `npm run notifications:worker`, uses the same `.env`, restarts automatically, and receives 30 seconds to stop cleanly during releases.
 
-Put nginx or Caddy in front of `127.0.0.1:3000` and terminate TLS there. The application port is intentionally not exposed publicly.
+The Compose Nginx service listens publicly on `${HTTP_PORT:-80}` and proxies to `web:3000`. The Next.js port is only exposed to the internal Compose network. Allow TCP port 80 through the Hetzner firewall; set `HTTP_PORT` in `/root/goldridr/.env` only if another host port is required.
 
 ## GitHub production environment
 
@@ -59,18 +60,8 @@ Add these repository variables (the image build needs them before the deployment
 
 Protect the `production` environment with required reviewers if deployments need manual approval. Pull requests run the automated tests and production image build; pushes to `main` and manual workflow runs additionally publish and deploy that image.
 
-## Reverse proxy example
+## Nginx and TLS
 
-For nginx, proxy the public virtual host to `http://127.0.0.1:3000`, preserve `Host` and forwarding headers, and disable response buffering so App Router streaming is not buffered:
+The checked-in `nginx/nginx.conf` preserves the original host and forwarding headers, supports WebSocket upgrades, and disables proxy buffering for App Router streaming. Nginx currently serves HTTP on port 80. Before public production use, either add certificate mounts and a TLS server block to this Compose service or terminate TLS at a trusted proxy or load balancer in front of it.
 
-```nginx
-location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_buffering off;
-}
-```
+If a host-level Nginx or another process already binds port 80, stop it or choose a different `HTTP_PORT` before starting this stack.

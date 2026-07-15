@@ -79,11 +79,11 @@ rollback_release() {
     export POCKETBASE_IMAGE="$previous_pocketbase_image"
     if [[ -n "$previous_worker_image" ]]; then
       export WORKER_IMAGE="$previous_worker_image"
-      if docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans pocketbase web notifications-worker; then
+      if docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans pocketbase web notifications-worker nginx; then
         persist_release_images
       fi
     else
-      docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans pocketbase web || true
+      docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans pocketbase web nginx || true
       docker compose --env-file .env -f "$COMPOSE_FILE" stop notifications-worker || true
     fi
   fi
@@ -91,9 +91,9 @@ rollback_release() {
 
 export IMAGE_NAME POCKETBASE_IMAGE WORKER_IMAGE
 docker compose --env-file .env -f "$COMPOSE_FILE" config --quiet
-docker compose --env-file .env -f "$COMPOSE_FILE" pull pocketbase web notifications-worker
-if ! docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans --wait --wait-timeout 90 pocketbase web notifications-worker; then
-  docker compose --env-file .env -f "$COMPOSE_FILE" logs --tail=100 pocketbase web notifications-worker >&2
+docker compose --env-file .env -f "$COMPOSE_FILE" pull pocketbase web notifications-worker nginx
+if ! docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans --wait --wait-timeout 90 pocketbase web notifications-worker nginx; then
+  docker compose --env-file .env -f "$COMPOSE_FILE" logs --tail=100 pocketbase web notifications-worker nginx >&2
   rollback_release
   exit 1
 fi
@@ -108,7 +108,7 @@ for _ in {1..30}; do
     printf '%s\n' "$IMAGE_NAME" > "$RELEASE_FILE"
     printf '%s\n' "$POCKETBASE_IMAGE" > "$POCKETBASE_RELEASE_FILE"
     printf '%s\n' "$WORKER_IMAGE" > "$WORKER_RELEASE_FILE"
-    echo "Deployed web, PocketBase, and notification worker"
+    echo "Deployed Nginx, web, PocketBase, and notification worker"
     exit 0
   fi
   if [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]]; then
@@ -118,7 +118,7 @@ for _ in {1..30}; do
 done
 
 echo "Deployment health check failed with status: ${status:-unknown}" >&2
-docker compose --env-file .env -f "$COMPOSE_FILE" logs --tail=100 pocketbase web notifications-worker >&2
+docker compose --env-file .env -f "$COMPOSE_FILE" logs --tail=100 pocketbase web notifications-worker nginx >&2
 
 rollback_release
 
