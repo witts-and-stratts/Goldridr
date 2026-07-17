@@ -38,7 +38,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Database
 
-PocketBase is the sole application data store. Start it with `docker compose up -d pocketbase`, configure `POCKETBASE_URL` and the server-only `POCKETBASE_SUPERUSER_TOKEN`, and include `pocketbase/pb_data` in backups.
+PocketBase is the sole application data store. Start it with `docker compose up -d pocketbase`, configure `POCKETBASE_URL` and the server-only `POCKETBASE_SUPERUSER_EMAIL`/`POCKETBASE_SUPERUSER_PASSWORD`, and include `pocketbase/pb_data` in backups.
 
 # Notifications
 
