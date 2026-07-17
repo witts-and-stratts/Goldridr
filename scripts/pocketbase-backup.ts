@@ -25,7 +25,7 @@ function requiredEnv( name: string ): string {
 
 async function main() {
   const pb = new PocketBase( requiredEnv( "POCKETBASE_URL" ).replace( /\/$/, "" ) );
-  pb.authStore.save( requiredEnv( "POCKETBASE_SUPERUSER_TOKEN" ) );
+  await pb.collection( "_superusers" ).authWithPassword( requiredEnv( "POCKETBASE_SUPERUSER_EMAIL" ), requiredEnv( "POCKETBASE_SUPERUSER_PASSWORD" ) );
   const timestamp = new Date().toISOString().replace( /[:.]/g, "-" );
   const name = `goldridr-${ timestamp }.zip`;
   await pb.backups.create( name );

@@ -10,11 +10,12 @@ function requiredEnv(name: string): string {
 }
 
 const url = requiredEnv("POCKETBASE_URL");
-const token = requiredEnv("POCKETBASE_SUPERUSER_TOKEN");
+const superuserEmail = requiredEnv("POCKETBASE_SUPERUSER_EMAIL");
+const superuserPassword = requiredEnv("POCKETBASE_SUPERUSER_PASSWORD");
 
 async function main() {
   const pb = new PocketBase(url);
-  pb.authStore.save(token);
+  await pb.collection("_superusers").authWithPassword(superuserEmail, superuserPassword);
 
   const suffix = `${Date.now()}`;
   const legacyId = Number(suffix);

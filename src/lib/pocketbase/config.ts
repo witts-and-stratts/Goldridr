@@ -1,5 +1,5 @@
 export function isPocketBaseConfigured(): boolean {
-  return Boolean( process.env.POCKETBASE_URL && process.env.POCKETBASE_SUPERUSER_TOKEN );
+  return Boolean( process.env.POCKETBASE_URL && process.env.POCKETBASE_SUPERUSER_EMAIL && process.env.POCKETBASE_SUPERUSER_PASSWORD );
 }
 
 export function getPocketBaseUrl(): string {
@@ -8,8 +8,9 @@ export function getPocketBaseUrl(): string {
   return value.replace( /\/$/, "" );
 }
 
-export function getPocketBaseSuperuserToken(): string {
-  const value = process.env.POCKETBASE_SUPERUSER_TOKEN?.trim();
-  if ( !value ) throw new Error( "POCKETBASE_SUPERUSER_TOKEN is not configured" );
-  return value;
+export function getPocketBaseSuperuserCredentials(): { email: string; password: string } {
+  const email = process.env.POCKETBASE_SUPERUSER_EMAIL?.trim();
+  const password = process.env.POCKETBASE_SUPERUSER_PASSWORD?.trim();
+  if ( !email || !password ) throw new Error( "POCKETBASE_SUPERUSER_EMAIL/POCKETBASE_SUPERUSER_PASSWORD is not configured" );
+  return { email, password };
 }
