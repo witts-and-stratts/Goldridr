@@ -12,6 +12,7 @@ function getCalLinks( token: string ) {
   const origin = ( process.env.NEXT_PUBLIC_BASE_URL || window.location.origin ).replace( /\/$/, "" ).replace( /^http:/, "https:" );
   const raw = `${ origin }/api/admin/bookings/feed?token=${ encodeURIComponent( token ) }`;
   return {
+    apple: raw.replace( /^https:/, "webcal:" ),
     google: `https://www.google.com/calendar/render?cid=${encodeURIComponent(raw)}`,
     raw,
   };
@@ -96,7 +97,7 @@ export function CalendarSyncCard() {
         <div className="flex flex-wrap gap-2">
           {links ? <>
             <Button variant="outline" size="sm" asChild>
-              <a href={links.raw}><Smartphone className="size-3.5" /> Apple Calendar</a>
+              <a href={links.apple}><Smartphone className="size-3.5" /> Apple Calendar</a>
             </Button>
             <Button variant="outline" size="sm" asChild>
               <a href={links.google} target="_blank" rel="noopener noreferrer">
