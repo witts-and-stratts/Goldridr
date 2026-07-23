@@ -11,6 +11,7 @@ export interface DriverRide {
   destination: string | null;
   passengers: string | null;
   flightNumber: string | null;
+  terminal: string | null;
   estimatedPrice: string | null;
   notes: string | null;
 }

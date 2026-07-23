@@ -93,11 +93,6 @@ export function useNotificationsInbox() {
     } );
   }, [] );
 
-  const markReadAfterOpen = useCallback( async ( item: NotificationItem ) => {
-    if ( item.readAt ) return;
-    await markReadIds( [ item.recipientId ] );
-  }, [ markReadIds ] );
-
   const retry = useCallback( async ( deliveryId: number ) => {
     const response = await fetch( "/api/admin/notifications", {
       method: "PATCH",
@@ -121,7 +116,6 @@ export function useNotificationsInbox() {
     failed,
     reminders,
     load,
-    markReadAfterOpen,
     markAllRead,
     markReadIds,
     markUnreadIds,

@@ -24,22 +24,28 @@ function parsePayload( delivery: NotificationDeliveryRecord ): Record<string, un
 function smsBody( template: string | null, payload: Record<string, unknown> ): string {
   if ( template === "manual_message" || template === "broadcast" ) return String( payload.message || "" ).slice( 0, 1500 );
   const reference = String( payload.bookingReference || "" );
+  const tripDetails = payload.tripDetails && typeof payload.tripDetails === "object"
+    ? payload.tripDetails as Record<string, unknown>
+    : {};
+  const terminal = typeof tripDetails.terminal === "string" && tripDetails.terminal.trim()
+    ? ` Terminal: ${ tripDetails.terminal.trim() }.`
+    : "";
   if ( template === "booking_reminder" ) {
-    return `Goldridr reminder: booking ${ reference } is scheduled for ${ payload.date } at ${ payload.time }.`;
+    return `Goldridr reminder: booking ${ reference } is scheduled for ${ payload.date } at ${ payload.time }.${ terminal }`;
   }
   if ( template === "booking_created" ) {
-    return `Goldridr: we received booking ${ reference } for ${ payload.date } at ${ payload.time }. We will notify you when it is confirmed.`;
+    return `Goldridr: we received booking ${ reference } for ${ payload.date } at ${ payload.time }.${ terminal } We will notify you when it is confirmed.`;
   }
   if ( template === "booking_assignment" ) {
     const chauffeur = String( payload.chauffeurName || "" );
     return chauffeur
-      ? `Goldridr update: ${ chauffeur } is assigned to booking ${ reference }.`
-      : `Goldridr update: booking ${ reference } is awaiting a chauffeur assignment.`;
+      ? `Goldridr update: ${ chauffeur } is assigned to booking ${ reference }.${ terminal }`
+      : `Goldridr update: booking ${ reference } is awaiting a chauffeur assignment.${ terminal }`;
   }
   if ( template === "booking_deleted" ) {
-    return `Goldridr update: booking ${ reference } was deleted. Contact us if this was unexpected.`;
+    return `Goldridr update: booking ${ reference } was deleted.${ terminal } Contact us if this was unexpected.`;
   }
-  return `Goldridr update: booking ${ reference } is now ${ payload.status || "updated" }.`;
+  return `Goldridr update: booking ${ reference } is now ${ payload.status || "updated" }.${ terminal }`;
 }
 
 function retryAfterMs( error: unknown ): number | undefined {
@@ -114,7 +120,7 @@ export class NotificationWorker {
 
     if ( notification.category === "reminders" && notification.bookingReference ) {
       const booking = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: String( notification.bookingReference ) } );
-      if ( !booking || [ "cancelled", "rejected" ].includes( booking.status ) || zonedDateTimeToDate( booking.date, booking.time ).getTime() <= Date.now() ) {
+      if ( !booking || [ "cancelled", "rejected" ].includes( booking.status ) || zonedDateTimeToDate( String( booking.pickupDate ), String( booking.pickupTime ) ).getTime() <= Date.now() ) {
         await this.queue.update( delivery, { status: "cancelled", leaseToken: null, leaseExpiresAt: null } );
         return;
       }
@@ -130,9 +136,12 @@ export class NotificationWorker {
       metadata?: Record<string, unknown>;
     };
     if ( delivery.channel === "email" ) {
+      if ( typeof delivery.recipient !== "string" || !delivery.recipient.trim() ) {
+        throw new Error( "Email delivery has no recipient address" );
+      }
       const message = await renderNotificationEmail(
         delivery.template || "default",
-        delivery.recipient,
+        delivery.recipient.trim(),
         payload,
         delivery.idempotencyKey
       );

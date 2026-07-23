@@ -217,6 +217,7 @@ interface BookingSummary {
   previousStatus?: string;
   pickup?: string;
   dropoff?: string;
+  terminal?: string;
   passengers?: string;
   duration?: string;
   estimate?: string;
@@ -251,6 +252,7 @@ function BookingCard( { booking }: { booking: BookingSummary } ) {
       <dl className={styles.cardFacts}>
         {booking.pickupDateTime && <CardFact icon={Clock} label="Pickup time" value={booking.pickupDateTime} />}
         {booking.passengers && <CardFact icon={Users} label="Passengers" value={booking.passengers} />}
+        {booking.terminal && <CardFact icon={MapPin} label="Terminal" value={booking.terminal} />}
         {booking.duration && <CardFact icon={Clock} label="Duration" value={booking.duration} />}
         {booking.estimate && <CardFact icon={DollarSign} label="Estimate" value={booking.estimate} />}
       </dl>
@@ -377,6 +379,7 @@ function getBookingSummary( value: unknown ): BookingSummary | null {
   const time = getString( value.time );
   const pickup = getString( tripDetails.pickupLocation ) || getString( tripDetails.pickup );
   const dropoff = getString( tripDetails.dropoffLocation ) || getString( tripDetails.destination );
+  const terminal = getString( tripDetails.terminal );
   const passengers = getString( tripDetails.passengers );
   const duration = getString( value.duration )
     || getString( tripDetails.durationHours )
@@ -420,6 +423,7 @@ function getBookingSummary( value: unknown ): BookingSummary | null {
     "pickup",
     "dropoffLocation",
     "destination",
+    "terminal",
     "passengers",
     "durationHours",
     "duration",
@@ -437,6 +441,7 @@ function getBookingSummary( value: unknown ): BookingSummary | null {
     previousStatus,
     pickup,
     dropoff,
+    terminal,
     passengers,
     duration,
     estimate,

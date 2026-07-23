@@ -26,6 +26,7 @@ async function main() {
 
   try {
   await pb.health.check();
+  await pb.collection("calendar_feed_tokens").getList(1, 1, { fields: "id" });
   const user = await pb.collection("app_users").create({
     email,
     password: `Verify-${suffix}-Aa1!`,
@@ -70,7 +71,7 @@ async function main() {
   const updated = await pb.collection("notification_recipients").getOne(recipientId);
   if (!updated.readAt) throw new Error("Notification read state was not persisted");
 
-  console.log("PocketBase health, auth collection, notifications, and realtime verified.");
+  console.log("PocketBase health, calendar feed tokens, auth collection, notifications, and realtime verified.");
   } finally {
     if (recipientId) await pb.collection("notification_recipients").delete(recipientId).catch(() => undefined);
     if (notificationId) await pb.collection("notifications").delete(notificationId).catch(() => undefined);

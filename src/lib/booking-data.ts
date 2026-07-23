@@ -56,6 +56,7 @@ export function bookingRecordToResponses( booking: BookingRecord ): BookingRespo
       ? String( tripDetails.passengers )
       : undefined,
     flight_number: tripDetails.flightNumber ? String( tripDetails.flightNumber ) : undefined,
+    terminal: tripDetails.terminal ? String( tripDetails.terminal ) : undefined,
     duration: formatDuration( booking, tripDetails ),
     notes: booking.notes || undefined,
     booking_reference: booking.reference,

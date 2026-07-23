@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/admin-ui/button";
@@ -11,29 +12,79 @@ import { RecentBookingsTable } from "./components/recent-bookings-table";
 import { CalendarSyncCard } from "./components/calendar-sync-card";
 import { BookingDetailDialog } from "@/components/booking/BookingDetailDialog";
 import type { BookingDetail } from "@/components/booking/BookingDetailDialog";
+import { qk } from "@/lib/query-keys";
 
 export default function DashboardPage() {
-  const { currentRole } = useAdmin();
-  const [bookings, setBookings] = useState<DashboardBooking[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { currentRole, chauffeurs } = useAdmin();
+  const queryClient = useQueryClient();
   const [selectedBooking, setSelectedBooking] = useState<BookingDetail | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  const fetchBookings = async () => {
-    try {
-      setLoading(true);
+  const { data: bookingsData, isPending: loading, refetch } = useQuery( {
+    queryKey: qk.bookings(),
+    queryFn: async () => {
       const res = await fetch("/api/admin/bookings");
       const data = await res.json();
-      if (data.success) setBookings(data.bookings);
-      else toast.error("Failed to load bookings");
-    } catch {
-      toast.error("Connection error");
-    } finally {
-      setLoading(false);
+      if ( !data.success ) throw new Error( data.error ?? "Failed to load bookings" );
+      return data.bookings as DashboardBooking[];
+    },
+  } );
+
+  const bookings = bookingsData ?? [];
+
+  const handleStatusChange = async ( reference: string, status: string ) => {
+    try {
+      const response = await fetch( "/api/admin/bookings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify( { reference, status } ),
+      } );
+      const data = await response.json();
+      if ( !data.success ) throw new Error( data.error );
+      setSelectedBooking( current => current?.reference === reference ? { ...current, status } : current );
+      await queryClient.invalidateQueries( { queryKey: qk.bookings() } );
+      toast.success( `Booking ${ reference } → ${ status }` );
+      return true;
+    } catch ( error ) {
+      toast.error( error instanceof Error ? error.message : "Unable to update booking" );
+      return false;
     }
   };
 
-  useEffect(() => { fetchBookings(); }, []);
+  const handleChauffeurChange = async ( reference: string, chauffeurId: string | null ) => {
+    try {
+      const response = await fetch( "/api/admin/bookings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify( { reference, chauffeurId } ),
+      } );
+      const data = await response.json();
+      if ( !data.success ) throw new Error( data.error );
+      setSelectedBooking( current => current?.reference === reference ? { ...current, chauffeurId } : current );
+      await queryClient.invalidateQueries( { queryKey: qk.bookings() } );
+      toast.success( "Chauffeur updated" );
+      return true;
+    } catch ( error ) {
+      toast.error( error instanceof Error ? error.message : "Unable to update chauffeur" );
+      return false;
+    }
+  };
+
+  const handleDelete = async ( reference: string ) => {
+    if ( !confirm( `Delete booking ${ reference }?` ) ) return false;
+    try {
+      const response = await fetch( `/api/admin/bookings?reference=${ encodeURIComponent( reference ) }`, { method: "DELETE" } );
+      const data = await response.json();
+      if ( !data.success ) throw new Error( data.error );
+      setSelectedBooking( null );
+      await queryClient.invalidateQueries( { queryKey: qk.bookings() } );
+      toast.success( "Booking deleted" );
+      return true;
+    } catch ( error ) {
+      toast.error( error instanceof Error ? error.message : "Unable to delete booking" );
+      return false;
+    }
+  };
 
   const active = bookings.filter((b) =>
     currentRole.type === "chauffeur" ? b.chauffeurId === currentRole.id : true
@@ -62,7 +113,7 @@ export default function DashboardPage() {
             {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchBookings} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={loading}>
           {loading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
           Refresh
         </Button>
@@ -80,8 +131,11 @@ export default function DashboardPage() {
         booking={selectedBooking}
         open={detailOpen}
         onOpenChange={setDetailOpen}
-        chauffeurs={[]}
+        chauffeurs={chauffeurs}
         role={currentRole.type === "admin" ? "admin" : "chauffeur"}
+        onStatusChange={handleStatusChange}
+        onChauffeurChange={handleChauffeurChange}
+        onDelete={handleDelete}
       />
     </div>
   );

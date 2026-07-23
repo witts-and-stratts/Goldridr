@@ -81,6 +81,16 @@ export function RideResult({ ride, onReset }: { ride: DriverRide; onReset: () =>
               </div>
             )}
 
+            {ride.terminal && (
+              <div className="flex items-center gap-2">
+                <MapPin className="size-3.5 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Terminal</p>
+                  <p className="text-sm">{ride.terminal}</p>
+                </div>
+              </div>
+            )}
+
             {ride.estimatedPrice && (
               <div className="flex items-center gap-2 col-span-2">
                 <span className="text-xs text-muted-foreground">Estimated price:</span>

@@ -127,6 +127,11 @@ export function BookingCard( { booking, routeMapUrl, onMapClick }: BookingCardPr
               <InfoField label="Passengers" value={ responses.passengers || "1" } align="center" />
               <InfoField label="Type" value={ responses.booking_type || "—" } align="right" capitalize />
             </div>
+            { responses.terminal && (
+              <div className="mt-4">
+                <InfoField label="Airport Terminal" value={ responses.terminal } />
+              </div>
+            ) }
           </div>
           <Divider />
         </>

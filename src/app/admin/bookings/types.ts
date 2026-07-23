@@ -17,6 +17,7 @@ export interface Booking {
     pickup?: string;
     destination?: string;
     flightNumber?: string;
+    terminal?: string;
     passengers?: string | number;
     estimatedTotal?: number;
     estimatedPrice?: number;

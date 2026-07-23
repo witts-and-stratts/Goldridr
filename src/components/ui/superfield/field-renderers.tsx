@@ -429,7 +429,7 @@ export const RenderTimePicker = ( {
   props: TimePickerFieldProps;
   base: BaseRendererProps;
 } ) => {
-  const { value, onChange, placeholder, onBlur } = props;
+  const { name, value, onChange, placeholder, onBlur } = props;
 
   const handleChange = ( timeString: string ) => {
     if ( onChange ) {
@@ -445,6 +445,7 @@ export const RenderTimePicker = ( {
   return (
     <TimePickerInput
       id={ base.fieldId }
+      name={ name }
       value={ value as string || "" }
       onChange={ handleChange }
       onBlur={ onBlur }

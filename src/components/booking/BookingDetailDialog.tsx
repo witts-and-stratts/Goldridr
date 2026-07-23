@@ -41,6 +41,7 @@ export interface BookingDetail {
     pickup?: string;
     destination?: string;
     flightNumber?: string;
+    terminal?: string;
     passengers?: string | number;
     estimatedTotal?: number;
     estimatedPrice?: number;
@@ -60,9 +61,9 @@ interface BookingDetailDialogProps {
   chauffeurs?: Chauffeur[];
   /** "admin" shows all actions; "chauffeur" shows read-only */
   role?: "admin" | "chauffeur";
-  onStatusChange?: (reference: string, newStatus: string) => void;
-  onDelete?: (reference: string) => void;
-  onChauffeurChange?: (reference: string, chauffeurId: string | null) => void;
+  onStatusChange?: (reference: string, newStatus: string) => Promise<unknown> | unknown;
+  onDelete?: (reference: string) => Promise<unknown> | unknown;
+  onChauffeurChange?: (reference: string, chauffeurId: string | null) => Promise<unknown> | unknown;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -121,11 +122,22 @@ export function BookingDetailDialog({
       setMessageSubject( "" );
       setMessageBody( "" );
       setShowMessageComposer( false );
+      onOpenChange( false );
       toast.success( "Passenger message queued" );
     } catch ( error ) {
       toast.error( error instanceof Error ? error.message : "Unable to queue message" );
     } finally {
       setSending( false );
+    }
+  };
+
+  const closeAfterSuccess = async ( action?: () => Promise<unknown> | unknown ) => {
+    if ( !action ) return;
+    try {
+      const result = await action();
+      if ( result !== false && result !== undefined ) onOpenChange( false );
+    } catch {
+      // Parent actions report errors and keep the dialog available for retry.
     }
   };
 
@@ -203,12 +215,13 @@ export function BookingDetailDialog({
                     {booking.tripType !== "hourly" && <div className="flex items-start gap-2.5"><MapPin className="size-3.5 text-muted-foreground/70 shrink-0 mt-0.5" /><span className="text-muted-foreground">{dropoff}</span></div>}
                   </div>
                 </div>
-                {(booking.tripDetails?.passengers || booking.tripDetails?.flightNumber || booking.tripDetails?.durationHours) && (
+                {(booking.tripDetails?.passengers || booking.tripDetails?.flightNumber || booking.tripDetails?.terminal || booking.tripDetails?.durationHours) && (
                   <div className="booking-detail-row">
                     <p className="booking-detail-row-label">Details</p>
                     <div className="flex flex-wrap gap-4 text-sm">
                       {booking.tripDetails.passengers && <span className="flex items-center gap-1.5 text-muted-foreground"><Users className="size-3.5" />{booking.tripDetails.passengers} passengers</span>}
                       {booking.tripDetails.flightNumber && <span className="flex items-center gap-1.5 text-muted-foreground"><Plane className="size-3.5" />{booking.tripDetails.flightNumber}</span>}
+                      {booking.tripDetails.terminal && <span className="flex items-center gap-1.5 text-muted-foreground"><MapPin className="size-3.5" />Terminal {booking.tripDetails.terminal}</span>}
                       {booking.tripDetails.durationHours && <span className="flex items-center gap-1.5 text-muted-foreground"><Clock className="size-3.5" />{booking.tripDetails.durationHours}h</span>}
                     </div>
                   </div>
@@ -234,7 +247,7 @@ export function BookingDetailDialog({
                     <ChauffeurPicker
                       chauffeurs={chauffeurs}
                       value={booking.chauffeurId}
-                      onChange={(newId) => onChauffeurChange?.(booking.reference, newId)}
+                      onChange={(newId) => void closeAfterSuccess(() => onChauffeurChange?.(booking.reference, newId))}
                       className="min-w-56"
                     />
                   </div>
@@ -256,7 +269,7 @@ export function BookingDetailDialog({
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => onDelete?.(booking.reference)}
+                  onClick={() => void closeAfterSuccess(() => onDelete?.(booking.reference))}
                   aria-label={`Delete booking ${booking.reference}`}
                   className="size-9 text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
@@ -264,9 +277,9 @@ export function BookingDetailDialog({
                 </Button>
                 </div>
                 <div className="flex gap-2">
-                {booking.status === "pending" && (<><Button variant="outline" size="sm" onClick={() => onStatusChange?.(booking.reference, "rejected")}>Reject</Button><Button size="sm" onClick={() => onStatusChange?.(booking.reference, "confirmed")}>Confirm</Button></>)}
-                {(booking.status === "confirmed" || booking.status === "accepted") && <Button variant="destructive" size="sm" onClick={() => onStatusChange?.(booking.reference, "cancelled")}>Cancel</Button>}
-                {(booking.status === "cancelled" || booking.status === "rejected") && <Button size="sm" onClick={() => onStatusChange?.(booking.reference, "confirmed")}>Restore</Button>}
+                {booking.status === "pending" && (<><Button variant="outline" size="sm" onClick={() => void closeAfterSuccess(() => onStatusChange?.(booking.reference, "rejected"))}>Reject</Button><Button size="sm" onClick={() => void closeAfterSuccess(() => onStatusChange?.(booking.reference, "confirmed"))}>Confirm</Button></>)}
+                {(booking.status === "confirmed" || booking.status === "accepted") && <Button variant="destructive" size="sm" onClick={() => void closeAfterSuccess(() => onStatusChange?.(booking.reference, "cancelled"))}>Cancel</Button>}
+                {(booking.status === "cancelled" || booking.status === "rejected") && <Button size="sm" onClick={() => void closeAfterSuccess(() => onStatusChange?.(booking.reference, "confirmed"))}>Restore</Button>}
                 </div>
               </footer>
             )}

@@ -15,6 +15,7 @@ export const pocketBaseCollections = {
   settings: "app_settings",
   smsConsents: "sms_consents",
   passwordResetTokens: "password_reset_tokens",
+  calendarFeedTokens: "calendar_feed_tokens",
   mockSmsMessages: "mock_sms_messages",
   pushReceipts: "push_receipts",
 } as const;

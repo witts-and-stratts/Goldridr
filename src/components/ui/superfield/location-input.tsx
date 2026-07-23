@@ -46,7 +46,6 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
   const containerRef = useRef<HTMLDivElement>( null );
   const sessionToken = useRef<any | null>( null );
   const autocompleteService = useRef<any>( null );
-  const placesService = useRef<any | null>( null );
 
   // Sync external value changes
   useEffect( () => {
@@ -63,14 +62,9 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
       try {
         const { AutocompleteSessionToken, AutocompleteSuggestion } =
           await window.google.maps.importLibrary( "places" ) as any;
-        const { PlacesService } = await window.google.maps.importLibrary( "places" ) as any;
 
         sessionToken.current = new AutocompleteSessionToken();
         autocompleteService.current = AutocompleteSuggestion;
-
-        // We need a dummy div for PlacesService
-        const dummyDiv = document.createElement( 'div' );
-        placesService.current = new PlacesService( dummyDiv );
 
       } catch ( error ) {
         console.error( "Error loading Google Maps Places Library", error );
@@ -120,45 +114,10 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
           locationRestriction: texasBounds,
         };
 
-        // Note: fetchAutocompleteSuggestions might be static or instance depending on version
-        // Using class directly as per previous implementation, but checking docs usually it's a service instance.
-        // Previous implementation used: autocompleteService.current.fetchAutocompleteSuggestions(request)
-        // where autocompleteService.current assigned AutocompleteSuggestion class? 
-        // Wait, AutocompleteSuggestion is a class representing a suggestion.
-        // AutocompleteService is the service class.
-        // Previous code: `autocompleteService.current = AutocompleteSuggestion` -- This looks WRONG if logic was `fetchAutocompleteSuggestions`. 
-        // `AutocompleteSuggestion` doesn't have `fetchAutocompleteSuggestions`. `AutocompleteService` does.
-        // Let's check previous code again.
+        const { suggestions } = await autocompleteService.current.fetchAutocompleteSuggestions( request );
 
-        // Re-reading Step 1794:
-        // const { AutocompleteSessionToken, AutocompleteSuggestion } = await google.maps.importLibrary( "places" )
-        // sessionToken.current = new AutocompleteSessionToken();
-        // autocompleteService.current = AutocompleteSuggestion;
-        // ... await autocompleteService.current.fetchAutocompleteSuggestions( request );
-
-        // If I assume the previous code was working, maybe `AutocompleteSuggestion` has static method?
-        // Or maybe I misread `AutocompleteSuggestion` vs `AutocompleteService`.
-        // Actually, `google.maps.places.AutocompleteService` is the standard class. 
-        // `AutocompleteSuggestion` is the type of result.
-
-        // I will use `AutocompleteService` to be safe and standard.
-        const { AutocompleteService } = await window.google.maps.importLibrary( "places" ) as any;
-        const service = new AutocompleteService();
-
-        const { predictions } = await service.getPlacePredictions( request ); // getPlacePredictions is the standard method
-
-        if ( predictions && predictions.length > 0 ) {
-          // Mapping to match previous structure or just use predictions
-          // Previous code used `fetchAutocompleteSuggestions` returning `{ suggestions }`. This looks like newer API.
-          // Newer API: `Place.findPlaceFromQuery`? No.
-          // `google.maps.places.AutocompleteService` -> `getPlacePredictions`.
-
-          // Let's stick to standard `AutocompleteService` and `getPlacePredictions`.
-          // But wait, the previous code might have been using the NEW Places API (Place Autocomplete New).
-          // If so, it uses `AutocompleteSuggestion` ??
-
-          // I'll stick to a robust implementation using `AutocompleteService`.
-          setPredictions( predictions as any );
+        if ( suggestions && suggestions.length > 0 ) {
+          setPredictions( suggestions );
           setIsOpen( true );
         } else {
           setPredictions( [] );
@@ -172,17 +131,17 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
     }
   };
 
-  const handlePredictionSelect = ( suggestion: any ) => {
-    // suggestion is google.maps.places.AutocompletePrediction
+  const handlePredictionSelect = async ( suggestion: any ) => {
     const text = suggestion.description || suggestion.placePrediction?.text?.toString();
 
     if ( text ) {
       setInputValue( text );
       onChange( text );
 
-      // If we need details (lat/lng), we'd use PlacesService.getDetails here if onLocationSelect is provided
-      if ( onLocationSelect && suggestion.place_id ) {
-        // TODO: Implement getDetails if needed. For now just passing text is what the form expects.
+      if ( onLocationSelect && suggestion.placePrediction ) {
+        const place = suggestion.placePrediction.toPlace();
+        await place.fetchFields( { fields: [ "displayName", "formattedAddress", "location" ] } );
+        onLocationSelect( place );
       }
     }
     setIsOpen( false );

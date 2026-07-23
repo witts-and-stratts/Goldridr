@@ -17,6 +17,7 @@ export interface DriverRide {
   destination: string | null;
   passengers: string | null;
   flightNumber: string | null;
+  terminal: string | null;
   estimatedPrice: string | null;
   notes: string | null;
 }
@@ -38,6 +39,7 @@ export function bookingRecordToDriverRide( booking: BookingRecord ): DriverRide 
     destination: responses.destination ?? null,
     passengers: responses.passengers ?? null,
     flightNumber: responses.flight_number ?? null,
+    terminal: responses.terminal ?? null,
     estimatedPrice: responses.estimated_total ?? responses.estimated_price ?? null,
     notes: booking.notes || null,
   };

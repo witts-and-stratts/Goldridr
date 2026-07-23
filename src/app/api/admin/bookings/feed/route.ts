@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { unstable_rethrow } from "next/navigation";
-import { verifySessionToken } from "@/lib/auth";
 import { getAllBookings, getBookingsForChauffeur } from "@/lib/pocketbase/repository";
+import { validatePocketBaseCalendarFeedToken } from "@/lib/pocketbase/operations";
 import { getRequestSession } from "@/lib/driver-auth";
 
 // Helper to format date strings to RFC 5545 iCal format: YYYYMMDDTHHMMSSZ
@@ -36,8 +36,8 @@ export async function GET( request: Request ) {
   try {
     const url = new URL( request.url );
     const feedToken = url.searchParams.get( "token" );
-    const session = feedToken
-      ? verifySessionToken( feedToken )
+    const session = feedToken && await validatePocketBaseCalendarFeedToken( feedToken )
+      ? { role: "admin" as const }
       : await getRequestSession( request );
     if ( !session ) {
       return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
@@ -75,6 +75,7 @@ export async function GET( request: Request ) {
       const pickup = String( details.pickupLocation || details.pickup || "N/A" );
       const dropoff = String( details.dropoffLocation || details.destination || "N/A" );
       const flightNumber = String( details.flightNumber || "" );
+      const terminal = String( details.terminal || "" );
       const passengers = String( details.passengers || "1" );
       const durationHours = Number( details.durationHours ) || 1;
 
@@ -96,6 +97,9 @@ export async function GET( request: Request ) {
 
       if ( flightNumber ) {
         descriptionLines.push( `Flight Number: ${ flightNumber }` );
+      }
+      if ( terminal ) {
+        descriptionLines.push( `Airport Terminal: ${ terminal }` );
       }
       
       descriptionLines.push( `Passengers count: ${ passengers }` );
@@ -134,7 +138,7 @@ export async function GET( request: Request ) {
     return new NextResponse( icsContent.join( "\r\n" ), {
       headers: {
         "Content-Type": "text/calendar; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="goldridr-bookings.ics"',
+        "Content-Disposition": 'inline; filename="goldridr-bookings.ics"',
         "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
       },
     } );

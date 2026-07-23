@@ -8,6 +8,7 @@ import {
   saveBooking,
 } from "@/lib/pocketbase/repository";
 import { bookingRecordToBookingData } from "@/lib/booking-data";
+import { createPocketBaseBookingCreated } from "@/lib/pocketbase/notifications";
 import { getNotificationTimeZone } from "@/lib/admin-settings";
 import {
   assertFutureBookingTime,
@@ -36,6 +37,7 @@ const TripDetailsSchema = z.object( {
   estimatedDurationMinutes: z.number().optional(),
   passengers: z.union( [ z.string(), z.number() ] ).optional(),
   flightNumber: z.string().optional(),
+  terminal: z.string().trim().max( 80 ).optional(),
 } ).loose();
 
 const BookingRequestSchema = z.object( {
@@ -49,6 +51,14 @@ const BookingRequestSchema = z.object( {
   tripType: z.enum( [ "airport", "city", "hourly" ] ).optional().default( "airport" ),
   tripDetails: TripDetailsSchema.optional(),
   discountCode: z.string().trim().optional().default( "" ),
+} ).superRefine( ( input, ctx ) => {
+  if ( input.tripType === "airport" && !input.tripDetails?.terminal?.trim() ) {
+    ctx.addIssue( {
+      code: "custom",
+      path: [ "tripDetails", "terminal" ],
+      message: "Terminal is required for airport bookings",
+    } );
+  }
 } );
 
 type BookingRequestInput = z.infer<typeof BookingRequestSchema>;
@@ -204,6 +214,8 @@ export async function POST( req: Request ) {
       smsConsentVersion: input.smsOptIn && input.attendee.phone ? input.smsConsentVersion : null,
       smsConsentedAt: input.smsOptIn && input.attendee.phone ? new Date().toISOString() : null,
     } );
+
+    await createPocketBaseBookingCreated( savedBooking );
 
     return NextResponse.json( {
       success: true,
