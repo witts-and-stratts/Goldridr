@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   InputGroup,
   InputGroupAddon,
@@ -59,6 +58,15 @@ const minutes = Array.from( { length: 12 }, ( _, i ) => {
 
 const periods = [ 'AM', 'PM' ];
 
+const quickTimes = [
+  { label: "8:00 AM", value: "08:00" },
+  { label: "9:00 AM", value: "09:00" },
+  { label: "10:00 AM", value: "10:00" },
+  { label: "12:00 PM", value: "12:00" },
+  { label: "2:00 PM", value: "14:00" },
+  { label: "5:00 PM", value: "17:00" },
+];
+
 // Convert 24-hour format to 12-hour format
 function parse24HourTime( time: string ): { hour: string; minute: string; period: string; } {
   if ( !time || !time.match( /^\d{2}:\d{2}$/ ) ) {
@@ -91,6 +99,7 @@ function format24HourTime( hour: string, minute: string, period: string ): strin
 
 export const TimePickerInput = ( {
   id,
+  name,
   value,
   onChange,
   disabled,
@@ -98,37 +107,31 @@ export const TimePickerInput = ( {
   onBlur,
 }: TimePickerInputProps ) => {
   const parsed = parse24HourTime( value || '' );
-  const [ hour, setHour ] = useState( parsed.hour );
-  const [ minute, setMinute ] = useState( parsed.minute );
-  const [ period, setPeriod ] = useState( parsed.period );
-  const [ isOpen, setIsOpen ] = useState( false );
-
-  // Update internal state when external value changes
-  useEffect( () => {
-    const parsed = parse24HourTime( value || '' );
-    setHour( parsed.hour );
-    setMinute( parsed.minute );
-    setPeriod( parsed.period );
-  }, [ value ] );
+  const { hour, minute, period } = parsed;
 
   const handleChange = ( newHour: string, newMinute: string, newPeriod: string ) => {
     const time24 = format24HourTime( newHour, newMinute, newPeriod );
     onChange?.( time24 );
   };
 
+  const selectTime = ( time: string ) => {
+    onChange?.( time );
+  };
+
   // Format display value
   const displayValue = value ? `${ hour }:${ minute } ${ period }` : '';
 
   return (
-    <Popover open={ isOpen } onOpenChange={ setIsOpen }>
+    <Popover>
       <PopoverTrigger
         render={
           <div className={ cn( "w-full cursor-pointer", disabled && "cursor-not-allowed opacity-50" ) }>
-            <InputGroup className={ cn( "h-12", className ) }>
+            <InputGroup className={ cn( "h-12 transition-colors hover:border-gold/60 data-[state=open]:border-gold", className ) }>
               <InputGroupInput
                 id={ id }
+                name={ name }
                 value={ displayValue }
-                placeholder="Select time..."
+                placeholder="Choose pickup time"
                 readOnly
                 disabled={ disabled }
                 onBlur={ onBlur }
@@ -152,7 +155,7 @@ export const TimePickerInput = ( {
         }
       />
       <PopoverContent
-        className="w-(--anchor-width) p-4"
+        className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 bg-black"
         align="end"
         alignOffset={ 0 }
         sideOffset={ 4 }
@@ -160,23 +163,52 @@ export const TimePickerInput = ( {
         <div
           onClick={ ( e ) => e.stopPropagation() }
           onMouseDown={ ( e ) => e.stopPropagation() }
-          className="flex flex-col gap-3"
+          className="flex flex-col"
         >
-          <div className="flex items-center gap-2">
-            <div className="flex-1">
-              <label className="text-xs text-muted-foreground mb-1 block">Hour</label>
+          <div className="border-b border-border/10 px-4 py-3">
+            <p className="text-sm font-medium text-foreground">Pickup time</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Choose a common time or set one precisely.</p>
+          </div>
+
+          <div className="px-4 pb-4 pt-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Popular times</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              { quickTimes.map( ( option ) => (
+                <button
+                  key={ option.value }
+                  type="button"
+                  disabled={ disabled }
+                  aria-pressed={ value === option.value }
+                  onClick={ () => selectTime( option.value ) }
+                  className={ cn(
+                    "h-9 border border-border/30 px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold disabled:pointer-events-none disabled:opacity-50",
+                    value === option.value
+                      ? "border-gold bg-gold text-black!"
+                      : "bg-transparent text-foreground hover:border-gold/60 hover:bg-gold/10"
+                  ) }
+                >
+                  { option.label }
+                </button>
+              ) ) }
+            </div>
+          </div>
+
+          <div className="border-t border-border/10 px-4 py-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Set a precise time</p>
+            <div className="grid grid-cols-[1fr_1fr_0.9fr] gap-2">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground" htmlFor={ `${ id }-hour` }>Hour</label>
               <Select
                 value={ hour }
                 onValueChange={ ( val ) => {
                   if ( val ) {
-                    setHour( val );
                     handleChange( val, minute, period );
                   }
                 } }
                 disabled={ disabled }
               >
-                <SelectTrigger className="w-full p-1.5 h-8">
-                  <SelectValue placeholder="HH" className="text-xs" />
+                <SelectTrigger id={ `${ id }-hour` } className="h-9 w-full px-2">
+                  <SelectValue placeholder="Hour" className="text-xs" />
                 </SelectTrigger>
                 <SelectContent>
                   { hours.map( ( h ) => (
@@ -186,22 +218,21 @@ export const TimePickerInput = ( {
                   ) ) }
                 </SelectContent>
               </Select>
-            </div>
+              </div>
 
-            <div className="flex-1">
-              <label className="text-xs text-muted-foreground mb-1 block">Minute</label>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground" htmlFor={ `${ id }-minute` }>Minute</label>
               <Select
                 value={ minute }
                 onValueChange={ ( val ) => {
                   if ( val ) {
-                    setMinute( val );
                     handleChange( hour, val, period );
                   }
                 } }
                 disabled={ disabled }
               >
-                <SelectTrigger className="w-full p-1.5 h-8">
-                  <SelectValue placeholder="MM" className="text-xs" />
+                <SelectTrigger id={ `${ id }-minute` } className="h-9 w-full px-2">
+                  <SelectValue placeholder="Minute" className="text-xs" />
                 </SelectTrigger>
                 <SelectContent>
                   { minutes.map( ( m ) => (
@@ -211,22 +242,21 @@ export const TimePickerInput = ( {
                   ) ) }
                 </SelectContent>
               </Select>
-            </div>
+              </div>
 
-            <div className="flex-1">
-              <label className="text-xs text-muted-foreground mb-1 block">Period</label>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground" htmlFor={ `${ id }-period` }>AM / PM</label>
               <Select
                 value={ period }
                 onValueChange={ ( val ) => {
                   if ( val ) {
-                    setPeriod( val );
                     handleChange( hour, minute, val );
                   }
                 } }
                 disabled={ disabled }
               >
-                <SelectTrigger className="w-full p-1.5 h-8">
-                  <SelectValue placeholder="AM" className="text-xs" />
+                <SelectTrigger id={ `${ id }-period` } className="h-9 w-full px-2">
+                  <SelectValue placeholder="AM / PM" className="text-xs" />
                 </SelectTrigger>
                 <SelectContent>
                   { periods.map( ( p ) => (
@@ -236,12 +266,17 @@ export const TimePickerInput = ( {
                   ) ) }
                 </SelectContent>
               </Select>
+              </div>
             </div>
           </div>
+
+          { value && (
+            <div className="border-t border-border bg-muted/30 px-4 py-2.5 text-center text-xs text-muted-foreground">
+              Pickup set for <span className="font-medium text-foreground">{ displayValue }</span>
+            </div>
+          ) }
         </div>
       </PopoverContent>
     </Popover>
   );
 };
-
-

@@ -18,6 +18,8 @@ export const PassengersSchema = z.string().min( 1, "Number of passengers is requ
 
 export const FlightNumberSchema = z.string().min( 2, "Flight number is required" );
 
+export const TerminalSchema = z.string().trim().min( 1, "Terminal is required" ).max( 80, "Terminal is too long" );
+
 export const DurationSchema = z.string().min( 1, "Duration is required" );
 
 function hasFuturePickup( data: { date: Date; time: string } ): boolean {
@@ -76,6 +78,7 @@ export function getFieldErrorMessage( errors: unknown ): string | undefined {
 
 export const AirportFormSchema = z.object( {
   flightNumber: FlightNumberSchema,
+  terminal: TerminalSchema,
   passengers: PassengersSchema,
   pickupLocation: LocationSchema,
   dropoffLocation: LocationSchema,

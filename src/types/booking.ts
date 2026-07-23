@@ -15,6 +15,7 @@ export interface BookingResponses {
   estimated_total?: string;
   passengers?: string;
   flight_number?: string;
+  terminal?: string;
   duration?: string;
   notes?: string;
   booking_reference?: string;

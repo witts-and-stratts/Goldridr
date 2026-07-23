@@ -12,6 +12,7 @@
     "notifications:worker": "tsx scripts/notification-worker.ts",
     "notifications:once": "tsx scripts/notification-once.ts",
     "pocketbase:backup": "tsx scripts/pocketbase-backup.ts",
+    "pocketbase:migrate": "docker compose exec pocketbase pocketbase migrate up --dir=/pb/pb_data --migrationsDir=/pb/pb_migrations",
     "pocketbase:verify": "tsx scripts/pocketbase-verify.ts"
   },
   "dependencies": {

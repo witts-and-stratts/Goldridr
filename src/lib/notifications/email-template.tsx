@@ -41,6 +41,7 @@ interface EmailContent {
     dropoff?: string;
     passengers?: string;
     flightNumber?: string;
+    terminal?: string;
     duration?: string;
     estimate?: string;
     notes?: string;
@@ -144,6 +145,7 @@ function bookingContent(
     dropoff: stringValue( tripDetails.dropoffLocation || tripDetails.destination ),
     passengers: stringValue( tripDetails.passengers ),
     flightNumber: stringValue( tripDetails.flightNumber ),
+    terminal: stringValue( tripDetails.terminal ),
     duration: durationHours ? `${ durationHours } ${ durationHours === 1 ? "hour" : "hours" }` : "",
     estimate: formatCurrency( tripDetails.estimatedTotal ?? tripDetails.estimatedPrice ),
     notes: stringValue( payload.notes ),
@@ -194,6 +196,7 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
         message: `Your booking ${ reference } is now ${ status }.`,
         appUrl,
         details: [ [ "Pickup", dateTime ] ],
+        booking: bookingContent( payload, reference, status || "Updated" ),
       };
     }
     case "booking_assignment": {
@@ -223,6 +226,7 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
         message: `Hi ${ passenger }, booking ${ reference } has been removed from our system. Contact Goldridr if you believe this was unexpected.`,
         appUrl,
         details: [ [ "Scheduled pickup", dateTime ] ],
+        booking: bookingContent( payload, reference, "Deleted" ),
       };
     case "booking_reminder":
       return {
@@ -234,6 +238,7 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
         message: `This is a reminder that your Goldridr pickup is scheduled for ${ dateTime }.`,
         appUrl,
         details: [ [ "Reference", reference ] ],
+        booking: bookingContent( payload, reference, "Pickup reminder" ),
       };
     case "chauffeur_assignment":
       return {
@@ -244,6 +249,7 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
         appUrl,
         ctaLabel: "Open dispatch",
         ctaUrl: `${ appUrl }/admin/bookings`,
+        booking: bookingContent( payload, reference, "Assigned" ),
       };
     case "chauffeur_unassigned":
       return {
@@ -264,6 +270,7 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
         appUrl,
         ctaLabel: "View booking",
         ctaUrl: `${ appUrl }/admin/bookings`,
+        booking: bookingContent( payload, reference, "Pickup reminder" ),
       };
     case "manual_message":
     case "broadcast":
@@ -315,6 +322,7 @@ function BookingCard( {
   const supportingDetails = [
     booking.passengers ? [ "Passengers", booking.passengers ] : null,
     booking.flightNumber ? [ "Flight", booking.flightNumber ] : null,
+    booking.terminal ? [ "Terminal", booking.terminal ] : null,
     booking.duration ? [ "Duration", booking.duration ] : null,
   ].filter( Boolean ) as Array<[ string, string ]>;
 

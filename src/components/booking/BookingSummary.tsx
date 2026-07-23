@@ -115,6 +115,12 @@ export function BookingSummary( {
             ) }
           </div>
         ) }
+        { bookingType === "airport" && bookingData.terminal && (
+          <div>
+            <span className="block text-xs text-gray-500">Airport Terminal</span>
+            <span className="font-bold text-lg font-wide">{ bookingData.terminal }</span>
+          </div>
+        ) }
       </div>
 
       <div className="border-t border-dashed border-gray-800 mx-5"></div>

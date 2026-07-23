@@ -94,10 +94,11 @@ export default function BookingsPage() {
       success: `Booking ${reference} → ${newStatus}`,
       error: (e) => e.message,
     });
+    return promise;
   };
 
   const handleDelete = async (reference: string) => {
-    if (!confirm(`Delete booking ${reference}?`)) return;
+    if (!confirm(`Delete booking ${reference}?`)) return false;
     const promise = fetch(`/api/admin/bookings?reference=${reference}`, { method: "DELETE" })
       .then(async (res) => {
         const data = await res.json();
@@ -108,6 +109,7 @@ export default function BookingsPage() {
         return data;
       });
     toast.promise(promise, { loading: "Deleting…", success: "Deleted", error: (e) => e.message });
+    return promise;
   };
 
 
@@ -410,8 +412,10 @@ export default function BookingsPage() {
             toast.success("Chauffeur updated");
             queryClient.invalidateQueries( { queryKey: qk.bookings() } );
             setSelected((p) => p ? { ...p, chauffeurId } : null);
+            return true;
           } catch (err) {
             toast.error("Failed", { description: err instanceof Error ? err.message : "Unknown error" });
+            return false;
           }
         }}
       />

@@ -119,7 +119,7 @@ export const SearchableSelect = ( {
                       setOpen( false );
                     } }
                     disabled={ optDisabled }
-                    className="data-selected:bg-accent data-selected:text-accent-foreground relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 bg-background"
+                    className="relative flex cursor-default select-none items-center rounded-sm bg-zinc-900 py-1.5 pl-2 pr-8 text-sm text-zinc-100 outline-none transition-colors hover:!bg-zinc-700 hover:!text-zinc-50 data-selected:!bg-zinc-700 data-selected:!text-zinc-50 data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50"
                   >
                     <span className="line-clamp-1">{ optLabel }</span>
                     { value === optValue && (

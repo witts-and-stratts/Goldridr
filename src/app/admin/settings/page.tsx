@@ -7,8 +7,25 @@ import { Button } from "@/components/admin-ui/button";
 import { Checkbox } from "@/components/admin-ui/checkbox";
 import { Input } from "@/components/admin-ui/input";
 import { Separator } from "@/components/admin-ui/separator";
+import { SearchableSelect } from "@/components/ui/superfield/searchable-select";
 import type { Preference, AdminSettingsState } from "./types";
 import { EMPTY_SETTINGS, NOTIFICATION_CATEGORIES, NOTIFICATION_CHANNELS } from "./constants";
+
+const TIMEZONE_LABEL_DATE = new Date();
+
+function timezoneOffsetLabel(timezone: string): string {
+  const offset = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    timeZoneName: "longOffset",
+  }).formatToParts(TIMEZONE_LABEL_DATE).find(part => part.type === "timeZoneName")?.value || "GMT";
+  const normalized = offset === "GMT" ? "GMT +00:00" : offset.replace(/^GMT([+-])(\d{2}):(\d{2})$/, "GMT $1$2:$3");
+  return `${timezone} (${normalized})`;
+}
+
+const AVAILABLE_TIMEZONES = [ "UTC", ...Intl.supportedValuesOf( "timeZone" ) ].map(timezone => ({
+  value: timezone,
+  label: timezoneOffsetLabel(timezone),
+}));
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -171,11 +188,12 @@ export default function SettingsPage() {
               />
             </label>
             <label className="grid gap-1 text-sm">
-              <span className="text-muted-foreground">Notification timezone</span>
-              <Input
+              <span className="text-muted-foreground">Timezone</span>
+              <SearchableSelect
                 value={settings.notificationTimezone}
-                onChange={event => updateField("notificationTimezone", event.target.value)}
-                placeholder="America/Chicago"
+                onValueChange={value => value && updateField("notificationTimezone", value)}
+                options={AVAILABLE_TIMEZONES}
+                placeholder="Search timezones"
               />
             </label>
             <label className="grid gap-1 text-sm md:col-span-2">

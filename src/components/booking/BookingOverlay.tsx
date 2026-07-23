@@ -28,6 +28,8 @@ export function BookingOverlay( { isOpen, onClose }: BookingOverlayProps ) {
     }
   };
 
+  const handleBookingSuccess = () => handleClose( false );
+
   return (
     <Dialog open={ isOpen } onOpenChange={ handleClose }>
       <DialogContent className="max-w-10xl bg-black/60 border-none shadow-none p-0 overflow-hidden text-white sm:max-w-7xl h-full">
@@ -44,15 +46,15 @@ export function BookingOverlay( { isOpen, onClose }: BookingOverlayProps ) {
           ) }
 
           { view === "airport" && (
-            <AirportForm onBack={ () => setView( "options" ) } />
+            <AirportForm onBack={ () => setView( "options" ) } onSuccess={ handleBookingSuccess } />
           ) }
 
           { view === "town" && (
-            <TownForm onBack={ () => setView( "options" ) } />
+            <TownForm onBack={ () => setView( "options" ) } onSuccess={ handleBookingSuccess } />
           ) }
 
           { view === "hourly" && (
-            <HourlyForm onBack={ () => setView( "options" ) } />
+            <HourlyForm onBack={ () => setView( "options" ) } onSuccess={ handleBookingSuccess } />
           ) }
         </div>
       </DialogContent>

@@ -86,7 +86,6 @@ services:
     depends_on:
       pocketbase:
         condition: service_healthy
-    volumes:
     healthcheck:
       test: ["CMD-SHELL", "test -f /tmp/notification-worker.ready"]
       interval: 5s

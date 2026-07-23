@@ -16,6 +16,7 @@ import * as z from "zod";
 
 interface AirportFormProps {
   onBack: () => void;
+  onSuccess: () => void;
 }
 
 // Shared imports
@@ -58,10 +59,11 @@ const TEXAS_AIRPORTS = [
 ];
 
 
-export function AirportForm( { onBack }: AirportFormProps ) {
+export function AirportForm( { onBack, onSuccess }: AirportFormProps ) {
   const form = useForm( {
     defaultValues: {
       flightNumber: "",
+      terminal: "",
       passengers: "1",
       pickupLocation: "",
       dropoffLocation: "",
@@ -142,6 +144,7 @@ export function AirportForm( { onBack }: AirportFormProps ) {
             tripType: "airport",
             tripDetails: {
               flightNumber: bookingData?.flightNumber,
+              terminal: bookingData?.terminal,
               passengers: bookingData?.passengers,
               pickupLocation: bookingData?.pickupLocation,
               dropoffLocation: bookingData?.dropoffLocation,
@@ -160,6 +163,7 @@ export function AirportForm( { onBack }: AirportFormProps ) {
           toast.success( "Booking confirmed!", {
             description: `Your booking reference is ${ data.booking?.reference || "" }. We'll send you a confirmation email shortly.`,
           } );
+          onSuccess();
         } else {
           showBookingErrorToast( data, ( slot ) => {
             setBookingData( ( current ) => current ? {
@@ -260,6 +264,9 @@ export function AirportForm( { onBack }: AirportFormProps ) {
             if ( data.arrival?.airport ) {
               form.setFieldValue( "pickupLocation", data.arrival.airport );
             }
+            if ( data.arrival?.terminal ) {
+              form.setFieldValue( "terminal", data.arrival.terminal );
+            }
             // Use arrival time for pickup
             if ( data.arrival?.scheduled ) {
               const arrDate = new Date( data.arrival.scheduled );
@@ -271,6 +278,9 @@ export function AirportForm( { onBack }: AirportFormProps ) {
             setTripDirection( 'to_airport' );
             if ( data.departure?.airport ) {
               form.setFieldValue( "dropoffLocation", data.departure.airport );
+            }
+            if ( data.departure?.terminal ) {
+              form.setFieldValue( "terminal", data.departure.terminal );
             }
             // Use departure time (suggest pickup 2-3 hours before)
             if ( data.departure?.scheduled ) {
@@ -542,7 +552,7 @@ export function AirportForm( { onBack }: AirportFormProps ) {
             <ArrowLeft className="size-4" />
           </Button>
 
-          <div className="flex flex-col items-center justify-center gap-2 w-full md:mb-6 py-8 md:py-12">
+          <div className="flex flex-col items-center justify-center gap-2 w-full md:mb-6 py-4 md:py-4">
             <Image src="/assets/images/icon/airplane.svg" alt="Airport Transfer" width={ 48 } height={ 48 } />
             <h2 className="font-widest font-wide uppercase tracking-[5px] text-2xl text-white">Airport Transfer</h2>
           </div>
@@ -679,6 +689,22 @@ export function AirportForm( { onBack }: AirportFormProps ) {
                       value: num.toString(),
                       label: `${ num } Passenger${ num > 1 ? "s" : "" }`
                     } ) ) }
+                  />
+                ) }
+              />
+
+              <form.Field
+                name="terminal"
+                children={ ( field ) => (
+                  <SuperField
+                    type="text"
+                    id={ field.name }
+                    label="Airport Terminal"
+                    placeholder="e.g. Terminal A"
+                    value={ field.state.value }
+                    onChange={ ( event ) => field.handleChange( event.target.value ) }
+                    onBlur={ field.handleBlur }
+                    error={ getFieldErrorMessage( field.state.meta.errors ) }
                   />
                 ) }
               />

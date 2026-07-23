@@ -5,11 +5,13 @@ import { PastBookingTimeError } from "@/lib/booking-time";
 import {
   deleteBooking,
   getAllBookings,
+  getBookingByReference,
   getBookingsForChauffeur,
   updateBookingChauffeur,
   updateBookingSchedule,
   updateBookingStatus,
 } from "@/lib/pocketbase/repository";
+import { createPocketBaseBookingStatusUpdate } from "@/lib/pocketbase/notifications";
 
 export async function GET( req: Request ) {
   try {
@@ -68,9 +70,11 @@ export async function PATCH( req: Request ) {
     }
 
     let updated = false;
+    let statusUpdated = false;
 
     if ( status !== undefined ) {
-      updated = await updateBookingStatus( reference, status );
+      statusUpdated = await updateBookingStatus( reference, status );
+      updated = statusUpdated;
     }
 
     if ( chauffeurId !== undefined ) {
@@ -93,6 +97,10 @@ export async function PATCH( req: Request ) {
     }
 
     if ( updated ) {
+      if ( statusUpdated ) {
+        const booking = await getBookingByReference( reference );
+        if ( booking ) await createPocketBaseBookingStatusUpdate( booking );
+      }
       return NextResponse.json( {
         success: true,
         message: "Booking updated successfully"

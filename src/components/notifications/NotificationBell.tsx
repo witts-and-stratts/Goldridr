@@ -47,22 +47,10 @@ export function NotificationBell() {
     };
   }, [] );
 
-  const markVisibleRead = async () => {
-    const ids = items.filter( item => !item.readAt ).map( item => item.recipientId );
-    if ( ids.length === 0 ) return;
-    await fetch( "/api/admin/notifications", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify( { action: "read", recipientIds: ids } ),
-    } );
-    setItems( current => current.map( item => ( { ...item, readAt: item.readAt || new Date().toISOString() } ) ) );
-    setUnreadCount( count => Math.max( 0, count - ids.length ) );
-  };
-
   return (
-    <Popover onOpenChange={ open => { if ( open ) void markVisibleRead(); } }>
+    <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative ml-auto" aria-label={`${ unreadCount } unread notifications`}>
+        <Button variant="ghost" size="icon" className="relative ml-auto" aria-label={`${ unreadCount } unread inbox items`}>
           <Bell className="size-4" />
           { unreadCount > 0 && (
             <span className="absolute right-1 top-1 flex min-w-4 h-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold text-destructive-foreground">
@@ -73,12 +61,12 @@ export function NotificationBell() {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <p className="text-sm font-semibold">Notifications</p>
-          <Link href="/admin/notifications" className="text-xs text-muted-foreground hover:text-foreground">View all</Link>
+          <p className="text-sm font-semibold">Inbox</p>
+          <Link href="/admin/notifications" className="text-xs text-muted-foreground hover:text-foreground">View inbox</Link>
         </div>
         <div className="max-h-80 overflow-auto">
           { items.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-muted-foreground">No notifications yet.</p>
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">No inbox items yet.</p>
           ) : items.map( item => (
             <div key={ item.recipientId } className="border-b px-4 py-3 last:border-b-0">
               <p className="text-sm font-medium">{ item.title }</p>

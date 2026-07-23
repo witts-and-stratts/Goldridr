@@ -6,7 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, CalendarDays, Users, BookOpen,
-  ShieldCheck, ChevronRight, LogOut, Bell, Settings,
+  ShieldCheck, ChevronRight, LogOut, Mail, Settings,
   TestTube2, CreditCard, TicketPercent, ScanLine, Car,
 } from "lucide-react"
 import {
@@ -40,7 +40,7 @@ const navSections = [
     defaultOpen: true,
     items: [
       { label: "Dashboard", icon: LayoutDashboard, href: "/admin" },
-      { label: "Notifications", icon: Bell, href: "/admin/notifications" },
+      { label: "Inbox", icon: Mail, href: "/admin/notifications" },
       { label: "Settings", icon: Settings, href: "/admin/settings" },
       { label: "Testing", icon: TestTube2, href: "/admin/testing", adminOnly: true },
     ],

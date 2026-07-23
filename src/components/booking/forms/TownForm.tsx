@@ -24,11 +24,12 @@ import { showBookingErrorToast } from "@/components/booking/booking-errors";
 
 interface TownFormProps {
   onBack: () => void;
+  onSuccess: () => void;
 }
 
 type BookingData = TownFormData;
 
-export function TownForm( { onBack }: TownFormProps ) {
+export function TownForm( { onBack, onSuccess }: TownFormProps ) {
   const form = useForm( {
     defaultValues: {
       pickupLocation: "",
@@ -112,6 +113,7 @@ export function TownForm( { onBack }: TownFormProps ) {
           toast.success( "Booking confirmed!", {
             description: `Your booking reference is ${ data.booking?.reference || "" }. We'll send you a confirmation email shortly.`,
           } );
+          onSuccess();
         } else {
           showBookingErrorToast( data, ( slot ) => {
             setBookingData( ( current ) => current ? {
@@ -462,7 +464,7 @@ export function TownForm( { onBack }: TownFormProps ) {
         <ArrowLeft className="size-4" />
       </Button>
 
-      <div className="flex flex-col items-center justify-center gap-2 w-full md:mb-6 py-8 md:py-12">
+      <div className="flex flex-col items-center justify-center gap-2 w-full md:mb-6 py-4 md:py-4">
         <Image src="/assets/images/icon/city.svg" alt="Around Town" width={ 48 } height={ 48 } />
         <h2 className="font-widest font-wide uppercase tracking-[5px] text-2xl text-white">Around Town</h2>
       </div>

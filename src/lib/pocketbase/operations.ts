@@ -164,3 +164,46 @@ export async function consumePocketBasePasswordResetToken( token: string ): Prom
   const chauffeur = await pb.collection( pocketBaseCollections.chauffeurs ).getOne( String( record.chauffeur ) );
   return String( chauffeur.legacyId );
 }
+
+function hashCalendarFeedToken( token: string ): string {
+  return createHash( "sha256" ).update( token ).digest( "hex" );
+}
+
+export async function createPocketBaseCalendarFeedToken( createdBy: string ): Promise<string> {
+  const pb = getPocketBaseClient();
+  const activeTokens = await pb.collection( pocketBaseCollections.calendarFeedTokens ).getFullList( {
+    filter: "revokedAt = ''",
+    fields: "id",
+  } );
+  await Promise.all( activeTokens.map( token => pb.collection( pocketBaseCollections.calendarFeedTokens ).update( token.id, {
+    revokedAt: new Date().toISOString(),
+  } ) ) );
+
+  const token = randomBytes( 32 ).toString( "base64url" );
+  await pb.collection( pocketBaseCollections.calendarFeedTokens ).create( {
+    tokenHash: hashCalendarFeedToken( token ),
+    createdBy,
+  } );
+  return token;
+}
+
+export async function hasActivePocketBaseCalendarFeedToken(): Promise<boolean> {
+  return Boolean( await first( pocketBaseCollections.calendarFeedTokens, "revokedAt = ''" ) );
+}
+
+export async function validatePocketBaseCalendarFeedToken( token: string ): Promise<boolean> {
+  return Boolean( await first( pocketBaseCollections.calendarFeedTokens, "tokenHash = {:tokenHash} && revokedAt = ''", {
+    tokenHash: hashCalendarFeedToken( token ),
+  } ) );
+}
+
+export async function revokePocketBaseCalendarFeedTokens(): Promise<void> {
+  const pb = getPocketBaseClient();
+  const activeTokens = await pb.collection( pocketBaseCollections.calendarFeedTokens ).getFullList( {
+    filter: "revokedAt = ''",
+    fields: "id",
+  } );
+  await Promise.all( activeTokens.map( token => pb.collection( pocketBaseCollections.calendarFeedTokens ).update( token.id, {
+    revokedAt: new Date().toISOString(),
+  } ) ) );
+}

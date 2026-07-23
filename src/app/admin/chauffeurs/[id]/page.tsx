@@ -108,6 +108,7 @@ export default function ChauffeurDashboardPage() {
       setSelected((prev) => prev ? { ...prev, status: newStatus } : null);
     });
     toast.promise(promise, { loading: "Updating…", success: `Booking → ${newStatus}`, error: "Failed to update" });
+    return promise;
   };
 
   const handleChauffeurChange = async (reference: string, chauffeurId: string | null) => {
@@ -122,10 +123,11 @@ export default function ChauffeurDashboardPage() {
       setSelected((prev) => prev ? { ...prev, chauffeurId } : null);
     });
     toast.promise(promise, { loading: "Assigning…", success: "Chauffeur updated", error: "Failed to assign" });
+    return promise;
   };
 
   const handleDelete = async (reference: string) => {
-    if (!confirm(`Delete booking ${reference}?`)) return;
+    if (!confirm(`Delete booking ${reference}?`)) return false;
     const promise = fetch(`/api/admin/bookings?reference=${reference}`, { method: "DELETE" }).then(async (res) => {
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
@@ -133,6 +135,7 @@ export default function ChauffeurDashboardPage() {
       setSelected(null);
     });
     toast.promise(promise, { loading: "Deleting…", success: "Booking deleted", error: "Failed to delete" });
+    return promise;
   };
 
   const loading = chauffeursPending || bookingsPending;

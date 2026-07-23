@@ -23,6 +23,7 @@ import {
 } from "@/components/admin-ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { qk } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { useAdmin } from "../context";
@@ -43,7 +44,6 @@ export default function NotificationsPage() {
     failed,
     reminders,
     load,
-    markReadAfterOpen,
     markAllRead,
     markReadIds,
     markUnreadIds,
@@ -65,10 +65,16 @@ export default function NotificationsPage() {
   const [ openMenuId, setOpenMenuId ] = useState<number | null>( null );
   const lastClickedIndexRef = useRef<number | null>( null );
 
-  const visibleItems = useMemo(
-    () => filterNotifications( { folder, items, search, unreadOnly } ),
-    [ folder, items, search, unreadOnly ]
-  );
+  const visibleItems = useMemo( () => {
+    const filtered = filterNotifications( { folder, items, search, unreadOnly } );
+    const keepsOnlyUnread = folder === "unread" || unreadOnly;
+    if ( !keepsOnlyUnread || selectedNotificationId === null ) return filtered;
+
+    return items.filter( item =>
+      item.recipientId === selectedNotificationId
+      || filtered.some( filteredItem => filteredItem.recipientId === item.recipientId )
+    );
+  }, [ folder, items, search, selectedNotificationId, unreadOnly ] );
   const visibleReminders = useMemo( () => filterReminders( reminders, search ), [ reminders, search ] );
   const visibleFailures = useMemo( () => filterFailures( failed, search ), [ failed, search ] );
 
@@ -113,12 +119,11 @@ export default function NotificationsPage() {
     setSearch( "" );
   }, [] );
 
-  const selectNotification = useCallback( async ( item: NotificationItem ) => {
+  const selectNotification = useCallback( ( item: NotificationItem ) => {
     lastClickedIndexRef.current = visibleItems.findIndex( value => value.recipientId === item.recipientId );
     setSelectedNotificationId( item.recipientId );
     openMobileDetail();
-    await markReadAfterOpen( item );
-  }, [ markReadAfterOpen, openMobileDetail, visibleItems ] );
+  }, [ openMobileDetail, visibleItems ] );
 
   const exitSelect = useCallback( () => {
     setIsSelecting( false );
@@ -280,28 +285,40 @@ export default function NotificationsPage() {
                       ? failed.length
                       : undefined;
                 return (
-                  <button
-                    key={item.value}
-                    type="button"
-                    title={item.label}
-                    onClick={() => setFolderAndClearSearch( item.value )}
-                    className={cn( styles.sidebarButton, folder === item.value && styles.sidebarButtonActive )}
-                  >
-                    <item.icon className="size-4" />
-                    <span className="sr-only">{item.label}</span>
-                    {count !== undefined && count > 0 && (
-                      <span className={styles.sidebarBadge}>
-                        {count > 99 ? "99+" : count}
-                      </span>
-                    )}
-                  </button>
+                  <Tooltip key={item.value}>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          onClick={() => setFolderAndClearSearch( item.value )}
+                          className={cn( styles.sidebarButton, folder === item.value && styles.sidebarButtonActive )}
+                        >
+                          <item.icon className="size-4" />
+                          <span className="sr-only">{item.label}</span>
+                          {count !== undefined && count > 0 && (
+                            <span className={styles.sidebarBadge}>
+                              {count > 99 ? "99+" : count}
+                            </span>
+                          )}
+                        </button>
+                      }
+                    />
+                    <TooltipContent side="right">{item.value === "inbox" ? "Inbox" : item.label}</TooltipContent>
+                  </Tooltip>
                 );
               } ) }
           </nav>
           <div className={styles.sidebarFooter}>
-            <Button variant="ghost" size="icon" className="w-full" onClick={() => { void markAllRead(); }} title="Mark all read">
-              <Check className="size-3.5" /><span className="sr-only">Mark all read</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button variant="ghost" size="icon" className="w-full" onClick={() => { void markAllRead(); }}>
+                    <Check className="size-3.5" /><span className="sr-only">Mark all read</span>
+                  </Button>
+                }
+              />
+              <TooltipContent side="right">Mark all read</TooltipContent>
+            </Tooltip>
           </div>
         </aside>
 

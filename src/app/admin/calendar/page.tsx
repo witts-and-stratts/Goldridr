@@ -11,6 +11,7 @@ import { Button } from "@/components/admin-ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/admin-ui/select";
 import type { BlockedSlot } from "./types";
 import { BlockCalendarDialog } from "./components/block-calendar-dialog";
+import { CalendarSubscribeActions } from "../components/calendar-subscribe-actions";
 
 const EMPTY_BLOCK_FORM = {
   title: "",
@@ -73,10 +74,11 @@ export default function CalendarPage() {
       return data;
     });
     toast.promise(promise, { loading: "Updating…", success: `Booking ${reference} → ${newStatus}`, error: (e: Error) => e.message });
+    return promise;
   };
 
   const handleDelete = async (reference: string) => {
-    if (!confirm(`Delete booking ${reference}?`)) return;
+    if (!confirm(`Delete booking ${reference}?`)) return false;
     const promise = fetch(`/api/admin/bookings?reference=${reference}`, { method: "DELETE" })
       .then(async (res) => {
         const data = await res.json();
@@ -87,6 +89,7 @@ export default function CalendarPage() {
         return data;
       });
     toast.promise(promise, { loading: "Deleting…", success: "Deleted", error: (e: Error) => e.message });
+    return promise;
   };
 
   const handleChauffeurChange = async (reference: string, chauffeurId: string | null) => {
@@ -101,8 +104,10 @@ export default function CalendarPage() {
       toast.success("Chauffeur updated");
       setBookings((prev) => prev.map((b) => b.reference === reference ? { ...b, chauffeurId } : b));
       setSelected((p) => p?.reference === reference ? { ...p, chauffeurId } : p);
+      return true;
     } catch (err) {
       toast.error("Failed", { description: err instanceof Error ? err.message : "Unknown error" });
+      return false;
     }
   };
 
@@ -201,6 +206,7 @@ export default function CalendarPage() {
             {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
             Refresh
           </Button>
+          {currentRole.type === "admin" && <CalendarSubscribeActions />}
           {currentRole.type === "admin" && (
             <Button variant="destructive" size="sm" onClick={() => setBlockOpen(true)}>
               <Lock className="size-3.5" /> Block Calendar
