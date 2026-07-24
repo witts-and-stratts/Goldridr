@@ -13,10 +13,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/admin-ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { FailedDelivery, Folder, NotificationItem, ReminderDelivery } from "../types";
+import type { FailedDelivery, Folder, MessageThread, NotificationItem, ReminderDelivery } from "../types";
 import { relativeTime, statusVariant } from "../utils";
 import { EmptyList } from "./empty-states";
 import { ListSkeleton } from "./list-skeleton";
+import { MessageThreadList } from "./message-thread-list";
 import styles from "@/styles/notification-list.module.css";
 
 interface NotificationListProps {
@@ -25,14 +26,18 @@ interface NotificationListProps {
   visibleItems: NotificationItem[];
   visibleReminders: ReminderDelivery[];
   visibleFailures: FailedDelivery[];
+  visibleThreads: MessageThread[];
+  visibleBroadcasts: NotificationItem[];
   selectedNotificationId: number | null;
   selectedReminderId: number | null;
   selectedFailureId: number | null;
+  selectedThreadKey: string | null;
   selectedIds: Set<number>;
   isSelecting: boolean;
   openMenuId: number | null;
   onReminderSelect: ( id: number ) => void;
   onFailureSelect: ( id: number ) => void;
+  onThreadSelect: ( thread: MessageThread ) => void;
   onNotificationRowClick: ( item: NotificationItem, index: number, event: React.MouseEvent ) => void;
   onSetMenuId: ( id: number | null ) => void;
   onMarkRead: ( ids: number[] ) => void;
@@ -48,14 +53,18 @@ export function NotificationList( {
   visibleItems,
   visibleReminders,
   visibleFailures,
+  visibleThreads,
+  visibleBroadcasts,
   selectedNotificationId,
   selectedReminderId,
   selectedFailureId,
+  selectedThreadKey,
   selectedIds,
   isSelecting,
   openMenuId,
   onReminderSelect,
   onFailureSelect,
+  onThreadSelect,
   onNotificationRowClick,
   onSetMenuId,
   onMarkRead,
@@ -66,6 +75,17 @@ export function NotificationList( {
 }: NotificationListProps ) {
   if ( isLoading ) {
     return <ListSkeleton />;
+  }
+
+  if ( folder === "messages" ) {
+    return (
+      <MessageThreadList
+        threads={visibleThreads}
+        broadcasts={visibleBroadcasts}
+        selectedThreadKey={selectedThreadKey}
+        onThreadSelect={onThreadSelect}
+      />
+    );
   }
 
   if ( folder === "reminders" ) {

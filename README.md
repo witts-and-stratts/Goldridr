@@ -48,7 +48,7 @@ PocketBase stores notification events, deliveries, preferences, device tokens, a
 npm run notifications:worker
 ```
 
-Keep transport and credential secrets in `.env`, then manage runtime values like booking buffer, timezone, app URL, sender identity, pricing, and discount codes in `/admin/settings`. Set `EMAIL_TRANSPORT` to `mailpit`, `smtp`, `ses_smtp`, `ses_api`, or `resend`, then configure the matching variables in `.env.example`. Start Mailpit with `docker compose up -d mailpit`; SMTP listens on port `1025` and its inbox is at `http://localhost:8025`. Set `TWILIO_TRANSPORT=mock` to keep SMS traffic in the PocketBase-backed mock inbox, or `TWILIO_TRANSPORT=twilio` to send real messages.
+Keep transport and credential secrets in `.env`, then manage runtime values like booking buffer, timezone, app URL, sender identity, pricing, and discount codes in `/admin/settings`. Set `EMAIL_TRANSPORT` to `mailpit`, `smtp`, `ses_smtp`, `ses_api`, or `resend`, then configure the matching variables in `.env.example`. Start Mailpit with `docker compose up -d mailpit`; SMTP listens on port `1025`, its inbox/API is at `http://localhost:8025`, and POP3 is enabled on port `1110`. With `EMAIL_INBOUND_TRANSPORT=auto`, the notification worker reads Mailpit's API and records only mail addressed to `MAILPIT_INBOUND_TO` (default `support@example.com`) as inbound replies. Set `TWILIO_TRANSPORT=mock` to keep SMS traffic in the PocketBase-backed mock inbox, or `TWILIO_TRANSPORT=twilio` to send real messages.
 
 The admin test bench lives at `/admin/testing` and exposes the mock SMS API at `/api/admin/testing/sms`.
 

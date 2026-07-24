@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { createEmailTransport } from "./email-transports";
 import { renderNotificationEmail } from "./email-template";
+import { createEmailOpenTrackingUrl } from "./email-open-tracking";
 import { getSmsConfig } from "./config";
 import { createSmsTransport, type SmsTransport } from "./sms";
 import { processPushReceipts } from "./push";
@@ -12,6 +13,29 @@ import { pocketBaseCollections } from "@/lib/pocketbase/collections";
 import { first, legacyId } from "@/lib/pocketbase/core";
 
 const RETRY_DELAYS_MS = [ 60_000, 300_000, 900_000, 3_600_000, 21_600_000 ];
+
+export type NotificationWorkerEvent = {
+  event: "notification.delivery.cancelled" | "notification.delivery.delivered" | "notification.delivery.failed" | "notification.delivery.retry_scheduled";
+  deliveryId: number;
+  notificationId: number;
+  channel: NotificationDeliveryRecord[ "channel" ];
+  template: string | null;
+  attempts: number;
+  provider?: string;
+  status?: "dead_letter" | "failed";
+  nextAttemptAt?: string;
+  error?: { name: string; message: string; code?: string };
+};
+
+type NotificationWorkerEventHandler = ( event: NotificationWorkerEvent ) => void;
+
+function errorDetails( error: unknown ): NonNullable<NotificationWorkerEvent[ "error" ]> {
+  if ( error instanceof Error ) {
+    const code = ( error as Error & { code?: unknown } ).code;
+    return { name: error.name, message: error.message, ...( typeof code === "string" ? { code } : {} ) };
+  }
+  return { name: "Error", message: String( error ) };
+}
 
 function parsePayload( delivery: NotificationDeliveryRecord ): Record<string, unknown> {
   try {
@@ -87,7 +111,14 @@ export class NotificationWorker {
   private emailTransport: EmailTransport | null = null;
   private smsTransport: SmsTransport | null = null;
 
-  constructor( private readonly queue: NotificationQueue = createNotificationQueue() ) {}
+  constructor(
+    private readonly queue: NotificationQueue = createNotificationQueue(),
+    private readonly onEvent?: NotificationWorkerEventHandler
+  ) {}
+
+  private emit( event: NotificationWorkerEvent ): void {
+    this.onEvent?.( event );
+  }
 
   async verify(): Promise<void> {
     this.emailTransport = await createEmailTransport();
@@ -127,6 +158,10 @@ export class NotificationWorker {
       const booking = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: String( notification.bookingReference ) } );
       if ( !booking || [ "cancelled", "rejected" ].includes( booking.status ) || zonedDateTimeToDate( String( booking.pickupDate ), String( booking.pickupTime ) ).getTime() <= Date.now() ) {
         await this.queue.update( delivery, { status: "cancelled", leaseToken: null, leaseExpiresAt: null } );
+        this.emit( {
+          event: "notification.delivery.cancelled", deliveryId: delivery.id, notificationId: delivery.notificationId,
+          channel: delivery.channel, template: delivery.template, attempts: delivery.attempts,
+        } );
         return;
       }
     }
@@ -148,7 +183,8 @@ export class NotificationWorker {
         delivery.template || "default",
         delivery.recipient.trim(),
         payload,
-        delivery.idempotencyKey
+        delivery.idempotencyKey,
+        notification.type === "message.manual" ? await createEmailOpenTrackingUrl( delivery.id ) : undefined
       );
       result = await this.emailTransport!.send( message );
     } else if ( delivery.channel === "sms" ) {
@@ -183,19 +219,28 @@ export class NotificationWorker {
       leaseToken: null,
       leaseExpiresAt: null,
     } );
+    this.emit( {
+      event: "notification.delivery.delivered", deliveryId: delivery.id, notificationId: delivery.notificationId,
+      channel: delivery.channel, template: delivery.template, attempts: delivery.attempts + 1, provider: result.provider,
+    } );
   }
 
   private async fail( delivery: NotificationDeliveryRecord, error: unknown ): Promise<void> {
     const attempts = delivery.attempts + 1;
     const retry = isTransient( error ) && attempts <= RETRY_DELAYS_MS.length;
     if ( retry ) {
+      const nextAttemptAt = nextAttempt( attempts - 1, error ).toISOString();
       await this.queue.update( delivery, {
         status: "pending",
         attempts,
-        nextAttemptAt: nextAttempt( attempts - 1, error ).toISOString(),
+        nextAttemptAt,
         lastError: error instanceof Error ? error.message : String( error ),
         leaseToken: null,
         leaseExpiresAt: null,
+      } );
+      this.emit( {
+        event: "notification.delivery.retry_scheduled", deliveryId: delivery.id, notificationId: delivery.notificationId,
+        channel: delivery.channel, template: delivery.template, attempts, nextAttemptAt, error: errorDetails( error ),
       } );
       return;
     }
@@ -206,6 +251,10 @@ export class NotificationWorker {
       lastError: error instanceof Error ? error.message : String( error ),
       leaseToken: null,
       leaseExpiresAt: null,
+    } );
+    this.emit( {
+      event: "notification.delivery.failed", deliveryId: delivery.id, notificationId: delivery.notificationId,
+      channel: delivery.channel, template: delivery.template, attempts, status, error: errorDetails( error ),
     } );
     if ( status === "dead_letter" ) await createAdminFailureAlert( delivery, error );
   }

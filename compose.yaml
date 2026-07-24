@@ -7,6 +7,9 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
+      - "1110:1110"
+    environment:
+      MP_POP3_BIND_ADDR: 0.0.0.0:1110
 
   pocketbase:
     build:

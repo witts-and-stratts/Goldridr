@@ -76,7 +76,7 @@ export function useNotificationsInbox() {
 
   const reminders = inboxData?.reminders || [];
 
-  const load = useCallback( () => { void refetch( { cancelRefetch: true } ); }, [ refetch ] );
+  const load = useCallback( () => refetch( { cancelRefetch: true } ), [ refetch ] );
 
   const markReadIds = useCallback( async ( ids: number[] ) => {
     await patchNotifications( "read", ids );
