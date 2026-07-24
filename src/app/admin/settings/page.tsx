@@ -203,6 +203,7 @@ export default function SettingsPage() {
                 onChange={event => updateField("appUrl", event.target.value)}
                 placeholder="https://goldridr.com"
               />
+              <span className="text-xs text-muted-foreground">Use the public HTTPS URL; email QR links and read tracking pixels are generated from this address.</span>
             </label>
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Email from name</span>
@@ -227,6 +228,7 @@ export default function SettingsPage() {
                 onChange={event => updateField("emailReplyTo", event.target.value)}
                 placeholder="support@example.com"
               />
+              <span className="text-xs text-muted-foreground">Use the mailbox Resend Receiving or webmail IMAP monitors for passenger replies.</span>
             </label>
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Airport price per mile</span>

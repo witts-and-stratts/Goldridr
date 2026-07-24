@@ -32,7 +32,8 @@ import { NotificationList } from "./components/notification-list";
 import { SummaryTile } from "./components/summary-tile";
 import { activeReminderStatuses, folders } from "./constants";
 import { useNotificationsInbox } from "./hooks/use-notifications-inbox";
-import type { Folder, NotificationItem } from "./types";
+import { buildMessageThreads } from "./lib/message-threads";
+import type { Folder, MessageThread, NotificationItem } from "./types";
 import { filterFailures, filterNotifications, filterReminders } from "./utils";
 import styles from "@/styles/notifications.module.css";
 
@@ -43,6 +44,7 @@ export default function NotificationsPage() {
     items,
     failed,
     reminders,
+    isLoading,
     load,
     markAllRead,
     markReadIds,
@@ -55,6 +57,7 @@ export default function NotificationsPage() {
   const [ selectedNotificationId, setSelectedNotificationId ] = useState<number | null>( null );
   const [ selectedReminderId, setSelectedReminderId ] = useState<number | null>( null );
   const [ selectedFailureId, setSelectedFailureId ] = useState<number | null>( null );
+  const [ selectedThreadKey, setSelectedThreadKey ] = useState<string | null>( null );
   const [ composeOpen, setComposeOpen ] = useState( false );
   const [ reminderOpen, setReminderOpen ] = useState( false );
   const [ search, setSearch ] = useState( "" );
@@ -63,24 +66,34 @@ export default function NotificationsPage() {
   const [ isSelecting, setIsSelecting ] = useState( false );
   const [ selectedIds, setSelectedIds ] = useState<Set<number>>( new Set() );
   const [ openMenuId, setOpenMenuId ] = useState<number | null>( null );
+  const [ recentlyReadIds, setRecentlyReadIds ] = useState<Set<number>>( new Set() );
   const lastClickedIndexRef = useRef<number | null>( null );
+
+  const keepsOnlyUnread = folder === "unread" || unreadOnly;
+
+  useEffect( () => {
+    if ( !keepsOnlyUnread ) setRecentlyReadIds( new Set() );
+  }, [ keepsOnlyUnread ] );
 
   const visibleItems = useMemo( () => {
     const filtered = filterNotifications( { folder, items, search, unreadOnly } );
-    const keepsOnlyUnread = folder === "unread" || unreadOnly;
-    if ( !keepsOnlyUnread || selectedNotificationId === null ) return filtered;
+    if ( !keepsOnlyUnread ) return filtered;
 
     return items.filter( item =>
-      item.recipientId === selectedNotificationId
+      recentlyReadIds.has( item.recipientId )
       || filtered.some( filteredItem => filteredItem.recipientId === item.recipientId )
     );
-  }, [ folder, items, search, selectedNotificationId, unreadOnly ] );
+  }, [ folder, items, keepsOnlyUnread, recentlyReadIds, search, unreadOnly ] );
   const visibleReminders = useMemo( () => filterReminders( reminders, search ), [ reminders, search ] );
   const visibleFailures = useMemo( () => filterFailures( failed, search ), [ failed, search ] );
+  const visibleThreadsData = useMemo( () => buildMessageThreads( items, search ), [ items, search ] );
+  const visibleThreads = visibleThreadsData.threads;
+  const visibleBroadcasts = visibleThreadsData.broadcasts;
 
   const selectedNotification = visibleItems.find( item => item.recipientId === selectedNotificationId ) || visibleItems[ 0 ];
   const selectedReminder = visibleReminders.find( reminder => reminder.id === selectedReminderId ) || visibleReminders[ 0 ];
   const selectedFailure = visibleFailures.find( delivery => delivery.id === selectedFailureId ) || visibleFailures[ 0 ];
+  const selectedThread = visibleThreads.find( thread => thread.key === selectedThreadKey ) || visibleThreads[ 0 ];
   const unreadCount = useMemo( () => items.filter( item => !item.readAt ).length, [ items ] );
   const queuedReminderCount = useMemo(
     () => reminders.filter( reminder => activeReminderStatuses.has( reminder.status ) ).length,
@@ -123,7 +136,13 @@ export default function NotificationsPage() {
     lastClickedIndexRef.current = visibleItems.findIndex( value => value.recipientId === item.recipientId );
     setSelectedNotificationId( item.recipientId );
     openMobileDetail();
-  }, [ openMobileDetail, visibleItems ] );
+    if ( !item.readAt ) {
+      void markReadIds( [ item.recipientId ] );
+      if ( keepsOnlyUnread ) {
+        setRecentlyReadIds( current => new Set( current ).add( item.recipientId ) );
+      }
+    }
+  }, [ keepsOnlyUnread, markReadIds, openMobileDetail, visibleItems ] );
 
   const exitSelect = useCallback( () => {
     setIsSelecting( false );
@@ -181,6 +200,7 @@ export default function NotificationsPage() {
 
   useEffect( () => {
     const onKeyDown = ( event: KeyboardEvent ) => {
+      if ( folder === "messages" ) return;
       const tag = ( event.target as HTMLElement ).tagName;
       const isTyping = tag === "INPUT" || tag === "TEXTAREA";
       if ( ( event.metaKey || event.ctrlKey ) && event.key === "a" && !isTyping ) {
@@ -194,7 +214,7 @@ export default function NotificationsPage() {
     };
     window.addEventListener( "keydown", onKeyDown );
     return () => window.removeEventListener( "keydown", onKeyDown );
-  }, [ exitSelect, isSelecting, toggleSelectAll ] );
+  }, [ exitSelect, folder, isSelecting, toggleSelectAll ] );
 
   const markRead = useCallback( ( ids: number[] ) => {
     void markReadIds( ids );
@@ -228,11 +248,23 @@ export default function NotificationsPage() {
     openMobileDetail();
   }, [ openMobileDetail ] );
 
+  const selectThread = useCallback( ( thread: MessageThread ) => {
+    setSelectedThreadKey( thread.key );
+    openMobileDetail();
+  }, [ openMobileDetail ] );
+
+  const deleteThread = useCallback( ( thread: MessageThread ) => {
+    void deleteNotifications( thread.messages.map( message => message.recipientId ) );
+    if ( selectedThreadKey === thread.key ) setSelectedThreadKey( null );
+  }, [ deleteNotifications, selectedThreadKey ] );
+
   const visibleFolderCount = folder === "reminders"
     ? visibleReminders.length
     : folder === "failures"
       ? visibleFailures.length
-      : visibleItems.length;
+      : folder === "messages"
+        ? visibleThreads.length
+        : visibleItems.length;
 
   return (
     <div className={styles.page}>
@@ -332,13 +364,13 @@ export default function NotificationsPage() {
                 </p>
               </div>
               <div className={styles.toolbarActions}>
-                {isSelecting && (
+                {folder !== "messages" && isSelecting && (
                   <span className={styles.selectedCount}>{selectedIds.size} selected</span>
                 )}
                 <Button variant="ghost" size="icon" onClick={load} aria-label="Refresh"><RefreshCw className="size-3.5" /></Button>
               </div>
             </div>
-            {!["reminders", "failures"].includes( folder ) && (
+            {!["reminders", "failures", "messages"].includes( folder ) && (
               <div className={styles.unreadFilter}>
                 {!isSelecting && (
                   <Label className={styles.unreadFilterLabel}>
@@ -352,7 +384,7 @@ export default function NotificationsPage() {
               <Search className={styles.searchIcon} />
               <Input value={search} onChange={event => setSearch( event.target.value )} placeholder={`Search ${folderLabel.toLowerCase()}...`} className={styles.searchInput} />
             </div>
-            {isSelecting && visibleItems.length > 0 && (
+            {folder !== "messages" && isSelecting && visibleItems.length > 0 && (
               <div className={styles.bulkBar}>
                 <Button variant="outline" size="sm" onClick={toggleSelectAll}>
                   <CheckSquare className="size-3.5" />{selectedIds.size === visibleItems.length ? "Clear all" : "Select all"}
@@ -373,17 +405,22 @@ export default function NotificationsPage() {
 
           <NotificationList
             folder={folder}
+            isLoading={isLoading}
             visibleItems={visibleItems}
             visibleReminders={visibleReminders}
             visibleFailures={visibleFailures}
+            visibleThreads={visibleThreads}
+            visibleBroadcasts={visibleBroadcasts}
             selectedNotificationId={selectedNotificationId}
             selectedReminderId={selectedReminderId}
             selectedFailureId={selectedFailureId}
+            selectedThreadKey={selectedThreadKey}
             selectedIds={selectedIds}
             isSelecting={isSelecting}
             openMenuId={openMenuId}
             onReminderSelect={selectReminder}
             onFailureSelect={selectFailure}
+            onThreadSelect={selectThread}
             onNotificationRowClick={handleRowClick}
             onSetMenuId={setOpenMenuId}
             onMarkRead={markRead}
@@ -400,11 +437,14 @@ export default function NotificationsPage() {
             notification={selectedNotification}
             reminder={selectedReminder}
             failure={selectedFailure}
+            thread={selectedThread}
             emptyNotificationLabel="Select a notification to read it."
             onMarkRead={id => markRead( [ id ] )}
             onMarkUnread={id => markUnread( [ id ] )}
             onDelete={id => deleteSelected( [ id ] )}
             onRetry={id => { void retry( id ); }}
+            onDeleteThread={deleteThread}
+            onMessageSent={load}
           />
         </section>
       </div>
@@ -420,6 +460,7 @@ export default function NotificationsPage() {
             notification={selectedNotification}
             reminder={selectedReminder}
             failure={selectedFailure}
+            thread={selectedThread}
             emptyNotificationLabel="No detail available."
             onMarkRead={id => markRead( [ id ] )}
             onMarkUnread={id => markUnread( [ id ] )}
@@ -428,6 +469,11 @@ export default function NotificationsPage() {
               setMobileDetailOpen( false );
             }}
             onRetry={id => { void retry( id ); }}
+            onDeleteThread={thread => {
+              deleteThread( thread );
+              setMobileDetailOpen( false );
+            }}
+            onMessageSent={load}
           />
         </SheetContent>
       </Sheet>

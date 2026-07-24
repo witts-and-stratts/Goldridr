@@ -46,11 +46,11 @@ export async function POST( request: Request ) {
     if ( session.role === "chauffeur" && booking.chauffeurId !== session.chauffeurId ) {
       return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
     }
-    const requestedChannels = channels.filter( ( channel: string ) => channel === "email" || channel === "sms" );
-    if ( requestedChannels.includes( "sms" ) && !( booking.phone && booking.smsConsentedAt ) ) {
+    const validChannels = channels.filter( ( channel: string ) => [ "in_app", "email", "sms" ].includes( channel ) );
+    if ( validChannels.includes( "sms" ) && !( booking.phone && booking.smsConsentedAt ) ) {
       return NextResponse.json( { success: false, error: "Passenger has not consented to SMS" }, { status: 422 } );
     }
-    const notificationId = await createPocketBaseManualMessage( session, booking, subject, message, requestedChannels );
+    const notificationId = await createPocketBaseManualMessage( session, booking, subject, message, validChannels );
     return NextResponse.json( { success: true, notificationId }, { status: 201 } );
   }
 
@@ -82,7 +82,7 @@ export async function POST( request: Request ) {
       ? await getAllBookings()
       : await getBookingsForChauffeur( session.chauffeurId! );
     const allowedByReference = new Map( allowedBookings.map( booking => [ booking.reference, booking ] ) );
-    const requestedChannels = channels.filter( ( channel: string ) => channel === "email" || channel === "sms" );
+    const requestedChannels = channels.filter( ( channel: string ) => [ "in_app", "email", "sms" ].includes( channel ) );
     const notificationIds: number[] = [];
     const skippedSms: string[] = [];
 

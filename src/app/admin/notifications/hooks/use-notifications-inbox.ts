@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { qk } from "@/lib/query-keys";
@@ -19,12 +19,12 @@ export function useNotificationsInbox() {
   const [ deletedIds, setDeletedIds ] = useState<Set<number>>( new Set() );
   const [ retriedFailureIds, setRetriedFailureIds ] = useState<Set<number>>( new Set() );
 
-  const { data: inboxData, refetch } = useQuery( {
+  const { data: inboxData, refetch, isPending } = useQuery( {
     queryKey: qk.notifications(),
     queryFn: async () => {
       const [ notifRes, reminderRes ] = await Promise.all( [
-        fetch( "/api/admin/notifications?limit=100" ),
-        fetch( "/api/admin/reminders" ),
+        fetch( "/api/admin/notifications?limit=100", { cache: "no-store" } ),
+        fetch( "/api/admin/reminders", { cache: "no-store" } ),
       ] );
       const [ notifData, reminderData ] = await Promise.all( [
         notifRes.json(),
@@ -36,7 +36,30 @@ export function useNotificationsInbox() {
         reminders: reminderData.success ? reminderData.reminders as ReminderDelivery[] : [],
       };
     },
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
   } );
+
+  useEffect( () => {
+    if ( retriedFailureIds.size === 0 ) return;
+    setRetriedFailureIds( new Set() );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ inboxData ] );
+
+  useEffect( () => {
+    const stream = new EventSource( "/api/admin/notifications/stream?deliveries=true" );
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      if ( refreshTimer ) clearTimeout( refreshTimer );
+      refreshTimer = setTimeout( () => { void refetch(); }, 150 );
+    };
+
+    stream.addEventListener( "inbox", refresh );
+    return () => {
+      if ( refreshTimer ) clearTimeout( refreshTimer );
+      stream.close();
+    };
+  }, [ refetch ] );
 
   const items = useMemo( () => {
     return ( inboxData?.notifications || [] )
@@ -53,7 +76,7 @@ export function useNotificationsInbox() {
 
   const reminders = inboxData?.reminders || [];
 
-  const load = useCallback( () => { void refetch(); }, [ refetch ] );
+  const load = useCallback( () => refetch( { cancelRefetch: true } ), [ refetch ] );
 
   const markReadIds = useCallback( async ( ids: number[] ) => {
     await patchNotifications( "read", ids );
@@ -115,6 +138,7 @@ export function useNotificationsInbox() {
     items,
     failed,
     reminders,
+    isLoading: isPending,
     load,
     markAllRead,
     markReadIds,

@@ -38,6 +38,16 @@ export interface ReminderDelivery {
   providerMessageId: string | null;
 }
 
+export interface MessageThread {
+  key: string;
+  riderName: string;
+  riderEmail: string | null;
+  bookingReference: string | null;
+  messages: NotificationItem[];
+  unreadCount: number;
+  lastActivity: string;
+}
+
 export type Folder = "inbox" | "unread" | "bookings" | "reminders" | "messages" | "system" | "failures";
 
 export interface FolderConfig {

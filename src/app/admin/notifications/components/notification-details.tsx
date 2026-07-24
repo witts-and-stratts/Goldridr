@@ -207,7 +207,7 @@ function MetadataRows( { entries }: { entries: Array<{ key: string; value: unkno
   );
 }
 
-interface BookingSummary {
+export interface BookingSummary {
   reference?: string;
   passenger?: string;
   contact?: string;
@@ -227,7 +227,7 @@ interface BookingSummary {
   extraEntries: Array<{ key: string; value: unknown }>;
 }
 
-function BookingCard( { booking }: { booking: BookingSummary } ) {
+export function BookingCard( { booking }: { booking: BookingSummary } ) {
   return (
     <div className={styles.bookingCard}>
       <div className={styles.bookingCardHead}>
@@ -337,7 +337,7 @@ function CardFact( {
   );
 }
 
-function parseMetadata( value: string ): { kind: string; value: unknown; entries: Array<{ key: string; value: unknown }> } {
+export function parseMetadata( value: string ): { kind: string; value: unknown; entries: Array<{ key: string; value: unknown }> } {
   if ( !value ) return { kind: "Empty", value: null, entries: [] };
 
   try {
@@ -366,7 +366,7 @@ function parseMetadata( value: string ): { kind: string; value: unknown; entries
   }
 }
 
-function getBookingSummary( value: unknown ): BookingSummary | null {
+export function getBookingSummary( value: unknown ): BookingSummary | null {
   if ( !isRecord( value ) ) return null;
 
   const tripDetails = isRecord( value.tripDetails ) ? value.tripDetails : {};
@@ -417,6 +417,7 @@ function getBookingSummary( value: unknown ): BookingSummary | null {
     "driverPhone",
     "appUrl",
     "tripDetails",
+    "channels",
   ] );
   const consumedTripDetailKeys = new Set( [
     "pickupLocation",

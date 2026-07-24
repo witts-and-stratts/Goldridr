@@ -51,6 +51,7 @@ interface EmailContent {
     imageUrl: string;
     verifyUrl: string;
   };
+  trackingPixelUrl?: string;
 }
 
 const RIDER_TRIP_EMAIL_TEMPLATES = new Set( [
@@ -514,6 +515,7 @@ function GoldridrEmail( { content }: { content: EmailContent } ) {
             </Text>
           </Section>
         </Container>
+        { content.trackingPixelUrl ? <Img src={ content.trackingPixelUrl } alt="" width="1" height="1" style={{ display: "block", height: "1px", width: "1px" }} /> : null }
       </Body>
     </Html>
   );
@@ -523,7 +525,8 @@ export async function renderNotificationEmail(
   template: string,
   recipient: string,
   payload: Record<string, unknown>,
-  idempotencyKey: string
+  idempotencyKey: string,
+  trackingPixelUrl?: string
 ): Promise<RenderedEmail> {
   const config = await getEmailConfig();
   const baseContent = await contentFor( template, payload );
@@ -539,7 +542,7 @@ export async function renderNotificationEmail(
         },
       }
     : baseContent;
-  const element = <GoldridrEmail content={ content } />;
+  const element = <GoldridrEmail content={{ ...content, trackingPixelUrl }} />;
   const [ html, text ] = await Promise.all( [
     render( element ),
     render( element, { plainText: true } ),

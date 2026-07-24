@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { TownFormSchema, ContactFormSchema, getFieldErrorMessage, type TownFormData } from "@/lib/form-schemas";
 import { getMinimumBookingDate } from "@/lib/booking-time";
 import { SuperField } from "@/components/ui/super-field";
+import { Checkbox } from "@/components/ui/checkbox";
 import { BookingSummary } from "@/components/booking/BookingSummary";
 import { MapOverlay } from "@/components/booking/MapOverlay";
 import { showBookingErrorToast } from "@/components/booking/booking-errors";
@@ -285,6 +286,20 @@ export function TownForm( { onBack, onSuccess }: TownFormProps ) {
                   />
                 ) }
               />
+              <contactForm.Field name="smsOptIn">
+                { ( field ) => (
+                  <label className="flex items-start gap-3 text-sm leading-6 text-foreground/80">
+                    <Checkbox
+                      className="mt-1"
+                      checked={ field.state.value }
+                      onCheckedChange={ ( checked ) => field.handleChange( checked === true ) }
+                    />
+                    <span>
+                      Send me booking updates and pickup reminders by SMS. Message and data rates may apply. Reply STOP to opt out.
+                    </span>
+                  </label>
+                ) }
+              </contactForm.Field>
               <contactForm.Subscribe
                 selector={ ( state ) => [ state.canSubmit, state.isSubmitting ] }
                 children={ ( [ canSubmit, isSubmitting ] ) => (
