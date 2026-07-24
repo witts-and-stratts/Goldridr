@@ -1,5 +1,5 @@
 import type { RecordModel } from "pocketbase";
-import { getSession, type AuthSession } from "@/lib/auth";
+import { getSession, isAdmin, type AuthSession } from "@/lib/auth";
 import { listNotifications } from "@/lib/notifications/inbox-store";
 import { mapPocketBaseRecipient } from "@/lib/notifications/pocketbase-inbox";
 import { isPocketBaseConfigured } from "@/lib/pocketbase/config";
@@ -17,10 +17,10 @@ function response( stream: ReadableStream<Uint8Array> ) {
   } );
 }
 
-function pocketBaseStream( request: Request, session: AuthSession, cursor: number ) {
+function pocketBaseStream( request: Request, session: AuthSession, cursor: number, includeDeliveries: boolean ) {
   const pb = getPocketBaseServerClient();
   let timer: ReturnType<typeof setInterval> | undefined;
-  let unsubscribe: ( () => Promise<void> ) | undefined;
+  const unsubscribers: Array<() => Promise<void>> = [];
   let closed = false;
 
   const stream = new ReadableStream<Uint8Array>( {
@@ -33,25 +33,33 @@ function pocketBaseStream( request: Request, session: AuthSession, cursor: numbe
         if ( closed ) return;
         closed = true;
         if ( timer ) clearInterval( timer );
-        await unsubscribe?.();
+        await Promise.all( unsubscribers.map( unsubscribe => unsubscribe() ) );
       };
       request.signal.addEventListener( "abort", () => { void cleanup(); } );
 
       try {
-        unsubscribe = await pb.collection( pocketBaseCollections.recipients ).subscribe(
+        unsubscribers.push( await pb.collection( pocketBaseCollections.recipients ).subscribe(
           "*",
           event => {
             if ( event.action !== "create" ) return;
             try {
               const notification = mapPocketBaseRecipient( event.record as RecordModel );
               write( `id: ${ notification.recipientId }\nevent: notification\ndata: ${ JSON.stringify( notification ) }\n\n` );
+              write( "event: inbox\ndata: {}\n\n" );
             } catch {}
           },
           {
             filter: pb.filter( "userId = {:userId}", { userId: session.userId } ),
             expand: "notification",
           }
-        );
+        ) );
+
+        if ( includeDeliveries && isAdmin( session ) ) {
+          unsubscribers.push( await pb.collection( pocketBaseCollections.deliveries ).subscribe(
+            "*",
+            () => write( "event: inbox\ndata: {}\n\n" )
+          ) );
+        }
 
         const backlog = ( await listNotifications( undefined, session.userId, { afterId: cursor, limit: 100 } ) ).reverse();
         for ( const notification of backlog ) {
@@ -67,7 +75,7 @@ function pocketBaseStream( request: Request, session: AuthSession, cursor: numbe
     async cancel() {
       closed = true;
       if ( timer ) clearInterval( timer );
-      await unsubscribe?.();
+      await Promise.all( unsubscribers.map( unsubscribe => unsubscribe() ) );
     },
   } );
   return response( stream );
@@ -81,5 +89,5 @@ export async function GET( request: Request ) {
   const headerId = Number( request.headers.get( "last-event-id" ) || 0 );
   const cursor = Number( url.searchParams.get( "after" ) || headerId || 0 );
   if ( !isPocketBaseConfigured() ) return new Response( "PocketBase is not configured", { status: 503 } );
-  return pocketBaseStream( request, session, cursor );
+  return pocketBaseStream( request, session, cursor, url.searchParams.get( "deliveries" ) === "true" );
 }

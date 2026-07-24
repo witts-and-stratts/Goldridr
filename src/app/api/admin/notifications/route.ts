@@ -25,7 +25,7 @@ export async function GET( request: Request ) {
     notifications,
     unreadCount: await getUnreadCount( undefined, session.userId ),
     failedDeliveries: isAdmin( session ) ? await listPocketBaseFailedDeliveries() : [],
-  } );
+  }, { headers: { "Cache-Control": "no-store, max-age=0" } } );
 }
 
 export async function PATCH( request: Request ) {

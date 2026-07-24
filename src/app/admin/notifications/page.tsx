@@ -43,6 +43,7 @@ export default function NotificationsPage() {
     items,
     failed,
     reminders,
+    isLoading,
     load,
     markAllRead,
     markReadIds,
@@ -63,18 +64,24 @@ export default function NotificationsPage() {
   const [ isSelecting, setIsSelecting ] = useState( false );
   const [ selectedIds, setSelectedIds ] = useState<Set<number>>( new Set() );
   const [ openMenuId, setOpenMenuId ] = useState<number | null>( null );
+  const [ recentlyReadIds, setRecentlyReadIds ] = useState<Set<number>>( new Set() );
   const lastClickedIndexRef = useRef<number | null>( null );
+
+  const keepsOnlyUnread = folder === "unread" || unreadOnly;
+
+  useEffect( () => {
+    if ( !keepsOnlyUnread ) setRecentlyReadIds( new Set() );
+  }, [ keepsOnlyUnread ] );
 
   const visibleItems = useMemo( () => {
     const filtered = filterNotifications( { folder, items, search, unreadOnly } );
-    const keepsOnlyUnread = folder === "unread" || unreadOnly;
-    if ( !keepsOnlyUnread || selectedNotificationId === null ) return filtered;
+    if ( !keepsOnlyUnread ) return filtered;
 
     return items.filter( item =>
-      item.recipientId === selectedNotificationId
+      recentlyReadIds.has( item.recipientId )
       || filtered.some( filteredItem => filteredItem.recipientId === item.recipientId )
     );
-  }, [ folder, items, search, selectedNotificationId, unreadOnly ] );
+  }, [ folder, items, keepsOnlyUnread, recentlyReadIds, search, unreadOnly ] );
   const visibleReminders = useMemo( () => filterReminders( reminders, search ), [ reminders, search ] );
   const visibleFailures = useMemo( () => filterFailures( failed, search ), [ failed, search ] );
 
@@ -123,7 +130,13 @@ export default function NotificationsPage() {
     lastClickedIndexRef.current = visibleItems.findIndex( value => value.recipientId === item.recipientId );
     setSelectedNotificationId( item.recipientId );
     openMobileDetail();
-  }, [ openMobileDetail, visibleItems ] );
+    if ( !item.readAt ) {
+      void markReadIds( [ item.recipientId ] );
+      if ( keepsOnlyUnread ) {
+        setRecentlyReadIds( current => new Set( current ).add( item.recipientId ) );
+      }
+    }
+  }, [ keepsOnlyUnread, markReadIds, openMobileDetail, visibleItems ] );
 
   const exitSelect = useCallback( () => {
     setIsSelecting( false );
@@ -373,6 +386,7 @@ export default function NotificationsPage() {
 
           <NotificationList
             folder={folder}
+            isLoading={isLoading}
             visibleItems={visibleItems}
             visibleReminders={visibleReminders}
             visibleFailures={visibleFailures}

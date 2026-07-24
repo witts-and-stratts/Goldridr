@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { AlertTriangle, BellRing, Check, CheckSquare, MailOpen, MoreHorizontal, Square, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { Badge } from "@/components/admin-ui/badge";
 import { Button } from "@/components/admin-ui/button";
 import {
@@ -15,10 +16,12 @@ import { cn } from "@/lib/utils";
 import type { FailedDelivery, Folder, NotificationItem, ReminderDelivery } from "../types";
 import { relativeTime, statusVariant } from "../utils";
 import { EmptyList } from "./empty-states";
+import { ListSkeleton } from "./list-skeleton";
 import styles from "@/styles/notification-list.module.css";
 
 interface NotificationListProps {
   folder: Folder;
+  isLoading: boolean;
   visibleItems: NotificationItem[];
   visibleReminders: ReminderDelivery[];
   visibleFailures: FailedDelivery[];
@@ -41,6 +44,7 @@ interface NotificationListProps {
 
 export function NotificationList( {
   folder,
+  isLoading,
   visibleItems,
   visibleReminders,
   visibleFailures,
@@ -60,76 +64,107 @@ export function NotificationList( {
   onStartSelecting,
   onExitSelect,
 }: NotificationListProps ) {
+  if ( isLoading ) {
+    return <ListSkeleton />;
+  }
+
   if ( folder === "reminders" ) {
     return visibleReminders.length
-      ? visibleReminders.map( reminder => (
-          <button
-            key={reminder.id}
-            type="button"
-            onClick={() => onReminderSelect( reminder.id )}
-            className={cn( styles.reminderRow, selectedReminderId === reminder.id && styles.rowActive )}
-          >
-            <BellRing className={styles.rowIcon} />
-            <span className={styles.rowBody}>
-              <span className={styles.rowHead}>
-                <span className="truncate text-sm font-medium">{reminder.passengerName || reminder.recipient}</span>
-                <span className={styles.rowTime}>{relativeTime( reminder.updatedAt )}</span>
+      ? (
+        <AnimatePresence initial={false} mode="popLayout">
+          {visibleReminders.map( reminder => (
+            <motion.button
+              key={reminder.id}
+              layout
+              initial={rowInitial}
+              animate={rowAnimate}
+              exit={rowExit}
+              transition={rowTransition}
+              type="button"
+              onClick={() => onReminderSelect( reminder.id )}
+              className={cn( styles.reminderRow, selectedReminderId === reminder.id && styles.rowActive )}
+            >
+              <BellRing className={styles.rowIcon} />
+              <span className={styles.rowBody}>
+                <span className={styles.rowHead}>
+                  <span className="truncate text-sm font-medium">{reminder.passengerName || reminder.recipient}</span>
+                  <span className={styles.rowTime}>{relativeTime( reminder.updatedAt )}</span>
+                </span>
+                <span className="mt-1 block truncate text-xs text-muted-foreground">{reminder.bookingReference} · {reminder.channel.toUpperCase()}</span>
+                <Badge variant={statusVariant( reminder.status )} className="mt-2">{reminder.status.replace( "_", " " )}</Badge>
               </span>
-              <span className="mt-1 block truncate text-xs text-muted-foreground">{reminder.bookingReference} · {reminder.channel.toUpperCase()}</span>
-              <Badge variant={statusVariant( reminder.status )} className="mt-2">{reminder.status.replace( "_", " " )}</Badge>
-            </span>
-          </button>
-        ) )
+            </motion.button>
+          ) )}
+        </AnimatePresence>
+      )
       : <EmptyList label="No reminder deliveries yet." />;
   }
 
   if ( folder === "failures" ) {
     return visibleFailures.length
-      ? visibleFailures.map( delivery => (
-          <button
-            key={delivery.id}
-            type="button"
-            onClick={() => onFailureSelect( delivery.id )}
-            className={cn( styles.failureRow, selectedFailureId === delivery.id && styles.rowActive )}
-          >
-            <div className={styles.failureLayout}>
-              <AlertTriangle className={styles.failureIcon} />
-              <div className={styles.rowBody}>
-                <div className={styles.rowHead}>
-                  <p className="truncate text-sm font-medium">{delivery.title}</p>
-                  <Badge variant="destructive">Failed</Badge>
+      ? (
+        <AnimatePresence initial={false} mode="popLayout">
+          {visibleFailures.map( delivery => (
+            <motion.button
+              key={delivery.id}
+              layout
+              initial={rowInitial}
+              animate={rowAnimate}
+              exit={rowExit}
+              transition={rowTransition}
+              type="button"
+              onClick={() => onFailureSelect( delivery.id )}
+              className={cn( styles.failureRow, selectedFailureId === delivery.id && styles.rowActive )}
+            >
+              <div className={styles.failureLayout}>
+                <AlertTriangle className={styles.failureIcon} />
+                <div className={styles.rowBody}>
+                  <div className={styles.rowHead}>
+                    <p className="truncate text-sm font-medium">{delivery.title}</p>
+                    <Badge variant="destructive">Failed</Badge>
+                  </div>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{delivery.channel.toUpperCase()} · {delivery.recipient}</p>
+                  <p className={styles.failureError}>{delivery.lastError}</p>
                 </div>
-                <p className="mt-1 truncate text-xs text-muted-foreground">{delivery.channel.toUpperCase()} · {delivery.recipient}</p>
-                <p className={styles.failureError}>{delivery.lastError}</p>
               </div>
-            </div>
-          </button>
-        ) )
+            </motion.button>
+          ) )}
+        </AnimatePresence>
+      )
       : <EmptyList label="No delivery failures." />;
   }
 
   return visibleItems.length
-    ? visibleItems.map( ( item, index ) => (
-        <NotificationRow
-          key={item.recipientId}
-          item={item}
-          index={index}
-          visibleItems={visibleItems}
-          selectedNotificationId={selectedNotificationId}
-          selectedIds={selectedIds}
-          isSelecting={isSelecting}
-          openMenuId={openMenuId}
-          onRowClick={onNotificationRowClick}
-          onSetMenuId={onSetMenuId}
-          onMarkRead={onMarkRead}
-          onMarkUnread={onMarkUnread}
-          onDelete={onDelete}
-          onStartSelecting={onStartSelecting}
-          onExitSelect={onExitSelect}
-        />
-      ) )
+    ? (
+      <AnimatePresence initial={false} mode="popLayout">
+        {visibleItems.map( ( item, index ) => (
+          <NotificationRow
+            key={item.recipientId}
+            item={item}
+            index={index}
+            visibleItems={visibleItems}
+            selectedNotificationId={selectedNotificationId}
+            selectedIds={selectedIds}
+            isSelecting={isSelecting}
+            openMenuId={openMenuId}
+            onRowClick={onNotificationRowClick}
+            onSetMenuId={onSetMenuId}
+            onMarkRead={onMarkRead}
+            onMarkUnread={onMarkUnread}
+            onDelete={onDelete}
+            onStartSelecting={onStartSelecting}
+            onExitSelect={onExitSelect}
+          />
+        ) )}
+      </AnimatePresence>
+    )
     : <EmptyList label="No notifications in this folder." />;
 }
+
+const rowInitial = { opacity: 0, y: -10, scale: 0.98 };
+const rowAnimate = { opacity: 1, y: 0, scale: 1 };
+const rowExit = { opacity: 0, scale: 0.96, transition: { duration: 0.15 } };
+const rowTransition = { duration: 0.22, ease: [ 0.16, 1, 0.3, 1 ] as const };
 
 function NotificationRow( {
   item,
@@ -172,7 +207,12 @@ function NotificationRow( {
   const hasRead = selectedVisibleItems.some( value => !!value.readAt );
 
   return (
-    <div
+    <motion.div
+      layout
+      initial={rowInitial}
+      animate={rowAnimate}
+      exit={rowExit}
+      transition={rowTransition}
       role="button"
       tabIndex={0}
       onClick={( event ) => onRowClick( item, index, event )}
@@ -258,6 +298,6 @@ function NotificationRow( {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
+    </motion.div>
   );
 }

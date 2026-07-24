@@ -96,20 +96,25 @@ export class NotificationWorker {
     await this.smsTransport.verify();
   }
 
-  async runOnce( limit = 20 ): Promise<{ claimed: number; delivered: number; failed: number }> {
+  async runOnce( limit = 20, concurrency = 5 ): Promise<{ claimed: number; delivered: number; failed: number }> {
     if ( !this.emailTransport ) await this.verify();
     await processPushReceipts( undefined );
     const deliveries = await this.queue.claim( limit );
     let delivered = 0;
     let failed = 0;
-    for ( const delivery of deliveries ) {
-      try {
-        await this.deliver( delivery );
-        delivered++;
-      } catch ( error ) {
-        await this.fail( delivery, error );
-        failed++;
-      }
+    const batchSize = Math.max( 1, Math.min( concurrency, deliveries.length ) );
+    for ( let index = 0; index < deliveries.length; index += batchSize ) {
+      const results = await Promise.all( deliveries.slice( index, index + batchSize ).map( async delivery => {
+        try {
+          await this.deliver( delivery );
+          return true;
+        } catch ( error ) {
+          await this.fail( delivery, error );
+          return false;
+        }
+      } ) );
+      delivered += results.filter( Boolean ).length;
+      failed += results.filter( result => !result ).length;
     }
     return { claimed: deliveries.length, delivered, failed };
   }

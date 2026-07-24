@@ -24,6 +24,7 @@ import { BookingSummary } from "@/components/booking/BookingSummary";
 import { MapOverlay } from "@/components/booking/MapOverlay";
 import { showBookingErrorToast } from "@/components/booking/booking-errors";
 import { SuperField } from "@/components/ui/super-field";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AirportFormSchema, ContactFormSchema, getFieldErrorMessage, type AirportFormData } from "@/lib/form-schemas";
 import { getMinimumBookingDate } from "@/lib/booking-time";
 
@@ -479,6 +480,20 @@ export function AirportForm( { onBack, onSuccess }: AirportFormProps ) {
                     />
                   ) }
                 />
+                <contactForm.Field name="smsOptIn">
+                  { ( field ) => (
+                    <label className="flex items-start gap-3 text-sm leading-6 text-foreground/80">
+                      <Checkbox
+                        className="mt-1"
+                        checked={ field.state.value }
+                        onCheckedChange={ ( checked ) => field.handleChange( checked === true ) }
+                      />
+                      <span>
+                        Send me booking updates and pickup reminders by SMS. Message and data rates may apply. Reply STOP to opt out.
+                      </span>
+                    </label>
+                  ) }
+                </contactForm.Field>
               </form>
             </div>
 

@@ -22,7 +22,7 @@ export async function GET( request: Request ) {
       time: booking.time,
       status: booking.status,
     } ) ),
-  } );
+  }, { headers: { "Cache-Control": "no-store, max-age=0" } } );
 }
 
 export async function POST( request: Request ) {
