@@ -1,6 +1,6 @@
 import { SuperField } from "@/components/ui/super-field";
 import { getFieldErrorMessage } from "@/lib/form-schemas";
-import { Checkbox } from "@/components/ui/checkbox";
+import { SmsConsent } from "@/components/booking/SmsConsent";
 
 interface ContactFormFieldsProps {
   form: any;
@@ -85,21 +85,7 @@ export function ContactFormFields( { form }: ContactFormFieldsProps ) {
           />
         ) }
       />
-      <form.Field
-        name="smsOptIn"
-        children={ ( field: any ) => (
-          <label className="flex items-start gap-3 text-sm leading-6 text-foreground/80">
-            <Checkbox
-              className="mt-1"
-              checked={ field.state.value }
-              onCheckedChange={ ( checked ) => field.handleChange( checked === true ) }
-            />
-            <span>
-              Send me booking updates and pickup reminders by SMS. Message and data rates may apply. Reply STOP to opt out.
-            </span>
-          </label>
-        ) }
-      />
+      <SmsConsent form={ form } />
     </>
   );
 }

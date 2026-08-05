@@ -24,8 +24,8 @@ export function Footer() {
 
       <div className="site-container mt-12 flex flex-col items-center justify-between gap-6 border-t border-gray-900 pt-8 font-light text-gray-400 md:flex-row">
         <div className="flex gap-6">
-          <Link href="#" className="hover:text-gray-400 transition-colors">Privacy Policy</Link>
-          <Link href="#" className="hover:text-gray-400 transition-colors">Terms & Conditions</Link>
+          <Link href="/privacy" className="hover:text-gray-400 transition-colors">Privacy Policy</Link>
+          <Link href="/terms" className="hover:text-gray-400 transition-colors">Terms & Conditions</Link>
         </div>
         <div className="max-md:text-xs">
           © Goldridr Technology LLC 2024. All rights reserved.

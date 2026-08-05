@@ -1,4 +1,3 @@
-
 ---
 
 # Goldridr — Project Guide
