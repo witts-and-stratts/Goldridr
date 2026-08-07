@@ -45,7 +45,7 @@ const FuturePickupValidation = {
 export const ContactFormSchema = z.object( {
   name: z.string().min( 2, "Name is required" ),
   email: z.email( "Valid email is required" ),
-  phone: z.string().min( 10, "Phone number is required" ),
+  phone: z.string().refine( value => value.trim().length === 0 || value.trim().length >= 10, "Enter a valid phone number" ),
   notes: z.string(),
   discountCode: z.string().trim().max( 32, "Discount code is too long" ),
   smsOptIn: z.boolean(),
@@ -73,46 +73,53 @@ export function getFieldErrorMessage( errors: unknown ): string | undefined {
 }
 
 // ============================================================================
-// Airport Form Schema
+// Unified Booking Schema
 // ============================================================================
 
-export const AirportFormSchema = z.object( {
-  flightNumber: FlightNumberSchema,
-  terminal: TerminalSchema,
+// One form covers all three services. Every field always exists so switching
+// service type never discards what the guest already typed; `serviceType`
+// decides which of them are actually required.
+export const bookingServiceTypes = [ "airport", "city", "hourly" ] as const;
+export type BookingServiceType = typeof bookingServiceTypes[ number ];
+
+export const UnifiedBookingSchema = z.object( {
+  serviceType: z.enum( bookingServiceTypes ),
+  pickupLocation: LocationSchema,
+  dropoffLocation: z.string(),
+  date: DateSchema,
+  time: TimeSchema,
   passengers: PassengersSchema,
-  pickupLocation: LocationSchema,
-  dropoffLocation: LocationSchema,
-  date: DateSchema,
-  time: TimeSchema,
-} ).refine( hasFuturePickup, FuturePickupValidation );
+  luggage: z.string(),
+  flightNumber: z.string(),
+  terminal: z.string(),
+  duration: z.string(),
+} ).superRefine( ( data, ctx ) => {
+  const requireWith = ( schema: z.ZodType, value: unknown, path: string ) => {
+    const result = schema.safeParse( value );
+    if ( !result.success ) {
+      ctx.addIssue( { code: "custom", path: [ path ], message: result.error.issues[ 0 ].message } );
+    }
+  };
 
-export type AirportFormData = z.infer<typeof AirportFormSchema>;
+  if ( data.serviceType !== "hourly" ) {
+    requireWith( LocationSchema, data.dropoffLocation, "dropoffLocation" );
+  }
 
-// ============================================================================
-// Town (City) Form Schema
-// ============================================================================
+  if ( data.serviceType === "airport" ) {
+    requireWith( FlightNumberSchema, data.flightNumber.trim(), "flightNumber" );
+    requireWith( TerminalSchema, data.terminal, "terminal" );
+  }
 
-export const TownFormSchema = z.object( {
-  pickupLocation: LocationSchema,
-  dropoffLocation: LocationSchema,
-  date: DateSchema,
-  time: TimeSchema,
-} ).refine( hasFuturePickup, FuturePickupValidation );
+  if ( data.serviceType === "hourly" ) {
+    requireWith( DurationSchema, data.duration.trim(), "duration" );
+  }
 
-export type TownFormData = z.infer<typeof TownFormSchema>;
+  if ( !hasFuturePickup( data ) ) {
+    ctx.addIssue( { code: "custom", path: [ "time" ], message: FuturePickupValidation.message } );
+  }
+} );
 
-// ============================================================================
-// Hourly Form Schema
-// ============================================================================
-
-export const HourlyFormSchema = z.object( {
-  pickupLocation: LocationSchema,
-  duration: DurationSchema,
-  date: DateSchema,
-  time: TimeSchema,
-} ).refine( hasFuturePickup, FuturePickupValidation );
-
-export type HourlyFormData = z.infer<typeof HourlyFormSchema>;
+export type UnifiedBookingData = z.infer<typeof UnifiedBookingSchema>;
 
 // ============================================================================
 // Validation Helpers

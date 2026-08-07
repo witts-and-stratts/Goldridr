@@ -223,6 +223,7 @@ function VerifyBookingContent() {
       <BookingOverlay
         isOpen={ isBookingOpen }
         onClose={ () => setIsBookingOpen( false ) }
+        onOpen={ () => setIsBookingOpen( true ) }
       />
     </main>
   );

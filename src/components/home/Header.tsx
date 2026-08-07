@@ -58,7 +58,7 @@ export function Header( { className }: HeaderProps ) {
       ) }
     >
       <Link href="/" className="flex items-center z-50 relative">
-        <Image src="/assets/images/goldridr-logo-main.svg" alt="Goldridr" width={ 180 } height={ 40 } className="h-8 w-auto md:h-10" />
+        <Image src="/assets/images/goldridr-logo-main.svg" alt="Goldridr" width={ 231 } height={ 48 } priority className="h-8 w-auto md:h-10" />
       </Link>
 
       {/* Desktop Navigation */ }

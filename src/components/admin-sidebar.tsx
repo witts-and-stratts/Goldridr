@@ -128,8 +128,8 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
           <Image
             src="/assets/images/goldridr-logo-main.svg"
             alt="Goldridr"
-            width={120}
-            height={28}
+            width={231}
+            height={48}
             className="h-7 w-auto object-contain group-data-[collapsible=icon]:hidden dark:invert"
             priority
           />

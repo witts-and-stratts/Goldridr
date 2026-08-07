@@ -11,6 +11,7 @@ import { zonedDateTimeToDate } from "./time";
 import { getPocketBaseClient } from "@/lib/pocketbase/client";
 import { pocketBaseCollections } from "@/lib/pocketbase/collections";
 import { first, legacyId } from "@/lib/pocketbase/core";
+import { SMS_BODY_FULL_DISCLOSURE, SMS_BODY_OPT_OUT } from "@/lib/sms-consent-copy";
 
 const RETRY_DELAYS_MS = [ 60_000, 300_000, 900_000, 3_600_000, 21_600_000 ];
 
@@ -45,8 +46,21 @@ function parsePayload( delivery: NotificationDeliveryRecord ): Record<string, un
   }
 }
 
+// A2P 10DLC requires every message to carry an opt-out instruction, and the first
+// message of a conversation to also carry frequency and rate disclosure.
+const SMS_OPT_OUT = SMS_BODY_OPT_OUT;
+const SMS_FULL_DISCLOSURE = SMS_BODY_FULL_DISCLOSURE;
+
+function withCompliance( body: string, disclosure: string ): string {
+  const trimmed = body.trim();
+  return trimmed.endsWith( disclosure ) ? trimmed : `${ trimmed } ${ disclosure }`;
+}
+
 function smsBody( template: string | null, payload: Record<string, unknown> ): string {
-  if ( template === "manual_message" || template === "broadcast" ) return String( payload.message || "" ).slice( 0, 1500 );
+  if ( template === "manual_message" || template === "broadcast" ) {
+    const message = String( payload.message || "" ).slice( 0, 1500 - SMS_OPT_OUT.length - 1 );
+    return withCompliance( message, SMS_OPT_OUT );
+  }
   const reference = String( payload.bookingReference || "" );
   const tripDetails = payload.tripDetails && typeof payload.tripDetails === "object"
     ? payload.tripDetails as Record<string, unknown>
@@ -55,21 +69,23 @@ function smsBody( template: string | null, payload: Record<string, unknown> ): s
     ? ` Terminal: ${ tripDetails.terminal.trim() }.`
     : "";
   if ( template === "booking_reminder" ) {
-    return `Goldridr reminder: booking ${ reference } is scheduled for ${ payload.date } at ${ payload.time }.${ terminal }`;
+    return withCompliance( `Goldridr reminder: booking ${ reference } is scheduled for ${ payload.date } at ${ payload.time }.${ terminal }`, SMS_OPT_OUT );
   }
+  // booking_created is the first message a passenger receives after opting in, so it
+  // doubles as the consent confirmation and carries the full disclosure.
   if ( template === "booking_created" ) {
-    return `Goldridr: we received booking ${ reference } for ${ payload.date } at ${ payload.time }.${ terminal } We will notify you when it is confirmed.`;
+    return withCompliance( `Goldridr: we received booking ${ reference } for ${ payload.date } at ${ payload.time }.${ terminal } We will notify you when it is confirmed.`, SMS_FULL_DISCLOSURE );
   }
   if ( template === "booking_assignment" ) {
     const chauffeur = String( payload.chauffeurName || "" );
-    return chauffeur
+    return withCompliance( chauffeur
       ? `Goldridr update: ${ chauffeur } is assigned to booking ${ reference }.${ terminal }`
-      : `Goldridr update: booking ${ reference } is awaiting a chauffeur assignment.${ terminal }`;
+      : `Goldridr update: booking ${ reference } is awaiting a chauffeur assignment.${ terminal }`, SMS_OPT_OUT );
   }
   if ( template === "booking_deleted" ) {
-    return `Goldridr update: booking ${ reference } was deleted.${ terminal } Contact us if this was unexpected.`;
+    return withCompliance( `Goldridr update: booking ${ reference } was deleted.${ terminal } Contact us if this was unexpected.`, SMS_OPT_OUT );
   }
-  return `Goldridr update: booking ${ reference } is now ${ payload.status || "updated" }.${ terminal }`;
+  return withCompliance( `Goldridr update: booking ${ reference } is now ${ payload.status || "updated" }.${ terminal }`, SMS_OPT_OUT );
 }
 
 function retryAfterMs( error: unknown ): number | undefined {

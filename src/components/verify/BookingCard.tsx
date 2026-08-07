@@ -3,7 +3,7 @@
 import { BookingData } from "@/types/booking";
 import { formatShortDate, formatTime, formatFullDate } from "@/lib/date-utils";
 import { getStatusColor, getStatusIcon } from "@/lib/booking-status";
-import { Plane, User } from "lucide-react";
+import { Plane, PlaneIcon, User } from "lucide-react";
 import { motion } from "motion/react";
 import QRCode from "react-qr-code";
 
@@ -84,7 +84,7 @@ export function BookingCard( { booking, routeMapUrl, onMapClick }: BookingCardPr
               <span className="text-2xl font-bold font-wide text-white">{ formatTime( start ) }</span>
               <div className="flex-1 flex items-center justify-center px-4">
                 <div className="h-px w-full bg-gray-600 relative">
-                  <Plane className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-4 w-4 text-[#D4AF37] rotate-90" />
+                  <PlaneIcon className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-4 w-4 text-[#D4AF37] rotate-90" />
                 </div>
               </div>
               <span className="text-2xl font-bold font-wide text-white">{ responses.duration || "—" }</span>

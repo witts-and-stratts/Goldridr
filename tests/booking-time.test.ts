@@ -6,7 +6,7 @@ import {
   isBookingTimeInFuture,
   PastBookingTimeError,
 } from "../src/lib/booking-time";
-import { TownFormSchema } from "../src/lib/form-schemas";
+import { UnifiedBookingSchema } from "../src/lib/form-schemas";
 import { POST } from "../src/app/api/booking/route";
 
 const now = new Date( "2026-06-11T18:00:00.000Z" );
@@ -25,11 +25,17 @@ test( "booking time at the current instant is rejected", () => {
 } );
 
 test( "booking forms reject a past pickup", () => {
-  const result = TownFormSchema.safeParse( {
+  const result = UnifiedBookingSchema.safeParse( {
+    serviceType: "city",
     pickupLocation: "100 Main Street",
     dropoffLocation: "200 Main Street",
     date: new Date( 2020, 0, 1 ),
     time: "12:00",
+    passengers: "1",
+    luggage: "1",
+    flightNumber: "",
+    terminal: "",
+    duration: "",
   } );
 
   assert.equal( result.success, false );

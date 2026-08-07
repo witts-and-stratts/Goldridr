@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  SMS_CONSENT_FREQUENCY,
+  SMS_CONSENT_HELP_STOP,
+  SMS_CONSENT_NOT_REQUIRED,
+  SMS_CONSENT_RATES,
+} from "@/lib/sms-consent-copy";
 
 interface SmsConsentProps {
   form: any;
@@ -31,28 +37,21 @@ export function SmsConsent( { form }: SmsConsentProps ) {
       <dl className="mt-4 space-y-2 text-xs leading-5 text-muted-foreground">
         <div>
           <dt className="inline font-semibold text-foreground/80">Message Frequency: </dt>
-          <dd className="inline">
-            Message frequency varies. You will receive up to 6 messages per booking.
-          </dd>
+          <dd className="inline">{ SMS_CONSENT_FREQUENCY }</dd>
         </div>
         <div>
           <dt className="inline font-semibold text-foreground/80">Standard Rates: </dt>
-          <dd className="inline">
-            Message and data rates may apply depending on your mobile phone service plan.
-          </dd>
+          <dd className="inline">{ SMS_CONSENT_RATES }</dd>
         </div>
         <div>
           <dt className="inline font-semibold text-foreground/80">Help &amp; Stop: </dt>
-          <dd className="inline">
-            Reply HELP for help or STOP to cancel at any time.
-          </dd>
+          <dd className="inline">{ SMS_CONSENT_HELP_STOP }</dd>
         </div>
       </dl>
 
       <p className="mt-3 text-xs leading-5 text-muted-foreground">
         By providing your phone number and checking the box above, you agree to receive
-        text messages from Goldridr. Consent is not required to make a purchase or book a
-        ride.
+        text messages from Goldridr. { SMS_CONSENT_NOT_REQUIRED }
       </p>
 
       <p className="mt-3 text-xs leading-5">

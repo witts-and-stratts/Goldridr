@@ -45,7 +45,7 @@ export function ContactFormFields( { form }: ContactFormFieldsProps ) {
           <SuperField
             type="tel"
             id={ field.name }
-            label="Phone"
+            label="Phone (optional)"
             placeholder="+1 (555) 123-4567"
             value={ field.state.value }
             onChange={ ( e: any ) => field.handleChange( e.target.value ) }

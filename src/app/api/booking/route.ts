@@ -9,6 +9,7 @@ import {
 } from "@/lib/pocketbase/repository";
 import { bookingRecordToBookingData } from "@/lib/booking-data";
 import { createPocketBaseBookingCreated } from "@/lib/pocketbase/notifications";
+import { recordSmsConsent } from "@/lib/notifications/sms-consent";
 import { getNotificationTimeZone } from "@/lib/admin-settings";
 import {
   assertFutureBookingTime,
@@ -197,6 +198,8 @@ export async function POST( req: Request ) {
     }
 
     const bookingReference = generateBookingReference();
+    const smsConsented = Boolean( input.smsOptIn && input.attendee.phone );
+    const smsConsentedAt = smsConsented ? new Date().toISOString() : null;
     const savedBooking = await saveBooking( {
       reference: bookingReference,
       tripType: input.tripType || "airport",
@@ -211,9 +214,18 @@ export async function POST( req: Request ) {
       tripDetails: JSON.stringify( input.tripDetails || {} ),
       discountCode: input.discountCode || null,
       chauffeurId: assignedChauffeur.id,
-      smsConsentVersion: input.smsOptIn && input.attendee.phone ? input.smsConsentVersion : null,
-      smsConsentedAt: input.smsOptIn && input.attendee.phone ? new Date().toISOString() : null,
+      smsConsentVersion: smsConsented ? input.smsConsentVersion : null,
+      smsConsentedAt,
     } );
+
+    if ( smsConsented ) {
+      await recordSmsConsent( {
+        customerEmail: input.attendee.email,
+        phone: input.attendee.phone!,
+        consentVersion: input.smsConsentVersion,
+        consentedAt: smsConsentedAt!,
+      } );
+    }
 
     await createPocketBaseBookingCreated( savedBooking );
 

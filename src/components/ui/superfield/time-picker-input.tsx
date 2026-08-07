@@ -124,6 +124,7 @@ export const TimePickerInput = ( {
   return (
     <Popover>
       <PopoverTrigger
+        nativeButton={ false }
         render={
           <div className={ cn( "w-full cursor-pointer", disabled && "cursor-not-allowed opacity-50" ) }>
             <InputGroup className={ cn( "h-12 transition-colors hover:border-gold/60 data-[state=open]:border-gold", className ) }>

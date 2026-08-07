@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { POST } from "../src/app/api/booking/route";
 import { bookingRecordToResponses } from "../src/lib/booking-data";
-import { AirportFormSchema } from "../src/lib/form-schemas";
+import { UnifiedBookingSchema } from "../src/lib/form-schemas";
 
 test( "airport form requires a terminal" , () => {
-  const result = AirportFormSchema.safeParse( {
+  const result = UnifiedBookingSchema.safeParse( {
+    serviceType: "airport",
     flightNumber: "UA1234",
     terminal: "",
     passengers: "1",
+    luggage: "1",
+    duration: "",
     pickupLocation: "Houston Intercontinental Airport",
     dropoffLocation: "100 Main Street, Houston",
     date: new Date( "2099-06-11T00:00:00" ),
