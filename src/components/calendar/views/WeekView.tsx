@@ -1,7 +1,7 @@
 import { format, startOfWeek, addDays, isSameDay } from "date-fns";
 import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useCalendar } from "../context";
 import { HourLabels } from "../primitives/HourLabels";
 import { GridLines } from "../primitives/GridLines";
@@ -24,7 +24,7 @@ export function WeekView() {
   const nowPct = currentTimePct(now);
 
   return (
-    <ScrollArea className="flex-1 min-h-0" horizontal>
+    <ScrollArea className="flex-1 min-h-0">
       <div style={{ minWidth: `${7 * MIN_COL_PX + GUTTER_W}px` }}>
         {/* Day headers — scroll horizontally with the columns */}
         <div className="flex shrink-0 border-b border-border sticky top-0 z-20 bg-background">
@@ -115,6 +115,7 @@ export function WeekView() {
           </div>
         </div>
       </div>
+      <ScrollBar orientation="horizontal" />
     </ScrollArea>
   );
 }

@@ -21,7 +21,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Clock01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
-import { BaseFieldProps } from "./types";
+import { BaseFieldProps } from "./base-types";
 
 export interface TimePickerInputProps {
   id?: string;
@@ -127,7 +127,7 @@ export const TimePickerInput = ( {
         nativeButton={ false }
         render={
           <div className={ cn( "w-full cursor-pointer", disabled && "cursor-not-allowed opacity-50" ) }>
-            <InputGroup className={ cn( "h-12 transition-colors hover:border-gold/60 data-[state=open]:border-gold", className ) }>
+            <InputGroup className={ className }>
               <InputGroupInput
                 id={ id }
                 name={ name }
@@ -156,7 +156,7 @@ export const TimePickerInput = ( {
         }
       />
       <PopoverContent
-        className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 bg-black"
+        className="vega-form dark w-[22rem] max-w-[calc(100vw-2rem)] p-0"
         align="end"
         alignOffset={ 0 }
         sideOffset={ 4 }
@@ -166,13 +166,13 @@ export const TimePickerInput = ( {
           onMouseDown={ ( e ) => e.stopPropagation() }
           className="flex flex-col"
         >
-          <div className="border-b border-border/10 px-4 py-3">
+          <div className="border-b px-4 py-3">
             <p className="text-sm font-medium text-foreground">Pickup time</p>
             <p className="mt-0.5 text-xs text-muted-foreground">Choose a common time or set one precisely.</p>
           </div>
 
           <div className="px-4 pb-4 pt-3">
-            <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Popular times</p>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Popular times</p>
             <div className="grid grid-cols-3 gap-1.5">
               { quickTimes.map( ( option ) => (
                 <button
@@ -182,10 +182,10 @@ export const TimePickerInput = ( {
                   aria-pressed={ value === option.value }
                   onClick={ () => selectTime( option.value ) }
                   className={ cn(
-                    "h-9 border border-border/30 px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold disabled:pointer-events-none disabled:opacity-50",
+                    "h-9 rounded-md border px-2 text-xs font-medium transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50",
                     value === option.value
-                      ? "border-gold bg-gold text-black!"
-                      : "bg-transparent text-foreground hover:border-gold/60 hover:bg-gold/10"
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "bg-background text-foreground hover:bg-muted"
                   ) }
                 >
                   { option.label }
@@ -194,8 +194,8 @@ export const TimePickerInput = ( {
             </div>
           </div>
 
-          <div className="border-t border-border/10 px-4 py-3">
-            <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Set a precise time</p>
+          <div className="border-t px-4 py-3">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Set a precise time</p>
             <div className="grid grid-cols-[1fr_1fr_0.9fr] gap-2">
               <div>
                 <label className="mb-1 block text-xs text-muted-foreground" htmlFor={ `${ id }-hour` }>Hour</label>
@@ -211,7 +211,7 @@ export const TimePickerInput = ( {
                 <SelectTrigger id={ `${ id }-hour` } className="h-9 w-full px-2">
                   <SelectValue placeholder="Hour" className="text-xs" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="vega-form dark">
                   { hours.map( ( h ) => (
                     <SelectItem key={ h } value={ h } className="text-xs">
                       { h }
@@ -235,7 +235,7 @@ export const TimePickerInput = ( {
                 <SelectTrigger id={ `${ id }-minute` } className="h-9 w-full px-2">
                   <SelectValue placeholder="Minute" className="text-xs" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="vega-form dark">
                   { minutes.map( ( m ) => (
                     <SelectItem key={ m } value={ m } className="text-xs">
                       { m }
@@ -259,7 +259,7 @@ export const TimePickerInput = ( {
                 <SelectTrigger id={ `${ id }-period` } className="h-9 w-full px-2">
                   <SelectValue placeholder="AM / PM" className="text-xs" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="vega-form dark">
                   { periods.map( ( p ) => (
                     <SelectItem key={ p } value={ p } className="text-xs">
                       { p }

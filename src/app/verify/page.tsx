@@ -209,11 +209,10 @@ function VerifyBookingContent() {
 
       {/* Map Overlay */ }
       <AnimatePresence>
-        { showMapOverlay && routeMapUrl && (
+        { showMapOverlay && bookingData?.responses?.pickup && (
           <MapOverlay
-            mapUrl={ routeMapUrl }
-            pickupLocation={ bookingData?.responses?.pickup }
-            destinationLocation={ bookingData?.responses?.destination }
+            pickupLocation={ bookingData.responses.pickup }
+            destinationLocation={ bookingData.responses.destination }
             onClose={ () => setShowMapOverlay( false ) }
           />
         ) }

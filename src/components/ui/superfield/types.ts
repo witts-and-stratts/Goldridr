@@ -2,35 +2,12 @@
 import { ComponentProps, ReactNode } from "react";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import type { BaseFieldProps, SelectOption } from './base-types';
+export type { BaseFieldProps, SelectOption } from './base-types';
 // import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
 // import { Switch } from '@/components/ui/switch';
 // import { type QuillToolbarConfig } from '@/components/ui/quill-editor';
 
-
-// Select option types
-export type SelectOption =
-  | number
-  | string
-  | { label: ReactNode; value: string; disabled?: boolean; };
-
-// Base props shared by all field types
-export interface BaseFieldProps {
-  label?: string;
-  description?: string;
-  error?: string;
-  errors?: Array<{ message?: string; } | undefined>;
-  required?: boolean;
-  disabled?: boolean;
-  className?: string;
-  fieldClassName?: string;
-  labelClassName?: string;
-  // InputGroup support
-  prefix?: ReactNode;
-  suffix?: ReactNode;
-  prefixAlign?: 'inline-start' | 'block-start';
-  suffixAlign?: 'inline-end' | 'block-end';
-  headerExtra?: ReactNode;
-}
 
 // Input field specific props
 export interface InputFieldProps

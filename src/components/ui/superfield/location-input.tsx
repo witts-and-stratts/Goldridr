@@ -1,6 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { InputGroupInput } from "@/components/ui/input-group";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState, ForwardedRef, forwardRef } from "react";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,7 @@ interface LocationInputProps extends Omit<React.ComponentProps<typeof Input>, 'o
   onChange: ( value: string ) => void;
   onLocationSelect?: ( location: any ) => void;
   isInvalid?: boolean;
+  inInputGroup?: boolean;
 }
 
 declare global {
@@ -35,6 +37,7 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
   name,
   isInvalid,
   onLocationSelect,
+  inInputGroup = false,
   ...props
 }, ref ) => {
   const [ inputValue, setInputValue ] = useState( value || "" );
@@ -173,9 +176,11 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
     }
   };
 
+  const Control = inInputGroup ? InputGroupInput : Input;
+
   return (
-    <div className="relative w-full" ref={ containerRef }>
-      <Input
+    <div className={ cn( "relative w-full", inInputGroup && "min-w-0 flex-1" ) } ref={ containerRef }>
+      <Control
         ref={ ref || innerInputRef }
         id={ name }
         name={ name }
@@ -196,7 +201,7 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
             initial={ { opacity: 0, y: -10 } }
             animate={ { opacity: 1, y: 0 } }
             exit={ { opacity: 0, y: -10 } }
-            className="absolute z-50 mt-1 w-full rounded-md border border-white/10 bg-black/90 backdrop-blur-md shadow-xl max-h-60 overflow-y-auto"
+            className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md"
           >
             <ul className="py-1">
               { predictions.map( ( suggestion, index ) => (
@@ -204,10 +209,10 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
                   key={ suggestion.place_id || index }
                   onClick={ () => handlePredictionSelect( suggestion ) }
                   className={ cn(
-                    "cursor-pointer px-4 py-2 text-sm transition-colors",
+                    "cursor-pointer px-3 py-2 text-sm outline-none transition-colors",
                     index === highlightedIndex
-                      ? "bg-white/20 text-white"
-                      : "text-gray-300 hover:bg-white/10 hover:text-white"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-popover-foreground hover:bg-accent hover:text-accent-foreground"
                   ) }
                   onMouseEnter={ () => setHighlightedIndex( index ) }
                 >

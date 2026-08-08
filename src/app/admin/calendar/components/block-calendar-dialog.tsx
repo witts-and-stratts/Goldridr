@@ -89,7 +89,7 @@ export function BlockCalendarDialog({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" initialFocus
+                    <Calendar mode="single" autoFocus
                       selected={form.date ? new Date(`${form.date}T00:00:00`) : undefined}
                       onSelect={(d) => onFormChange({ date: d ? formatDateStr(d) : "" })} />
                   </PopoverContent>
@@ -105,7 +105,7 @@ export function BlockCalendarDialog({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" initialFocus
+                    <Calendar mode="single" autoFocus
                       selected={form.endDate ? new Date(`${form.endDate}T00:00:00`) : undefined}
                       onSelect={(d) => onFormChange({ endDate: d ? formatDateStr(d) : "" })} />
                   </PopoverContent>

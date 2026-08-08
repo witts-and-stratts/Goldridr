@@ -11,9 +11,12 @@
     "test": "node --import tsx --test tests/**/*.test.ts",
     "notifications:worker": "tsx scripts/notification-worker.ts",
     "notifications:once": "tsx scripts/notification-once.ts",
+    "flights:worker": "tsx scripts/flight-tracking-worker.ts",
     "pocketbase:backup": "tsx scripts/pocketbase-backup.ts",
     "pocketbase:migrate": "docker compose exec pocketbase pocketbase migrate up --dir=/pb/pb_data --migrationsDir=/pb/pb_migrations",
-    "pocketbase:verify": "tsx scripts/pocketbase-verify.ts"
+    "pocketbase:verify": "tsx scripts/pocketbase-verify.ts",
+    "registry:validate": "shadcn registry validate",
+    "registry:build": "shadcn build registry.json --output public/r"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1066.0",
@@ -59,7 +62,7 @@
     "qr.js": "^0.0.0",
     "quill": "^2.0.3",
     "react": "19.2.3",
-    "react-day-picker": "^9.13.1",
+    "react-day-picker": "^10.0.1",
     "react-dom": "19.2.3",
     "react-email": "^6.6.0",
     "react-qr-code": "^2.0.18",

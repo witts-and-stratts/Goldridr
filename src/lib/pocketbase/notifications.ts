@@ -5,6 +5,7 @@ import { getAllChauffeurs } from "./repository";
 import { getPocketBaseClient } from "./client";
 import { pocketBaseCollections } from "./collections";
 import { legacyId } from "./core";
+import { sendPushToUsers } from "@/lib/notifications/push";
 
 async function createNotification( input: { type: string; category: "messages" | "reminders" | "system"; title: string; body: string; eventKey?: string; bookingReference?: string; actorUserId?: string; metadata?: Record<string, unknown>; inAppUserIds?: string[]; deliveries?: Array<{ channel: "email" | "sms"; recipient: string; template: string; payload: Record<string, unknown> }> } ) {
   const pb = getPocketBaseClient();
@@ -46,6 +47,27 @@ export async function createPocketBaseInboundEmail( input: { eventKey: string; p
 }
 export async function createPocketBaseBookingCreated( booking: BookingRecord ) { const data = { ...payload( booking, "", "" ), status: booking.status, pin: booking.pin || "" }; return createNotification( { type: "booking.created", category: "system", title: `Booking ${ booking.reference } received`, body: `Booking request received from ${ booking.name }.`, bookingReference: booking.reference, metadata: data, inAppUserIds: [ "admin" ], deliveries: bookingDeliveries( booking, [ "email", "sms" ], "booking_created", data ) } ); }
 export async function createPocketBaseBookingStatusUpdate( booking: BookingRecord ) { const data = { ...payload( booking, "", "" ), status: booking.status }; return createNotification( { type: "booking.status_updated", category: "system", title: `Booking ${ booking.reference } is ${ booking.status }`, body: `Booking status updated for ${ booking.name }.`, bookingReference: booking.reference, metadata: data, inAppUserIds: [ "admin" ], deliveries: bookingDeliveries( booking, [ "email", "sms" ], "booking_status", data ) } ); }
+export async function createPocketBaseFlightAlert( input: { bookingReference: string; chauffeurUserId?: string | null; title: string; body: string; fingerprint: string; metadata: Record<string, unknown> } ) {
+  const inAppUserIds = [ "admin", ...( input.chauffeurUserId ? [ input.chauffeurUserId ] : [] ) ];
+  const notificationId = await createNotification( {
+    type: "flight.status_changed",
+    category: "system",
+    title: input.title,
+    body: input.body,
+    eventKey: `flight.status_changed:${ input.bookingReference }:${ input.fingerprint }`,
+    bookingReference: input.bookingReference,
+    metadata: input.metadata,
+    inAppUserIds,
+  } );
+  if ( input.chauffeurUserId ) {
+    await sendPushToUsers( undefined, [ input.chauffeurUserId ], {
+      title: input.title,
+      body: input.body,
+      data: { bookingReference: input.bookingReference, type: "flight.status_changed" },
+    } );
+  }
+  return notificationId;
+}
 export async function createPocketBaseBroadcast( session: AuthSession, chauffeurIds: string[], subject: string, message: string, channels: Array<"in_app" | "email" | "sms"> ) { const chauffeurs = ( await getAllChauffeurs() ).filter( chauffeur => chauffeurIds.length === 0 || chauffeurIds.includes( chauffeur.id ) ); return createNotification( { type: "message.broadcast", category: "messages", title: subject, body: message, actorUserId: session.userId, metadata: { chauffeurIds: chauffeurs.map( item => item.id ), channels }, inAppUserIds: channels.includes( "in_app" ) ? chauffeurs.map( item => `chauffeur:${ item.id }` ) : [], deliveries: chauffeurs.flatMap( chauffeur => [ ...( channels.includes( "email" ) && chauffeur.email ? [ { channel: "email" as const, recipient: chauffeur.email, template: "broadcast", payload: { subject, message, chauffeurName: chauffeur.name } } ] : [] ), ...( channels.includes( "sms" ) && chauffeur.phone ? [ { channel: "sms" as const, recipient: chauffeur.phone, template: "broadcast", payload: { subject, message, chauffeurName: chauffeur.name } } ] : [] ) ] ) } ); }
 export async function createPocketBaseManualReminder( session: AuthSession, booking: BookingRecord, channels: Array<"email" | "sms"> ) { const data = payload( booking, `Reminder for ${ booking.reference }`, "" ); return createNotification( { type: "booking.reminder_manual", category: "reminders", title: `Reminder sent for ${ booking.reference }`, body: `A pickup reminder was queued for ${ booking.name }.`, bookingReference: booking.reference, actorUserId: session.userId, metadata: data, inAppUserIds: [ "admin" ], deliveries: bookingDeliveries( booking, channels, "booking_reminder", data ) } ); }
 export async function listPocketBaseReminderDeliveries() { const pb = getPocketBaseClient(); return ( await pb.collection( pocketBaseCollections.deliveries ).getFullList( { filter: "notification.category = 'reminders'", sort: "-updated", expand: "notification" } ) ).map( record => ( { id: Number( record.legacyId ), notificationId: Number( ( record.expand?.notification as { legacyId?: number } | undefined )?.legacyId || 0 ), channel: record.channel, recipient: String( record.recipient ), template: record.template ? String( record.template ) : null, payload: JSON.stringify( record.payload || {} ), idempotencyKey: String( record.idempotencyKey ), status: record.status, scheduledAt: String( record.scheduledAt ), nextAttemptAt: String( record.nextAttemptAt ), attempts: Number( record.attempts || 0 ), leaseToken: record.leaseToken ? String( record.leaseToken ) : null, leaseExpiresAt: record.leaseExpiresAt ? String( record.leaseExpiresAt ) : null, title: String( ( record.expand?.notification as { title?: string } | undefined )?.title || "" ), bookingReference: ( record.expand?.notification as { bookingReference?: string } | undefined )?.bookingReference || null, updatedAt: String( record.updated ) } ) ); }

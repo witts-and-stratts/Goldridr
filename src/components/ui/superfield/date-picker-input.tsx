@@ -13,7 +13,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Calendar01Icon } from "@hugeicons/core-free-icons";
-import { BaseFieldProps } from "./types";
+import { BaseFieldProps } from "./base-types";
 import { cn } from "@/lib/utils";
 
 export interface DatePickerInputProps {
@@ -140,7 +140,7 @@ export const DatePickerInput = ( {
   };
 
   return (
-    <InputGroup className={ cn( "h-12", className ) }>
+    <InputGroup className={ className }>
       <InputGroupInput
         id={ id }
         value={ inputValue }
@@ -168,7 +168,7 @@ export const DatePickerInput = ( {
             }
           />
           <PopoverContent
-            className="w-auto overflow-hidden p-0"
+            className="vega-form dark w-auto overflow-hidden p-0"
             align="end"
             alignOffset={ -4 }
             sideOffset={ 10 }

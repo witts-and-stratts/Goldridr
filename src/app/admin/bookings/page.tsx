@@ -238,7 +238,7 @@ export default function BookingsPage() {
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="end">
                     <Calendar
-                      initialFocus mode="range" defaultMonth={dateRange?.from}
+                      autoFocus mode="range" defaultMonth={dateRange?.from}
                       selected={dateRange} onSelect={setDateRange} numberOfMonths={2}
                       modifiers={{ booked: bookedDates }}
                       modifiersClassNames={{ booked: "border border-primary/30 font-semibold" }}

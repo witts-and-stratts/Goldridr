@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
-import { Loader2, Plane } from "lucide-react";
+import { useMemo } from "react";
+import { Loader2, Maximize2, Plane } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
+import { InteractiveRouteMap } from "@/components/booking/InteractiveRouteMap";
 
 interface FlightDetails {
   airline: string;
@@ -29,7 +29,6 @@ interface RoutePreviewProps {
     total_price: number;
   } | null;
   hourlyHours?: number | null;
-  mapPreviewUrl?: string | null;
   flightDetails?: FlightDetails | null;
   terminal?: string;
   isLoading?: boolean;
@@ -190,58 +189,8 @@ function Stat( { label, value, delay }: { label: string; value: string; delay: n
       transition={ { duration: 0.35, delay, ease: "easeOut" } }
     >
       <span className="block text-[10px] uppercase tracking-[0.2em] text-white/40">{ label }</span>
-      <span className="mt-1 block text-balance font-serif text-lg leading-tight text-white xl:text-xl">{ value }</span>
+      <span className="mt-1 block text-balance font-wide uppercase text-2xl leading-tight text-white xl:text-3xl">{ value }</span>
     </motion.div>
-  );
-}
-
-// The route drawing is deliberately schematic — it reads as a route the moment the
-// panel appears, and is swapped for the real static map as soon as one is available.
-function SchematicRoute( { hasPickup, hasDropoff, showGrid }: { hasPickup: boolean; hasDropoff: boolean; showGrid: boolean; } ) {
-  return (
-    <svg
-      viewBox="0 0 400 420"
-      preserveAspectRatio="xMidYMid slice"
-      className="absolute inset-0 h-full w-full"
-      aria-hidden
-    >
-      <defs>
-        <pattern id="route-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-          <path d="M20 0H0V20" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
-        </pattern>
-      </defs>
-      { showGrid && (
-        <>
-          <rect width="400" height="420" fill="url(#route-grid)" />
-          <path d="M0 210 L400 130" stroke="rgba(255,255,255,0.07)" strokeWidth="1" fill="none" />
-          <path d="M0 300 L400 250" stroke="rgba(255,255,255,0.07)" strokeWidth="1" fill="none" />
-        </>
-      ) }
-
-      <motion.path
-        d="M60 70 C 160 130, 130 250, 250 300 S 320 330, 330 360"
-        fill="none"
-        stroke="#D4AF37"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        initial={ { pathLength: 0, opacity: 0 } }
-        animate={ { pathLength: 1, opacity: 1 } }
-        transition={ { duration: 1.1, ease: "easeInOut" } }
-      />
-
-      <circle
-        cx="60" cy="70" r="6"
-        fill={ hasPickup ? "#D4AF37" : "transparent" }
-        stroke="#D4AF37"
-        strokeWidth="2"
-      />
-      <circle
-        cx="330" cy="360" r="6"
-        fill={ hasDropoff ? "#D4AF37" : "transparent" }
-        stroke="#D4AF37"
-        strokeWidth="2"
-      />
-    </svg>
   );
 }
 
@@ -251,7 +200,6 @@ export function RoutePreview( {
   serviceType,
   distanceData,
   hourlyHours,
-  mapPreviewUrl,
   flightDetails,
   terminal,
   isLoading,
@@ -269,78 +217,32 @@ export function RoutePreview( {
   // An hourly charter has no drop-off, so its route is complete with a pickup alone.
   const hasRoute = hasPickup && ( isHourly || hasDropoff );
 
-  const [ houstonMapUrl, setHoustonMapUrl ] = useState<string | null>( null );
-
-  useEffect( () => {
-    let cancelled = false;
-
-    fetch( "/api/route-map?size=640x800" )
-      .then( response => response.json() )
-      .then( data => {
-        if ( !cancelled && data.success ) setHoustonMapUrl( data.staticMapUrl );
-      } )
-      .catch( () => { /* the schematic route stands in if the map cannot be fetched */ } );
-
-    return () => { cancelled = true; };
-  }, [] );
-
   return (
-    <div className="relative isolate hidden min-h-[520px] overflow-hidden border-l border-white/10 bg-[#0a0a0a] lg:flex lg:flex-col">
+    <div className="relative isolate hidden min-h-[520px] overflow-hidden lg:flex lg:flex-col m-8 rounded-lg">
       <AnimatePresence>
         { flightDetails && <FlightCard flight={ flightDetails } terminal={ terminal } /> }
       </AnimatePresence>
 
-      { mapPreviewUrl ? (
-        <button
-          type="button"
-          onClick={ onShowMap }
-          className="absolute inset-0 cursor-zoom-in"
-          aria-label="Enlarge route map"
-        >
-          <Image
-            src={ mapPreviewUrl }
-            alt="Route preview"
-            fill
-            unoptimized
-            className="object-cover"
-          />
-        </button>
-      ) : houstonMapUrl ? (
-        // Nothing chosen yet: greater Houston as an ambient backdrop. No route line or
-        // endpoint labels here — they would describe a trip that does not exist yet.
-        <motion.div
-          className="absolute inset-0"
-          initial={ { opacity: 0 } }
-          animate={ { opacity: 1 } }
-          transition={ { duration: 0.8, ease: "easeOut" } }
-        >
-          <Image
-            src={ houstonMapUrl }
-            alt="Greater Houston"
-            fill
-            unoptimized
-            className="object-cover"
-          />
-          <span className="absolute left-8 top-8 text-[10px] uppercase tracking-[0.25em] text-white/50">
-            Houston · Texas
-          </span>
-        </motion.div>
-      ) : (
-        <>
-          <SchematicRoute hasPickup={ hasPickup } hasDropoff={ hasDropoff } showGrid />
-          <span className="pointer-events-none absolute left-[17%] top-[13%] -translate-y-full pb-3 text-[10px] uppercase tracking-[0.25em] text-white/50">
-            Pickup
-          </span>
-          <span className="pointer-events-none absolute left-[70%] top-[87%] pt-3 text-[10px] uppercase tracking-[0.25em] text-white/50">
-            { isHourly ? "As directed" : "Drop-off" }
-          </span>
-        </>
-      ) }
+      <InteractiveRouteMap
+        pickupLocation={ pickupLocation }
+        dropoffLocation={ isHourly ? undefined : dropoffLocation }
+        className="absolute inset-0"
+      />
 
-      <div className="pointer-events-none relative mt-auto bg-gradient-to-t from-black via-black/80 to-transparent px-8 pb-8 pt-16">
+      <button
+        type="button"
+        onClick={ onShowMap }
+        className="absolute bottom-36 right-6 z-20 flex items-center gap-2 border border-white/15 bg-black/80 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white transition-colors hover:border-gold hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+        aria-label="Open expanded route map"
+      >
+        <Maximize2 className="size-3.5" />
+        Expand
+      </button>
+
+      <div className="pointer-events-none relative mt-auto bg-linear-to-t from-black via-black/80 to-transparent px-8 pb-8 pt-16">
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.25em] text-white/40">
           <span className="truncate">
-            { hasRoute ? "Route preview" : "Route preview — awaiting addresses" }
+            { hasRoute ? "" : "Awaiting addresses" }
           </span>
           <AnimatePresence>
             { isLoading && (

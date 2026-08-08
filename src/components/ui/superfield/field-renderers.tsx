@@ -1,11 +1,11 @@
-import { ReactNode, useMemo, ForwardedRef } from 'react';
+import { ReactNode, useMemo, ForwardedRef, ComponentProps } from 'react';
 import { cn } from '@/lib/utils';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { InputGroup, InputGroupInput, InputGroupSelect, InputGroupTextarea, InputGroupAddon, InputGroupText } from '@/components/ui/input-group';
+import { InputGroup, InputGroupInput, InputGroupTextarea, InputGroupAddon, InputGroupText } from '@/components/ui/input-group';
 import { SearchableSelect } from './searchable-select';
 import { TagsInput } from './tags-input';
 import { CalendarInput } from './calendar-input';
@@ -23,6 +23,22 @@ import {
   FileFieldProps,
   MultiSelectFieldProps
 } from './types';
+
+function SuperFieldInputGroupSelect({
+  className,
+  ...props
+}: ComponentProps<typeof SelectTrigger>) {
+  return (
+    <SelectTrigger
+      data-slot="input-group-control"
+      className={cn(
+        "flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 aria-invalid:ring-0 dark:bg-transparent",
+        className
+      )}
+      {...props}
+    />
+  );
+}
 import { MultiSelectInput } from './multi-select-input';
 import dynamic from 'next/dynamic';
 
@@ -284,7 +300,7 @@ export const RenderSelect = ( {
       <SelectTrigger { ...commonProps } className={ cn( base.fieldClassName ) }>
         <SelectValue>{ selectedLabel || placeholder }</SelectValue>
       </SelectTrigger>
-      <SelectContent>{ renderSelectItems() }</SelectContent>
+      <SelectContent className="vega-form dark">{ renderSelectItems() }</SelectContent>
     </>
   );
 
@@ -300,10 +316,10 @@ export const RenderSelect = ( {
           disabled={ base.disabled }
           required={ base.required }
         >
-          <InputGroupSelect { ...commonProps } className={ cn( base.fieldClassName ) }>
+          <SuperFieldInputGroupSelect { ...commonProps } className={ cn( base.fieldClassName ) }>
             <SelectValue>{ selectedLabel || placeholder }</SelectValue>
-          </InputGroupSelect>
-          <SelectContent>{ renderSelectItems() }</SelectContent>
+          </SuperFieldInputGroupSelect>
+          <SelectContent className="vega-form dark">{ renderSelectItems() }</SelectContent>
         </Select>
         { renderAddon( base.suffix, base.suffixAlign || 'inline-end' ) }
       </InputGroup>
@@ -498,7 +514,6 @@ export const RenderLocation = ( {
   if ( base.hasInputGroup ) {
     return (
       <InputGroup className={ base.fieldClassName }>
-        { renderAddon( base.prefix, base.prefixAlign || 'inline-start' ) }
         <LocationInput
           id={ base.fieldId }
           value={ value || "" }
@@ -506,10 +521,13 @@ export const RenderLocation = ( {
           onLocationSelect={ onLocationSelect }
           onBlur={ onBlur }
           placeholder={ placeholder }
-          // disabled={base.disabled} // LocationInput doesn't support disabled yet? Check impl.
-          className={ cn( "rounded-none shadow-none focus-visible:ring-0 border-0 flex-1", base.fieldClassName ) }
+          disabled={ base.disabled }
+          required={ base.required }
+          inInputGroup
+          className="min-w-0"
           aria-invalid={ base.ariaConfig && ( base.ariaConfig as any )[ 'aria-invalid' ] }
         />
+        { renderAddon( base.prefix, base.prefixAlign || 'inline-start' ) }
         { renderAddon( base.suffix, base.suffixAlign || 'inline-end' ) }
       </InputGroup>
     );
