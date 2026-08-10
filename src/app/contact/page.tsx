@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Header } from "@/components/home/Header";
 import { Footer } from "@/components/home/Footer";
 import { Button } from "@/components/ui/button";
@@ -11,13 +10,14 @@ import {
   Phone
 } from "lucide-react";
 import QRCode from "react-qr-code";
+import { SMS_SUPPORT_EMAIL } from "@/lib/sms-consent-copy";
 
+const CONTACT_PHONE = process.env.NEXT_PUBLIC_CONTACT_PHONE?.trim();
 const VCARD_DATA = `BEGIN:VCARD
 VERSION:3.0
-FN:Goldridr Concierge
+FN:GoldRidrConcierge
 ORG:Goldridr
-TEL;TYPE=WORK,VOICE:+1 555 123 4567
-EMAIL:concierge@goldridr.com
+${ CONTACT_PHONE ? `TEL;TYPE=WORK,VOICE:${ CONTACT_PHONE }\n` : "" }EMAIL:${ SMS_SUPPORT_EMAIL }
 ADR;TYPE=WORK:;;Houston, TX;United States
 END:VCARD`;
 
@@ -68,21 +68,25 @@ export default function ContactPage() {
               </h1>
               <p className="site-copy max-w-md text-lg text-gray-400">
                 We are here to help with any questions or specific needs you may have.
-                Reach out to us and experience the Goldridr difference.
+                Reach out to us and experience the GoldRidr difference.
               </p>
             </div>
 
             <div className="space-y-8">
-              <div className="flex items-start gap-4">
-                <div className="text-gold">
-                  <Phone className="size-6" strokeWidth={ 1 } />
+              { CONTACT_PHONE ? (
+                <div className="flex items-start gap-4">
+                  <div className="text-gold">
+                    <Phone className="size-6" strokeWidth={ 1 } />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium text-white mb-1">Phone</h3>
+                    <a className="text-gray-400 font-light hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-gold" href={ `tel:${ CONTACT_PHONE }` }>
+                      { CONTACT_PHONE }
+                    </a>
+                    <p className="text-gray-500 text-sm mt-1">Mon-Fri from 8am to 5pm.</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-medium text-white mb-1">Phone</h3>
-                  <p className="text-gray-400 font-light">+1 (555) 123-4567</p>
-                  <p className="text-gray-500 text-sm mt-1">Mon-Fri from 8am to 5pm.</p>
-                </div>
-              </div>
+              ) : null }
 
               <div className="flex items-start gap-4">
                 <div className="text-gold">
@@ -90,7 +94,9 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-white mb-1">Email</h3>
-                  <p className="text-gray-400 font-light">concierge@goldridr.com</p>
+                  <a className="text-gray-400 font-light hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-gold" href={ `mailto:${ SMS_SUPPORT_EMAIL }` }>
+                    { SMS_SUPPORT_EMAIL }
+                  </a>
                   <p className="text-gray-500 text-sm mt-1 text-balance">Depending on the volume, we will do our best to answer your email within 24 hours.</p>
                 </div>
               </div>
@@ -135,7 +141,8 @@ export default function ContactPage() {
               <div className="grid grid-cols-2 gap-4">
                 <form.Field
                   name="firstName"
-                  children={ ( field ) => (
+                >
+                  { ( field ) => (
                     <SuperField
                       id="first-name"
                       type="text"
@@ -149,11 +156,12 @@ export default function ContactPage() {
                       error={ field.state.meta.errors ? field.state.meta.errors.join( ", " ) : undefined }
                     />
                   ) }
-                />
+                </form.Field>
 
                 <form.Field
                   name="lastName"
-                  children={ ( field ) => (
+                >
+                  { ( field ) => (
                     <SuperField
                       id="last-name"
                       type="text"
@@ -167,12 +175,13 @@ export default function ContactPage() {
                       error={ field.state.meta.errors ? field.state.meta.errors.join( ", " ) : undefined }
                     />
                   ) }
-                />
+                </form.Field>
               </div>
 
               <form.Field
                 name="email"
-                children={ ( field ) => (
+              >
+                { ( field ) => (
                   <SuperField
                     id="email"
                     type="email"
@@ -186,11 +195,12 @@ export default function ContactPage() {
                     error={ field.state.meta.errors ? field.state.meta.errors.join( ", " ) : undefined }
                   />
                 ) }
-              />
+              </form.Field>
 
               <form.Field
                 name="phone"
-                children={ ( field ) => (
+              >
+                { ( field ) => (
                   <SuperField
                     id="phone"
                     type="tel"
@@ -204,11 +214,12 @@ export default function ContactPage() {
                     error={ field.state.meta.errors ? field.state.meta.errors.join( ", " ) : undefined }
                   />
                 ) }
-              />
+              </form.Field>
 
               <form.Field
                 name="message"
-                children={ ( field ) => (
+              >
+                { ( field ) => (
                   <SuperField
                     id="message"
                     type="textarea"
@@ -223,16 +234,17 @@ export default function ContactPage() {
                     error={ field.state.meta.errors ? field.state.meta.errors.join( ", " ) : undefined }
                   />
                 ) }
-              />
+              </form.Field>
 
               <form.Subscribe
                 selector={ ( state ) => [ state.canSubmit, state.isSubmitting ] }
-                children={ ( [ canSubmit, isSubmitting ] ) => (
+              >
+                { ( [ canSubmit, isSubmitting ] ) => (
                   <Button type="submit" size={ 'lg' } variant={ 'outline' } className="w-full" disabled={ !canSubmit }>
                     { isSubmitting ? 'SENDING...' : 'SEND MESSAGE' }
                   </Button>
                 ) }
-              />
+              </form.Subscribe>
             </form>
           </div>
 

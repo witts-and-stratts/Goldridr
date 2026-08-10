@@ -8,6 +8,7 @@ import {
   DollarSign,
   Flag,
   Hash,
+  Loader2,
   MailOpen,
   MapPin,
   MoveRight,
@@ -19,9 +20,17 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/admin-ui/badge";
 import { Button } from "@/components/admin-ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/admin-ui/dialog";
 import { cn } from "@/lib/utils";
-import type { FailedDelivery, NotificationItem, ReminderDelivery } from "../types";
-import { getString, humanizeKey, isRecord, parseNestedJson, statusVariant } from "../utils";
+import type { FailedDelivery, MockSmsMessage, NotificationItem, ReminderDelivery } from "../types";
+import { formatDateTime, getString, humanizeKey, isRecord, parseNestedJson, statusVariant } from "../utils";
 import styles from "@/styles/notification-details.module.css";
 
 export function NotificationDetail( {
@@ -114,10 +123,24 @@ export function ReminderDetail( { reminder }: { reminder: ReminderDelivery } ) {
 export function FailureDetail( {
   delivery,
   onRetry,
+  onDelete,
 }: {
   delivery: FailedDelivery;
   onRetry: () => void;
+  onDelete: () => Promise<boolean>;
 } ) {
+  const [ deleteOpen, setDeleteOpen ] = useState( false );
+  const [ isDeleting, setIsDeleting ] = useState( false );
+
+  const deleteFailure = async () => {
+    setIsDeleting( true );
+    try {
+      if ( await onDelete() ) setDeleteOpen( false );
+    } finally {
+      setIsDeleting( false );
+    }
+  };
+
   return (
     <article className={styles.article}>
       <div className={styles.detailHeader}>
@@ -126,9 +149,14 @@ export function FailureDetail( {
           <Badge variant="outline">{delivery.channel.toUpperCase()}</Badge>
           {delivery.bookingReference && <Badge variant="secondary">{delivery.bookingReference}</Badge>}
         </div>
-        <Button size="sm" onClick={onRetry}>
-          <RefreshCw className="size-3.5" />Retry now
-        </Button>
+        <div className={styles.actionRow}>
+          <Button size="sm" onClick={onRetry}>
+            <RefreshCw className="size-3.5" />Retry now
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => setDeleteOpen( true )}>
+            <Trash2 className="size-3.5" />Delete
+          </Button>
+        </div>
       </div>
       <h2 className={styles.heading}>{delivery.title}</h2>
       <p className={styles.mutedText}>{delivery.recipient}</p>
@@ -137,10 +165,52 @@ export function FailureDetail( {
         <p className={styles.failureErrorText}>{delivery.lastError || "No provider error was recorded."}</p>
       </div>
       <dl className={styles.detailGrid}>
+        <Detail label="Failed" value={formatDateTime( delivery.failedAt )} />
         <Detail label="Delivery ID" value={String( delivery.id )} />
         <Detail label="Channel" value={delivery.channel.toUpperCase()} />
         <Detail label="Recipient" value={delivery.recipient} />
         <Detail label="Booking" value={delivery.bookingReference || "Not attached"} />
+      </dl>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this delivery failure?</DialogTitle>
+            <DialogDescription>
+              This removes the failed delivery record from Inbox. It will not delete the booking or its notification.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen( false )} disabled={isDeleting}>Cancel</Button>
+            <Button variant="destructive" onClick={() => { void deleteFailure(); }} disabled={isDeleting}>
+              {isDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+              {isDeleting ? "Deleting" : "Delete failure"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </article>
+  );
+}
+
+export function SmsMessageDetail( { message }: { message: MockSmsMessage } ) {
+  return (
+    <article className={styles.article}>
+      <div className={styles.badgeRow}>
+        <Badge variant={statusVariant( message.status )}>{message.status.replace( "_", " " )}</Badge>
+        <Badge variant="outline">Mock SMS</Badge>
+      </div>
+      <h2 className={styles.heading}>{message.to}</h2>
+      <p className={styles.timestamp}>{formatDateTime( message.dateCreated )}</p>
+      <div className={styles.bodySection}>
+        <p className={styles.bodyToggle}>{message.body}</p>
+      </div>
+      <dl className={styles.detailGrid}>
+        <Detail label="From" value={message.from} />
+        <Detail label="To" value={message.to} />
+        <Detail label="Created" value={formatDateTime( message.dateCreated )} />
+        <Detail label="Updated" value={formatDateTime( message.dateUpdated )} />
+        <Detail label="Message SID" value={message.sid} />
+        {message.errorMessage && <Detail label="Error" value={message.errorMessage} />}
       </dl>
     </article>
   );

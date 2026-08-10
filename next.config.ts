@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
     root: process.cwd(),
   },
   cacheComponents: true,
-  allowedDevOrigins: ['100.104.165.110']
+  allowedDevOrigins: ['100.104.165.110', 'localhost', '127.0.0.1']
 };
 
 export default nextConfig;

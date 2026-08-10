@@ -11,7 +11,7 @@ export default function FaqPage() {
     {
       question: "What is Goldridr?",
       answer:
-        "Goldridr is a premium transportation service designed to offer luxury, comfort, and reliability for all your travel needs.",
+        "GoldRidr is a premium transportation service designed to offer luxury, comfort, and reliability for all your travel needs.",
     },
     {
       question: "Does GoldRidr offer pre-scheduled rides or Ride On Demand?",
@@ -30,7 +30,7 @@ export default function FaqPage() {
     {
       question: "Can I schedule a ride in advance?",
       answer:
-        "Yes, Goldridr allows you to schedule rides up to 30 days in advance to ensure your travel plans are secured.",
+        "Yes, GoldRidr allows you to schedule rides up to 30 days in advance to ensure your travel plans are secured.",
     },
     {
       question: "What if my flight is delayed?",
@@ -83,7 +83,7 @@ export default function FaqPage() {
   return (
     <>
       <Header />
-      <Image src="/assets/images/faq-chauffeur-background.webp" width={ 1600 } height={ 1600 } alt="Goldridr Chauffeur" className="absolute -mt-40 opacity-50 max-md:h-[70vh] max-md:object-cover" />
+      <Image src="/assets/images/faq-chauffeur-background.webp" width={ 1600 } height={ 1600 } alt=" Chauffeur" className="absolute -mt-40 opacity-50 max-md:h-[70vh] max-md:object-cover" />
       <div className="min-h-screen text-white selection:bg-gold/30 relative mt-20 md:mt-20 lg:mt-80">
         {/* Header Section */ }
         <div className="container mx-auto px-4 pt-32 pb-16">
@@ -91,7 +91,7 @@ export default function FaqPage() {
             Frequently Asked <span className="text-gold">Questions</span>
           </h1>
           <p className="site-copy mx-auto mb-12 text-center text-xl text-gray-400">
-            Everything you need to know about Goldridr services, booking, and accounts.
+            Everything you need to know about GoldRidr services, booking, and accounts.
           </p>
 
           {/* FAQs Grid */ }

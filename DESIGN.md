@@ -60,7 +60,7 @@ components:
 
 **Creative North Star: "The Tailored Suit"**
 
-Goldridr dresses like its chauffeurs: dark cloth, sharp seams, and one piece of metal that catches the light. The marketing surface is true black with ivory text and Burnished Gold (#C29E66) appearing only where a decision is asked for. The admin takes the suit off entirely: it runs stock shadcn neutral dark (untinted zinc, 0.625rem radius, system sans, default shadows) so eight hours of dispatch work happens in familiar, unremarkable product UI. The luxury identity belongs to the public surface only.
+GoldRidrdresses like its chauffeurs: dark cloth, sharp seams, and one piece of metal that catches the light. The marketing surface is true black with ivory text and Burnished Gold (#C29E66) appearing only where a decision is asked for. The admin takes the suit off entirely: it runs stock shadcn neutral dark (untinted zinc, 0.625rem radius, system sans, default shadows) so eight hours of dispatch work happens in familiar, unremarkable product UI. The luxury identity belongs to the public surface only.
 
 The system explicitly rejects two failures named in PRODUCT.md: the **generic SaaS admin** (stat cards, gradient accents, identical card grids) and **flashy gold-on-black luxe** (casino gradients, gloss, ornament). Luxury here is the absence of noise, not the addition of shine.
 

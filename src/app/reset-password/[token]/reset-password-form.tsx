@@ -53,8 +53,8 @@ export default function ResetPasswordForm( { token }: { token: string } ) {
           <Image
             src="/assets/images/goldridr-logo-main.svg"
             alt="Goldridr"
-            width={150}
-            height={36}
+            width={231}
+            height={48}
             className="h-9 w-auto invert"
             priority
           />

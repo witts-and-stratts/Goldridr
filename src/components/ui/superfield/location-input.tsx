@@ -1,22 +1,57 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { InputGroupInput } from "@/components/ui/input-group";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState, ForwardedRef, forwardRef } from "react";
+import { useCallback, useEffect, useRef, useState, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 interface LocationInputProps extends Omit<React.ComponentProps<typeof Input>, 'onChange'> {
   value: string;
   onChange: ( value: string ) => void;
-  onLocationSelect?: ( location: any ) => void;
+  onLocationSelect?: ( location: SelectedPlace ) => void;
   isInvalid?: boolean;
+  inInputGroup?: boolean;
 }
 
-declare global {
-  interface Window {
-    google: any;
-  }
+interface SelectedPlace {
+  fetchFields( options: { fields: string[]; } ): Promise<void>;
+  displayName?: string;
+  formattedAddress?: string;
+  location?: unknown;
 }
+
+interface PlaceSuggestion {
+  description?: string;
+  place_id?: string;
+  placePrediction?: {
+    text?: { toString(): string; };
+    toPlace(): SelectedPlace;
+  };
+}
+
+interface AutocompleteService {
+  fetchAutocompleteSuggestions( request: {
+    input: string;
+    sessionToken: unknown;
+    locationRestriction: unknown;
+  } ): Promise<{ suggestions?: PlaceSuggestion[]; }>;
+}
+
+interface PlacesLibrary {
+  AutocompleteSessionToken: new () => unknown;
+  AutocompleteSuggestion: AutocompleteService;
+}
+
+interface GoogleMapsApi {
+  importLibrary( library: "places" ): Promise<unknown>;
+  LatLng: new ( latitude: number, longitude: number ) => unknown;
+  LatLngBounds: new ( southwest: unknown, northeast: unknown ) => unknown;
+}
+
+type GoogleWindow = Window & {
+  google?: { maps?: GoogleMapsApi; };
+};
 
 // Texas bounds for location restriction
 const TEXAS_BOUNDS = {
@@ -35,48 +70,96 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
   name,
   isInvalid,
   onLocationSelect,
+  inInputGroup = false,
   ...props
 }, ref ) => {
   const [ inputValue, setInputValue ] = useState( value || "" );
-  const [ predictions, setPredictions ] = useState<any[]>( [] );
+  const [ predictions, setPredictions ] = useState<PlaceSuggestion[]>( [] );
   const [ isOpen, setIsOpen ] = useState( false );
   const [ highlightedIndex, setHighlightedIndex ] = useState( -1 );
 
   const innerInputRef = useRef<HTMLInputElement>( null );
   const containerRef = useRef<HTMLDivElement>( null );
-  const sessionToken = useRef<any | null>( null );
-  const autocompleteService = useRef<any>( null );
+  const sessionToken = useRef<unknown>( null );
+  const autocompleteService = useRef<AutocompleteService | null>( null );
+  const pendingInput = useRef( "" );
+  const latestRequest = useRef( 0 );
 
   // Sync external value changes
   useEffect( () => {
     setInputValue( value || "" );
   }, [ value ] );
 
-  // Initialize Google Maps Places service
+  const requestSuggestions = useCallback( async ( val: string ) => {
+    const service = autocompleteService.current;
+    const maps = ( window as GoogleWindow ).google?.maps;
+    if ( !service || !maps ) return;
+
+    const requestId = ++latestRequest.current;
+
+    try {
+      const texasBounds = new maps.LatLngBounds(
+        new maps.LatLng( TEXAS_BOUNDS.south, TEXAS_BOUNDS.west ),
+        new maps.LatLng( TEXAS_BOUNDS.north, TEXAS_BOUNDS.east )
+      );
+
+      const { suggestions } = await service.fetchAutocompleteSuggestions( {
+        input: val,
+        sessionToken: sessionToken.current,
+        locationRestriction: texasBounds,
+      } );
+
+      if ( requestId !== latestRequest.current || pendingInput.current !== val ) return;
+
+      if ( suggestions?.length ) {
+        setPredictions( suggestions );
+        setIsOpen( true );
+      } else {
+        setPredictions( [] );
+        setIsOpen( false );
+      }
+    } catch ( error ) {
+      if ( requestId !== latestRequest.current ) return;
+      console.error( "Error fetching suggestions", error );
+      setPredictions( [] );
+      setIsOpen( false );
+    }
+  }, [] );
+
+  // Google installs the namespace before importLibrary is ready, so wait for the
+  // actual function instead of treating the partial namespace as a loaded API.
   useEffect( () => {
-    let attempts = 0;
+    let cancelled = false;
+    const startedAt = Date.now();
 
     const initService = async () => {
-      if ( typeof window === 'undefined' || !window.google ) return;
+      const maps = ( window as GoogleWindow ).google?.maps;
+      if ( !maps?.importLibrary ) {
+        if ( !cancelled && Date.now() - startedAt < 10000 ) {
+          window.setTimeout( initService, 100 );
+        }
+        return;
+      }
 
       try {
         const { AutocompleteSessionToken, AutocompleteSuggestion } =
-          await window.google.maps.importLibrary( "places" ) as any;
+          await maps.importLibrary( "places" ) as PlacesLibrary;
+
+        if ( cancelled ) return;
 
         sessionToken.current = new AutocompleteSessionToken();
         autocompleteService.current = AutocompleteSuggestion;
-
+        if ( pendingInput.current ) void requestSuggestions( pendingInput.current );
       } catch ( error ) {
         console.error( "Error loading Google Maps Places Library", error );
-        if ( attempts < 5 ) {
-          attempts++;
-          setTimeout( initService, 500 );
-        }
       }
     };
 
-    initService();
-  }, [] );
+    void initService();
+    return () => {
+      cancelled = true;
+    };
+  }, [ requestSuggestions ] );
 
   // Handle outside click to close dropdown
   useEffect( () => {
@@ -92,46 +175,21 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
 
   const handleInputChange = async ( e: React.ChangeEvent<HTMLInputElement> ) => {
     const val = e.target.value;
+    pendingInput.current = val;
     setInputValue( val );
     onChange( val );
 
     if ( !val ) {
+      latestRequest.current += 1;
       setPredictions( [] );
       setIsOpen( false );
       return;
     }
 
-    if ( autocompleteService.current ) {
-      try {
-        const texasBounds = new window.google.maps.LatLngBounds(
-          new window.google.maps.LatLng( TEXAS_BOUNDS.south, TEXAS_BOUNDS.west ),
-          new window.google.maps.LatLng( TEXAS_BOUNDS.north, TEXAS_BOUNDS.east )
-        );
-
-        const request = {
-          input: val,
-          sessionToken: sessionToken.current,
-          locationRestriction: texasBounds,
-        };
-
-        const { suggestions } = await autocompleteService.current.fetchAutocompleteSuggestions( request );
-
-        if ( suggestions && suggestions.length > 0 ) {
-          setPredictions( suggestions );
-          setIsOpen( true );
-        } else {
-          setPredictions( [] );
-          setIsOpen( false );
-        }
-
-      } catch ( error ) {
-        console.error( "Error fetching suggestions", error );
-        setPredictions( [] );
-      }
-    }
+    if ( autocompleteService.current ) void requestSuggestions( val );
   };
 
-  const handlePredictionSelect = async ( suggestion: any ) => {
+  const handlePredictionSelect = async ( suggestion: PlaceSuggestion ) => {
     const text = suggestion.description || suggestion.placePrediction?.text?.toString();
 
     if ( text ) {
@@ -173,9 +231,11 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
     }
   };
 
+  const Control = inInputGroup ? InputGroupInput : Input;
+
   return (
-    <div className="relative w-full" ref={ containerRef }>
-      <Input
+    <div className={ cn( "relative w-full", inInputGroup && "min-w-0 flex-1" ) } ref={ containerRef }>
+      <Control
         ref={ ref || innerInputRef }
         id={ name }
         name={ name }
@@ -196,7 +256,7 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
             initial={ { opacity: 0, y: -10 } }
             animate={ { opacity: 1, y: 0 } }
             exit={ { opacity: 0, y: -10 } }
-            className="absolute z-50 mt-1 w-full rounded-md border border-white/10 bg-black/90 backdrop-blur-md shadow-xl max-h-60 overflow-y-auto"
+            className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md"
           >
             <ul className="py-1">
               { predictions.map( ( suggestion, index ) => (
@@ -204,14 +264,14 @@ export const LocationInput = forwardRef<HTMLInputElement, LocationInputProps>( (
                   key={ suggestion.place_id || index }
                   onClick={ () => handlePredictionSelect( suggestion ) }
                   className={ cn(
-                    "cursor-pointer px-4 py-2 text-sm transition-colors",
+                    "cursor-pointer px-3 py-2 text-sm outline-none transition-colors",
                     index === highlightedIndex
-                      ? "bg-white/20 text-white"
-                      : "text-gray-300 hover:bg-white/10 hover:text-white"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-popover-foreground hover:bg-accent hover:text-accent-foreground"
                   ) }
                   onMouseEnter={ () => setHighlightedIndex( index ) }
                 >
-                  { suggestion.description || ( suggestion as any ).placePrediction?.text?.toString() }
+                  { suggestion.description || suggestion.placePrediction?.text?.toString() }
                 </li>
               ) ) }
             </ul>

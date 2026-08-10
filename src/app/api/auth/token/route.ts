@@ -4,7 +4,7 @@ import { authenticatePocketBaseUser } from "@/lib/pocketbase/auth";
 import { getPocketBaseChauffeurByEmail } from "@/lib/pocketbase/operations";
 
 /**
- * Token-based sign-in for the Goldridr Chauffeur mobile app. Accepts the same
+ * Token-based sign-in for the GoldRidrChauffeur mobile app. Accepts the same
  * credentials as /api/auth/login (admin or chauffeur) but returns the signed
  * session token in the body instead of setting a cookie, since the app sends
  * it back as an `Authorization: Bearer <token>` header.

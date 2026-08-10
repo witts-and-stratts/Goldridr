@@ -1,22 +1,31 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { InteractiveRouteMap } from "@/components/booking/InteractiveRouteMap";
 import { MapPin, X } from "lucide-react";
 import { motion } from "motion/react";
+import { useEffect } from "react";
 
 interface MapOverlayProps {
-  mapUrl: string;
   pickupLocation?: string;
   destinationLocation?: string;
   onClose: () => void;
 }
 
 export function MapOverlay( {
-  mapUrl,
   pickupLocation,
   destinationLocation,
   onClose,
 }: MapOverlayProps ) {
+  useEffect( () => {
+    const onKeyDown = ( event: KeyboardEvent ) => {
+      if ( event.key === "Escape" ) onClose();
+    };
+
+    window.addEventListener( "keydown", onKeyDown );
+    return () => window.removeEventListener( "keydown", onKeyDown );
+  }, [ onClose ] );
+
   return (
     <motion.div
       initial={ { opacity: 0 } }
@@ -29,8 +38,11 @@ export function MapOverlay( {
         initial={ { scale: 0.9, opacity: 0 } }
         animate={ { scale: 1, opacity: 1 } }
         exit={ { scale: 0.9, opacity: 0 } }
-        className="relative max-w-4xl w-full bg-[#0a0a0a] rounded-2xl overflow-hidden border border-white/10"
+        className="relative max-w-4xl w-full bg-[#0a0a0a] overflow-hidden border border-white/10"
         onClick={ ( e ) => e.stopPropagation() }
+        role="dialog"
+        aria-modal="true"
+        aria-label="Route map"
       >
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <h3 className="text-white font-wide uppercase tracking-wider text-xl">Route Map</h3>
@@ -39,17 +51,17 @@ export function MapOverlay( {
             size="icon"
             onClick={ onClose }
             className="text-gray-400 hover:text-white"
+            aria-label="Close map"
           >
             <X className="size-5" />
           </Button>
         </div>
-        <div className="aspect-video relative">
-          <img
-            src={ mapUrl }
-            alt="Route map"
-            className="w-full h-full object-cover"
-          />
-        </div>
+        <InteractiveRouteMap
+          pickupLocation={ pickupLocation || "" }
+          dropoffLocation={ destinationLocation }
+          expanded
+          className="h-[min(62vh,560px)] w-full"
+        />
         { ( pickupLocation || destinationLocation ) && (
           <div className="p-4 space-y-2 text-sm">
             { pickupLocation && (

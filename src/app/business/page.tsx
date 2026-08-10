@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Header } from "@/components/home/Header";
+import { Hero, type HeroSlide } from "@/components/home/Hero";
 import { Footer } from "@/components/home/Footer";
 import { Button } from "@/components/ui/button";
 import { ServiceCard } from "@/components/marketing/ServiceCard";
@@ -10,48 +10,23 @@ import { StandardItem } from "@/components/marketing/StandardItem";
 
 import { useBookingOverlay } from "@/components/booking/BookingContext";
 
+const BUSINESS_HERO_SLIDES: HeroSlide[] = [
+  {
+    id: 1,
+    image: "/assets/images/business-hero-event-chauffeur.webp",
+    alt: "Corporate transportation",
+    title: "ARRIVE IN STYLE, EVERY TIME",
+    description: "Efficiency, reliability, and precision for your business needs. Manage your Houston corporate transportation with a partner you can trust.",
+    cta: "GET STARTED",
+  },
+];
+
 export default function BusinessPage() {
   const { setIsOpen } = useBookingOverlay();
 
   return (
     <main className="site-page">
-      <Header />
-
-      {/* Hero Section */ }
-      <section className="relative h-screen w-full flex justify-center overflow-hidden -mt-40 max-md:h-[120vh]">
-        <div className="absolute inset-0">
-          <Image
-            src="/assets/images/business-hero-event-chauffeur.webp"
-            alt="Corporate Transportation"
-            fill
-            className="object-cover h-full w-full"
-            quality={ 100 }
-            priority
-          />
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-linear-to-t from-black/50 to-transparent" />
-        </div>
-
-        <div className="relative z-10 text-center px-2 md:px-4 mx-auto mt-50">
-          <div className="flex flex-col items-center">
-            <h1 className="site-heading site-heading--display text-white">
-              ARRIVE IN STYLE, <br className="max-md:hidden" /> EVERY TIME
-            </h1>
-            <p className="site-copy mx-auto mt-4 mb-12 max-w-[600px] text-sm leading-6 md:leading-7">
-              Efficiency, reliability, and precision for your business needs.
-              Manage your Houston corporate transportation with a partner you can trust.
-            </p>
-          </div>
-          <Button
-            onClick={ () => setIsOpen( true ) }
-            size={ 'lg' }
-            variant={ 'outline' }
-            className="bg-black/20 px-6 py-2 font-wide text-sm tracking-[0.2em] transition-colors absolute bottom-20 left-1/2 -translate-x-1/2 min-w-[280px]"
-          >
-            GET STARTED
-          </Button>
-        </div>
-      </section>
+      <Hero slides={ BUSINESS_HERO_SLIDES } ariaLabel="GoldRidrbusiness services" />
 
       {/* Corporate Services */ }
       <section className="site-content py-20 md:py-24">

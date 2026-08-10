@@ -16,9 +16,9 @@ export const TimeSchema = z.string().regex( /^(?:[01]\d|2[0-3]):[0-5]\d$/, {
 
 export const PassengersSchema = z.string().min( 1, "Number of passengers is required" );
 
-export const FlightNumberSchema = z.string().min( 2, "Flight number is required" );
+export const FlightNumberSchema = z.string().trim().max( 24, "Flight number is too long" );
 
-export const TerminalSchema = z.string().trim().min( 1, "Terminal is required" ).max( 80, "Terminal is too long" );
+export const TerminalSchema = z.string().trim().max( 80, "Terminal is too long" );
 
 export const DurationSchema = z.string().min( 1, "Duration is required" );
 
@@ -45,10 +45,19 @@ const FuturePickupValidation = {
 export const ContactFormSchema = z.object( {
   name: z.string().min( 2, "Name is required" ),
   email: z.email( "Valid email is required" ),
-  phone: z.string().min( 10, "Phone number is required" ),
+  phone: z.string().refine( value => value.trim().length === 0 || value.trim().length >= 10, "Enter a valid phone number" ),
   notes: z.string(),
   discountCode: z.string().trim().max( 32, "Discount code is too long" ),
   smsOptIn: z.boolean(),
+  marketingSmsOptIn: z.boolean(),
+} ).superRefine( ( input, ctx ) => {
+  if ( ( input.smsOptIn || input.marketingSmsOptIn ) && !input.phone.trim() ) {
+    ctx.addIssue( {
+      code: "custom",
+      path: [ "phone" ],
+      message: "Enter a mobile phone number to receive text messages",
+    } );
+  }
 } );
 
 export type ContactFormData = z.infer<typeof ContactFormSchema>;
@@ -73,46 +82,48 @@ export function getFieldErrorMessage( errors: unknown ): string | undefined {
 }
 
 // ============================================================================
-// Airport Form Schema
+// Unified Booking Schema
 // ============================================================================
 
-export const AirportFormSchema = z.object( {
+// One form covers all three services. Every field always exists so switching
+// service type never discards what the guest already typed; `serviceType`
+// decides which of them are actually required.
+export const bookingServiceTypes = [ "airport", "city", "hourly" ] as const;
+export type BookingServiceType = typeof bookingServiceTypes[ number ];
+
+export const UnifiedBookingSchema = z.object( {
+  serviceType: z.enum( bookingServiceTypes ),
+  pickupLocation: LocationSchema,
+  dropoffLocation: z.string(),
+  date: DateSchema,
+  time: TimeSchema,
+  passengers: PassengersSchema,
+  luggage: z.string(),
   flightNumber: FlightNumberSchema,
   terminal: TerminalSchema,
-  passengers: PassengersSchema,
-  pickupLocation: LocationSchema,
-  dropoffLocation: LocationSchema,
-  date: DateSchema,
-  time: TimeSchema,
-} ).refine( hasFuturePickup, FuturePickupValidation );
+  duration: z.string(),
+} ).superRefine( ( data, ctx ) => {
+  const requireWith = ( schema: z.ZodType, value: unknown, path: string ) => {
+    const result = schema.safeParse( value );
+    if ( !result.success ) {
+      ctx.addIssue( { code: "custom", path: [ path ], message: result.error.issues[ 0 ].message } );
+    }
+  };
 
-export type AirportFormData = z.infer<typeof AirportFormSchema>;
+  if ( data.serviceType !== "hourly" ) {
+    requireWith( LocationSchema, data.dropoffLocation, "dropoffLocation" );
+  }
 
-// ============================================================================
-// Town (City) Form Schema
-// ============================================================================
+  if ( data.serviceType === "hourly" ) {
+    requireWith( DurationSchema, data.duration.trim(), "duration" );
+  }
 
-export const TownFormSchema = z.object( {
-  pickupLocation: LocationSchema,
-  dropoffLocation: LocationSchema,
-  date: DateSchema,
-  time: TimeSchema,
-} ).refine( hasFuturePickup, FuturePickupValidation );
+  if ( !hasFuturePickup( data ) ) {
+    ctx.addIssue( { code: "custom", path: [ "time" ], message: FuturePickupValidation.message } );
+  }
+} );
 
-export type TownFormData = z.infer<typeof TownFormSchema>;
-
-// ============================================================================
-// Hourly Form Schema
-// ============================================================================
-
-export const HourlyFormSchema = z.object( {
-  pickupLocation: LocationSchema,
-  duration: DurationSchema,
-  date: DateSchema,
-  time: TimeSchema,
-} ).refine( hasFuturePickup, FuturePickupValidation );
-
-export type HourlyFormData = z.infer<typeof HourlyFormSchema>;
+export type UnifiedBookingData = z.infer<typeof UnifiedBookingSchema>;
 
 // ============================================================================
 // Validation Helpers

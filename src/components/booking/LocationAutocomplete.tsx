@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface LocationAutocompleteProps {
   value: string;
@@ -14,11 +14,35 @@ interface LocationAutocompleteProps {
   isInvalid?: boolean;
 }
 
-declare global {
-  interface Window {
-    google: any;
-  }
+interface PlaceSuggestion {
+  placePrediction?: {
+    text?: { toString(): string; };
+    mainText?: { toString(): string; };
+  };
 }
+
+interface AutocompleteService {
+  fetchAutocompleteSuggestions( request: {
+    input: string;
+    sessionToken: unknown;
+    locationRestriction: unknown;
+  } ): Promise<{ suggestions?: PlaceSuggestion[]; }>;
+}
+
+interface PlacesLibrary {
+  AutocompleteSessionToken: new () => unknown;
+  AutocompleteSuggestion: AutocompleteService;
+}
+
+interface GoogleMapsApi {
+  importLibrary( library: "places" ): Promise<unknown>;
+  LatLng: new ( latitude: number, longitude: number ) => unknown;
+  LatLngBounds: new ( southwest: unknown, northeast: unknown ) => unknown;
+}
+
+type GoogleWindow = Window & {
+  google?: { maps?: GoogleMapsApi; };
+};
 
 // Texas bounds for location restriction
 const TEXAS_BOUNDS = {
@@ -37,43 +61,61 @@ export function LocationAutocomplete( {
   name,
   isInvalid,
 }: LocationAutocompleteProps ) {
-  const [ inputValue, setInputValue ] = useState( value );
-  const [ predictions, setPredictions ] = useState<any[]>( [] );
+  const [ predictions, setPredictions ] = useState<PlaceSuggestion[]>( [] );
   const [ isOpen, setIsOpen ] = useState( false );
   const [ highlightedIndex, setHighlightedIndex ] = useState( -1 );
+  const [ suggestionsUnavailable, setSuggestionsUnavailable ] = useState( false );
 
   const inputRef = useRef<HTMLInputElement>( null );
   const containerRef = useRef<HTMLDivElement>( null );
-  const sessionToken = useRef<any | null>( null );
-  const autocompleteService = useRef<any | null>( null );
+  const sessionToken = useRef<unknown>( null );
+  const autocompleteService = useRef<AutocompleteService | null>( null );
+  const autocompleteServicePromise = useRef<Promise<AutocompleteService | null> | null>( null );
+  const latestRequest = useRef( 0 );
 
-  // Sync external value changes
-  useEffect( () => {
-    setInputValue( value );
-  }, [ value ] );
+  const getAutocompleteService = useCallback( () => {
+    if ( autocompleteService.current ) return Promise.resolve( autocompleteService.current );
+    if ( autocompleteServicePromise.current ) return autocompleteServicePromise.current;
 
-  // Initialize Google Maps Places service
-  useEffect( () => {
-    let attempts = 0;
+    autocompleteServicePromise.current = new Promise( ( resolve ) => {
+      const startedAt = Date.now();
 
-    const initService = async () => {
-      try {
-        const { AutocompleteSessionToken, AutocompleteSuggestion } =
-          await window.google.maps.importLibrary( "places" ) as any;
+      const initialize = async () => {
+        const maps = ( window as GoogleWindow ).google?.maps;
+        if ( !maps?.importLibrary ) {
+          if ( Date.now() - startedAt >= 10000 ) {
+            autocompleteServicePromise.current = null;
+            resolve( null );
+            return;
+          }
 
-        sessionToken.current = new AutocompleteSessionToken();
-        autocompleteService.current = AutocompleteSuggestion;
-      } catch ( error ) {
-        console.error( "Error loading Google Maps Places Library", error );
-        if ( attempts < 5 ) {
-          attempts++;
-          setTimeout( initService, 500 );
+          window.setTimeout( initialize, 100 );
+          return;
         }
-      }
-    };
 
-    initService();
+        try {
+          const { AutocompleteSessionToken, AutocompleteSuggestion } =
+            await maps.importLibrary( "places" ) as PlacesLibrary;
+
+          sessionToken.current ??= new AutocompleteSessionToken();
+          autocompleteService.current = AutocompleteSuggestion;
+          resolve( AutocompleteSuggestion );
+        } catch ( error ) {
+          autocompleteServicePromise.current = null;
+          console.error( "Error loading Google Maps Places Library", error );
+          resolve( null );
+        }
+      };
+
+      void initialize();
+    } );
+
+    return autocompleteServicePromise.current;
   }, [] );
+
+  useEffect( () => {
+    void getAutocompleteService();
+  }, [ getAutocompleteService ] );
 
   // Handle outside click to close dropdown
   useEffect( () => {
@@ -89,7 +131,7 @@ export function LocationAutocomplete( {
 
   const handleInputChange = async ( e: React.ChangeEvent<HTMLInputElement> ) => {
     const val = e.target.value;
-    setInputValue( val );
+    const requestId = ++latestRequest.current;
     onChange( val );
 
     if ( !val ) {
@@ -98,40 +140,52 @@ export function LocationAutocomplete( {
       return;
     }
 
-    if ( autocompleteService.current ) {
-      try {
-        const texasBounds = new window.google.maps.LatLngBounds(
-          new window.google.maps.LatLng( TEXAS_BOUNDS.south, TEXAS_BOUNDS.west ),
-          new window.google.maps.LatLng( TEXAS_BOUNDS.north, TEXAS_BOUNDS.east )
-        );
+    const service = await getAutocompleteService();
+    if ( requestId !== latestRequest.current ) return;
+    if ( !service ) {
+      setSuggestionsUnavailable( true );
+      return;
+    }
 
-        const request = {
-          input: val,
-          sessionToken: sessionToken.current,
-          locationRestriction: texasBounds,
-        };
+    try {
+      const maps = ( window as GoogleWindow ).google?.maps;
+      if ( !maps ) return;
 
-        const { suggestions } = await autocompleteService.current.fetchAutocompleteSuggestions( request );
+      const texasBounds = new maps.LatLngBounds(
+        new maps.LatLng( TEXAS_BOUNDS.south, TEXAS_BOUNDS.west ),
+        new maps.LatLng( TEXAS_BOUNDS.north, TEXAS_BOUNDS.east )
+      );
 
-        if ( suggestions && suggestions.length > 0 ) {
-          setPredictions( suggestions );
-          setIsOpen( true );
-        } else {
-          setPredictions( [] );
-          setIsOpen( false );
-        }
-      } catch ( error ) {
-        console.error( "Error fetching suggestions", error );
+      const request = {
+        input: val,
+        sessionToken: sessionToken.current,
+        locationRestriction: texasBounds,
+      };
+
+      const { suggestions } = await service.fetchAutocompleteSuggestions( request );
+      if ( requestId !== latestRequest.current ) return;
+
+      if ( suggestions && suggestions.length > 0 ) {
+        setSuggestionsUnavailable( false );
+        setPredictions( suggestions );
+        setIsOpen( true );
+      } else {
         setPredictions( [] );
+        setIsOpen( false );
       }
+    } catch ( error ) {
+      if ( requestId !== latestRequest.current ) return;
+      console.error( "Error fetching suggestions", error );
+      setSuggestionsUnavailable( true );
+      setPredictions( [] );
+      setIsOpen( false );
     }
   };
 
-  const handlePredictionSelect = ( suggestion: any ) => {
+  const handlePredictionSelect = ( suggestion: PlaceSuggestion ) => {
     const text = suggestion.placePrediction?.text?.toString() ||
       suggestion.placePrediction?.mainText?.toString();
     if ( text ) {
-      setInputValue( text );
       onChange( text );
     }
     setIsOpen( false );
@@ -169,7 +223,7 @@ export function LocationAutocomplete( {
         ref={ inputRef }
         id={ name }
         name={ name }
-        value={ inputValue }
+        value={ value }
         onBlur={ onBlur }
         onChange={ handleInputChange }
         onKeyDown={ handleKeyDown }
@@ -205,6 +259,12 @@ export function LocationAutocomplete( {
           </motion.div>
         ) }
       </AnimatePresence>
+
+      { suggestionsUnavailable && (
+        <p className="mt-2 text-sm text-muted-foreground" role="status">
+          Address suggestions are temporarily unavailable. Enter the full address to continue.
+        </p>
+      ) }
     </div>
   );
 }

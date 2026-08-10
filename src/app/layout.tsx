@@ -5,7 +5,7 @@ import "@/styles/globals.css";
 import { Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 
-const inter = Inter( { subsets: [ 'latin' ], variable: '--font-sans' } );
+const inter = Inter( { subsets: [ 'latin' ], variable: '--font-inter' } );
 
 const epilogue = localFont( {
   src: [
@@ -63,7 +63,7 @@ const engravers = localFont( {
 
 
 export const metadata: Metadata = {
-  title: "Goldridr - Luxury Chauffeured Services",
+  title: "GoldRidr- Luxury Chauffeured Services",
   description: "Experience the ultimate in luxury transportation.",
 };
 
@@ -87,12 +87,9 @@ export default function RootLayout( {
         <Toaster position="top-right" richColors />
         <Script
           src={ `https://maps.googleapis.com/maps/api/js?key=${ process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }&loading=async&libraries=places` }
-          strategy="lazyOnload"
+          strategy="afterInteractive"
         />
-      {/* impeccable-live-start */}
-<script src="http://localhost:8401/live.js"></script>
-{/* impeccable-live-end */}
-</body>
+      </body>
     </html>
   );
 }

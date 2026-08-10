@@ -1,45 +1,64 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { POST } from "../src/app/api/booking/route";
+import { BookingRequestSchema } from "../src/app/api/booking/route";
 import { bookingRecordToResponses } from "../src/lib/booking-data";
-import { AirportFormSchema } from "../src/lib/form-schemas";
+import { UnifiedBookingSchema } from "../src/lib/form-schemas";
 
-test( "airport form requires a terminal" , () => {
-  const result = AirportFormSchema.safeParse( {
-    flightNumber: "UA1234",
+test( "airport form accepts an empty flight number and terminal" , () => {
+  const result = UnifiedBookingSchema.safeParse( {
+    serviceType: "airport",
+    flightNumber: "",
     terminal: "",
     passengers: "1",
+    luggage: "1",
+    duration: "",
     pickupLocation: "Houston Intercontinental Airport",
     dropoffLocation: "100 Main Street, Houston",
     date: new Date( "2099-06-11T00:00:00" ),
     time: "13:01",
   } );
 
-  assert.equal( result.success, false );
-  assert.equal( result.error?.issues.find( issue => issue.path[ 0 ] === "terminal" )?.message, "Terminal is required" );
+  assert.equal( result.success, true );
 } );
 
-test( "airport booking API rejects a missing terminal before database work" , async () => {
-  const response = await POST( new Request( "http://localhost/api/booking", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify( {
-      date: "2099-06-11",
-      time: "13:01",
-      attendee: { name: "Airport Rider", email: "airport@example.com" },
-      tripType: "airport",
-      tripDetails: {
-        pickupLocation: "Houston Intercontinental Airport",
-        dropoffLocation: "100 Main Street, Houston",
-        flightNumber: "UA1234",
-      },
-    } ),
-  } ) );
-  const body = await response.json();
+test( "airport booking API schema accepts a missing flight number and terminal" , () => {
+  const result = BookingRequestSchema.safeParse( {
+    date: "2099-06-11",
+    time: "13:01",
+    attendee: { name: "Airport Rider", email: "airport@example.com" },
+    tripType: "airport",
+    tripDetails: {
+      pickupLocation: "Houston Intercontinental Airport",
+      dropoffLocation: "100 Main Street, Houston",
+    },
+  } );
 
-  assert.equal( response.status, 400 );
-  assert.equal( body.error, "Validation failed" );
-  assert.match( body.details, /Terminal is required for airport bookings/ );
+  assert.equal( result.success, true );
+} );
+
+test( "booking API accepts a phone number without a text message preference", () => {
+  const booking = {
+    date: "2099-06-11",
+    time: "13:01",
+    attendee: {
+      name: "Airport Rider",
+      email: "airport@example.com",
+      phone: "+17135550123",
+    },
+  };
+
+  assert.equal( BookingRequestSchema.safeParse( booking ).success, true );
+  assert.equal(
+    BookingRequestSchema.safeParse( { ...booking, smsOptIn: true } ).success,
+    true,
+  );
+  assert.equal(
+    BookingRequestSchema.safeParse( {
+      ...booking,
+      marketingSmsOptIn: true,
+    } ).success,
+    true,
+  );
 } );
 
 test( "booking response exposes the stored airport terminal" , () => {

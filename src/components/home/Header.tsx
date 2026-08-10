@@ -58,7 +58,7 @@ export function Header( { className }: HeaderProps ) {
       ) }
     >
       <Link href="/" className="flex items-center z-50 relative">
-        <Image src="/assets/images/goldridr-logo-main.svg" alt="Goldridr" width={ 180 } height={ 40 } className="h-8 w-auto md:h-10" />
+        <Image src="/assets/images/goldridr-logo-main.svg" alt="Goldridr" width={ 231 } height={ 48 } priority className="h-8 w-auto md:h-10" />
       </Link>
 
       {/* Desktop Navigation */ }
@@ -71,10 +71,9 @@ export function Header( { className }: HeaderProps ) {
           ) ) }
         </div>
         <Button
-          variant="outline"
+          // variant="outline"
           size={ 'lg' }
           onClick={ handleBookNow }
-          className={ 'bg-black/20 border-gold/80' }
         >
           RESERVE A RIDE
         </Button>
@@ -83,9 +82,10 @@ export function Header( { className }: HeaderProps ) {
       {/* Mobile Navigation */ }
       <div className="flex items-center gap-2 md:hidden z-50 relative">
         <Button
-          variant="outline"
+          // variant="outline"
+          size={ 'sm' }
+          className="px-3 py-2"
           onClick={ handleBookNow }
-          className={ 'bg-black/20 border-gold/80 px-3 h-8 text-sm tracking-widest' }
         >
           RESERVE A RIDE
         </Button>

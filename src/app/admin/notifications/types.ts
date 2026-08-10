@@ -19,6 +19,18 @@ export interface FailedDelivery {
   title: string;
   bookingReference?: string | null;
   lastError: string | null;
+  failedAt: string;
+}
+
+export interface MockSmsMessage {
+  sid: string;
+  from: string;
+  to: string;
+  body: string;
+  status: string;
+  errorMessage: string | null;
+  dateCreated: string;
+  dateUpdated: string;
 }
 
 export interface ReminderDelivery {
@@ -48,7 +60,7 @@ export interface MessageThread {
   lastActivity: string;
 }
 
-export type Folder = "inbox" | "unread" | "bookings" | "reminders" | "messages" | "system" | "failures";
+export type Folder = "inbox" | "unread" | "bookings" | "reminders" | "messages" | "sms" | "system" | "failures";
 
 export interface FolderConfig {
   value: Folder;

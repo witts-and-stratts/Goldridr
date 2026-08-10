@@ -10,7 +10,7 @@ Two audiences. Premium riders (executives, guests, high-touch clients) book chau
 
 ## Product Purpose
 
-Goldridr is a premium chauffeur service platform: a public booking surface plus an operations admin (bookings, chauffeurs, calendar, dashboard). Success means riders book without friction and ops staff can run the day's fleet from one screen without second-guessing what's confirmed, assigned, or pending.
+GoldRidris a premium chauffeur service platform: a public booking surface plus an operations admin (bookings, chauffeurs, calendar, dashboard). Success means riders book without friction and ops staff can run the day's fleet from one screen without second-guessing what's confirmed, assigned, or pending.
 
 ## Brand Personality
 

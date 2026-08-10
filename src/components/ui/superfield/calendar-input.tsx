@@ -73,12 +73,12 @@ export function CalendarInput( {
           { value ? format( new Date( value ), "PPP" ) : <span>{ placeholder }</span> }
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent className="vega-form dark w-auto p-0" align="start">
         <Calendar
           mode="single"
           selected={ selectedDate }
           onSelect={ handleSelect }
-          initialFocus
+          autoFocus
         />
       </PopoverContent>
     </Popover>

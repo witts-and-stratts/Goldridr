@@ -1,57 +1,27 @@
 "use client";
 
 import Image from "next/image";
-import { Header } from "@/components/home/Header";
+import { Hero, type HeroSlide } from "@/components/home/Hero";
 import { Footer } from "@/components/home/Footer";
 import { Suburban } from "@/components/home/Suburban";
-import { Button } from "@/components/ui/button";
 import { ServiceCard } from "@/components/marketing/ServiceCard";
 import { StandardItem } from "@/components/marketing/StandardItem";
 
-import { useBookingOverlay } from "@/components/booking/BookingContext";
+const RIDE_HERO_SLIDES: HeroSlide[] = [
+  {
+    id: 1,
+    image: "/assets/images/ridr-elegant-client.jpg",
+    alt: "Luxury chauffeur service",
+    title: "YOUR PERSONAL CHAUFFEUR",
+    description: "Experience the pinnacle of chauffeured services. Where every journey is crafted with precision, comfort, and elegance.",
+    cta: "BOOK YOUR RIDE",
+  },
+];
 
 export default function RidePage() {
-  const { setIsOpen } = useBookingOverlay();
-
   return (
     <main className="site-page">
-      <Header />
-
-      {/* Hero Section */ }
-      <section className="relative h-screen w-full flex justify-center overflow-hidden -mt-40 max-md:h-[110vh]">
-        <div className="absolute inset-0">
-          <Image
-            src="/assets/images/ride-hero-chauffeur-pickup.webp"
-            alt="Luxury Chauffeur Service"
-            fill
-            className="object-cover"
-            priority
-          />
-          <div className="absolute inset-0 bg-black/50" />
-          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-linear-to-t from-black/50 to-transparent" />
-        </div>
-
-        <div className="relative z-10 text-center px-4 mx-auto mt-50">
-          <div className="flex flex-col items-between h-full relative">
-            <h1 className="site-heading site-heading--display text-white">
-              your personal
-              <br />
-              chauffeur
-            </h1>
-            <p className="site-copy mx-auto mt-4 mb-12 max-w-[600px] text-sm leading-6 md:leading-7">
-              Experience the pinnacle of chauffeured services. Where every journey
-              is crafted with precision, comfort, and elegance.
-            </p></div>
-          <Button
-            onClick={ () => setIsOpen( true ) }
-            size={ 'lg' }
-            variant={ 'outline' }
-            className="bg-black/20 px-6 py-2 font-wide text-sm tracking-[0.2em] transition-colors absolute bottom-20 left-1/2 -translate-x-1/2 min-w-[280px]"
-          >
-            BOOK YOUR RIDE
-          </Button>
-        </div>
-      </section>
+      <Hero slides={ RIDE_HERO_SLIDES } ariaLabel="GoldRidrride services" />
 
       {/* Our Services */ }
       <section className="site-content py-10 md:py-24">

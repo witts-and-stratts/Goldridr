@@ -1,0 +1,24 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "calendar-input",
+  "title": "Calendar Input",
+  "description": "A date input composed from the calendar and popover primitives.",
+  "dependencies": [
+    "date-fns",
+    "lucide-react"
+  ],
+  "registryDependencies": [
+    "button",
+    "calendar",
+    "popover"
+  ],
+  "files": [
+    {
+      "path": "src/components/ui/superfield/calendar-input.tsx",
+      "content": "\"use client\";\n\nimport * as React from \"react\";\nimport { format } from \"date-fns\";\nimport { Calendar as CalendarIcon } from \"lucide-react\";\n\nimport { cn } from \"@/lib/utils\";\nimport { Button } from \"@/components/ui/button\";\nimport { Calendar } from \"@/components/ui/calendar\";\nimport {\n  Popover,\n  PopoverContent,\n  PopoverTrigger,\n} from \"@/components/ui/popover\";\n\nexport interface CalendarInputProps {\n  id?: string;\n  value?: string;\n  onChange?: ( value: string ) => void;\n  onBlur?: React.FocusEventHandler<HTMLButtonElement>;\n  placeholder?: string;\n  disabled?: boolean;\n  required?: boolean;\n  className?: string;\n  \"aria-invalid\"?: boolean;\n  \"aria-describedby\"?: string;\n}\n\nexport function CalendarInput( {\n  id,\n  value,\n  onChange,\n  onBlur,\n  placeholder = \"Pick a date\",\n  disabled,\n  required,\n  className,\n  ...ariaProps\n}: CalendarInputProps ) {\n  const [ open, setOpen ] = React.useState( false );\n\n  // Convert string value to Date object\n  const selectedDate = value ? new Date( value ) : undefined;\n\n  const handleSelect = ( date: Date | undefined ) => {\n    if ( date ) {\n      // Format as YYYY-MM-DD for form compatibility\n      const formattedDate = format( date, \"yyyy-MM-dd\" );\n      onChange?.( formattedDate );\n    } else {\n      onChange?.( \"\" );\n    }\n    setOpen( false );\n  };\n\n  return (\n    <Popover open={ open } onOpenChange={ setOpen }>\n      <PopoverTrigger>\n        <Button\n          id={ id }\n          variant=\"outline\"\n          size={ 'lg' }\n          className={ cn(\n            \"w-full justify-start text-left font-normal\",\n            !value && \"text-muted-foreground\",\n            className\n          ) }\n          disabled={ disabled }\n          onBlur={ onBlur }\n          { ...ariaProps }\n        >\n          <CalendarIcon className=\"mr-2 size-4\" strokeWidth={ 1 } />\n          { value ? format( new Date( value ), \"PPP\" ) : <span>{ placeholder }</span> }\n        </Button>\n      </PopoverTrigger>\n      <PopoverContent className=\"vega-form dark w-auto p-0\" align=\"start\">\n        <Calendar\n          mode=\"single\"\n          selected={ selectedDate }\n          onSelect={ handleSelect }\n          autoFocus\n        />\n      </PopoverContent>\n    </Popover>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "@ui/superfield/calendar-input.tsx"
+    }
+  ],
+  "type": "registry:ui"
+}

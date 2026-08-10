@@ -16,6 +16,12 @@ function requireAdmin( session: AuthSession | null ) {
   return session && isAdmin( session );
 }
 
+function developmentOnly() {
+  return process.env.NODE_ENV === "development"
+    ? null
+    : NextResponse.json( { success: false, error: "Not found" }, { status: 404 } );
+}
+
 function toMessage( record: Awaited<ReturnType<typeof listPocketBaseMockSmsMessages>>[number] ) {
   return {
     sid: record.sid,
@@ -31,6 +37,8 @@ function toMessage( record: Awaited<ReturnType<typeof listPocketBaseMockSmsMessa
 }
 
 export async function GET( request: Request ) {
+  const unavailable = developmentOnly();
+  if ( unavailable ) return unavailable;
   const session = await getRequestSession( request );
   if ( !requireAdmin( session ) ) {
     return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
@@ -49,6 +57,8 @@ export async function GET( request: Request ) {
 }
 
 export async function POST( request: Request ) {
+  const unavailable = developmentOnly();
+  if ( unavailable ) return unavailable;
   const session = await getRequestSession( request );
   if ( !requireAdmin( session ) ) {
     return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
@@ -85,6 +95,8 @@ export async function POST( request: Request ) {
 }
 
 export async function PATCH( request: Request ) {
+  const unavailable = developmentOnly();
+  if ( unavailable ) return unavailable;
   const session = await getRequestSession( request );
   if ( !requireAdmin( session ) ) {
     return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
@@ -117,6 +129,8 @@ export async function PATCH( request: Request ) {
 }
 
 export async function DELETE( request: Request ) {
+  const unavailable = developmentOnly();
+  if ( unavailable ) return unavailable;
   const session = await getRequestSession( request );
   if ( !requireAdmin( session ) ) {
     return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );

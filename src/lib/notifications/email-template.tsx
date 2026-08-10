@@ -167,7 +167,7 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
       const pin = typeof payload.pin === "string" && payload.pin ? payload.pin : null;
       return {
         subject: `We received booking ${ reference }`,
-        preview: "Your Goldridr booking request was received.",
+        preview: "Your GoldRidrbooking request was received.",
         heading: "Booking request received",
         message: `Hi ${ passenger }, your ride request is now with our team. We will send another update as soon as it is confirmed.${ pin ? " Share your 4-digit PIN with your driver at pickup to confirm the ride." : "" }`,
         appUrl,
@@ -181,7 +181,7 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
       if ( normalizedStatus === "confirmed" || normalizedStatus === "accepted" ) {
         return {
           subject: `Booking ${ reference } confirmed`,
-          preview: "Your Goldridr booking is confirmed.",
+          preview: "Your GoldRidrbooking is confirmed.",
           heading: "Booking confirmed",
           message: `Hi ${ passenger }, your chauffeur service is confirmed. Your booking details are below.`,
           appUrl,
@@ -213,7 +213,7 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
           : "Your booking is awaiting a new chauffeur.",
         heading: assigned ? "Your chauffeur is assigned" : "Chauffeur update",
         message: assigned
-          ? `Hi ${ passenger }, ${ chauffeurName } is assigned to your Goldridr booking.`
+          ? `Hi ${ passenger }, ${ chauffeurName } is assigned to your GoldRidrbooking.`
           : `Hi ${ passenger }, your previous chauffeur assignment changed. Our team is arranging the next assignment.`,
         appUrl,
         booking: bookingContent( payload, reference, assigned ? "Chauffeur assigned" : "Awaiting chauffeur" ),
@@ -222,9 +222,9 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
     case "booking_deleted":
       return {
         subject: `Booking ${ reference } was deleted`,
-        preview: "Your Goldridr booking record was removed.",
+        preview: "Your GoldRidrbooking record was removed.",
         heading: "Booking deleted",
-        message: `Hi ${ passenger }, booking ${ reference } has been removed from our system. Contact Goldridr if you believe this was unexpected.`,
+        message: `Hi ${ passenger }, booking ${ reference } has been removed from our system. Contact GoldRidrif you believe this was unexpected.`,
         appUrl,
         details: [ [ "Scheduled pickup", dateTime ] ],
         booking: bookingContent( payload, reference, "Deleted" ),
@@ -234,9 +234,9 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
         subject: payload.reminderHours === "Manual"
           ? `Pickup reminder for ${ reference }`
           : `${ payload.reminderHours }-hour reminder for ${ reference }`,
-        preview: "Your Goldridr pickup is approaching.",
+        preview: "Your GoldRidrpickup is approaching.",
         heading: "Your ride is coming up",
-        message: `This is a reminder that your Goldridr pickup is scheduled for ${ dateTime }.`,
+        message: `This is a reminder that your GoldRidrpickup is scheduled for ${ dateTime }.`,
         appUrl,
         details: [ [ "Reference", reference ] ],
         booking: bookingContent( payload, reference, "Pickup reminder" ),
@@ -278,7 +278,7 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
       return {
         subject: subject || "Message from Goldridr",
         preview: message.slice( 0, 120 ),
-        heading: subject || "Goldridr update",
+        heading: subject || "GoldRidrupdate",
         message,
         appUrl,
       };
@@ -294,7 +294,7 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
       };
     default:
       return {
-        subject: subject || "Goldridr notification",
+        subject: subject || "GoldRidrnotification",
         preview: message.slice( 0, 120 ),
         heading: subject || "Goldridr",
         message,
@@ -508,7 +508,7 @@ function GoldridrEmail( { content }: { content: EmailContent } ) {
           </Section>
           <Section style={{ backgroundColor: colors.panel, borderTop: `1px solid ${ colors.hairline }`, padding: "22px 30px" }}>
             <Text style={{ color: colors.muted, fontSize: 11, lineHeight: "18px", margin: 0 }}>
-              Goldridr private chauffeur service
+              GoldRidrprivate chauffeur service
             </Text>
             <Text style={{ color: "#77746d", fontSize: 10, lineHeight: "17px", margin: "5px 0 0" }}>
               { content.footerNote || "This is an automated service message from Goldridr." }

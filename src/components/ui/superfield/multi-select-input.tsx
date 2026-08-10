@@ -1,5 +1,5 @@
 import { Combobox, ComboboxChips, ComboboxChip, ComboboxChipsInput, ComboboxContent, ComboboxList, ComboboxItem } from '@/components/ui/combobox';
-import { BaseFieldProps, SelectOption } from "./types";
+import { BaseFieldProps, SelectOption } from "./base-types";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from 'react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';

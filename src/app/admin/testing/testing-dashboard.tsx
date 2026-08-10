@@ -52,7 +52,7 @@ export function TestingDashboard( { mailpitUrl, emailTransport, smsTransport }: 
   const [ clearing, setClearing ] = useState( false );
   const [ testTo, setTestTo ] = useState( "+17135550123" );
   const [ testFrom, setTestFrom ] = useState( "+17135550000" );
-  const [ testBody, setTestBody ] = useState( "Goldridr test SMS from the local mock." );
+  const [ testBody, setTestBody ] = useState( "GoldRidrtest SMS from the local mock." );
 
   const load = async () => {
     try {

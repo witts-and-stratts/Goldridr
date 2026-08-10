@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/command";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Tick02Icon, UnfoldMoreIcon } from "@hugeicons/core-free-icons";
-import { BaseFieldProps, SelectOption } from "./types";
+import { BaseFieldProps, SelectOption } from "./base-types";
 
 export interface SearchableSelectProps {
   id?: string;
@@ -96,7 +96,7 @@ export const SearchableSelect = ( {
         <HugeiconsIcon icon={ UnfoldMoreIcon } strokeWidth={ 2 } className="text-muted-foreground size-4 pointer-events-none" />
       </PopoverTrigger>
       <PopoverContent
-        className="bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 ring-foreground/10 min-w-36 rounded-md shadow-md ring-1 duration-100 p-0"
+        className="vega-form dark bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 ring-foreground/10 min-w-36 rounded-md shadow-md ring-1 duration-100 p-0"
         align="start"
         style={ { width: width ? `${ width }px` : undefined } }
       >

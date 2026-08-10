@@ -73,7 +73,7 @@ export async function bookingRecordToBookingData( booking: BookingRecord ): Prom
     uid: booking.reference,
     reference: booking.reference,
     status: booking.status,
-    title: `Goldridr booking ${ booking.reference }`,
+    title: `GoldRidrbooking ${ booking.reference }`,
     start,
     end,
     attendees: [

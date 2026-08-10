@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { qk } from "@/lib/query-keys";
-import type { FailedDelivery, NotificationItem, ReminderDelivery } from "../types";
+import type { FailedDelivery, MockSmsMessage, NotificationItem, ReminderDelivery } from "../types";
 
 async function patchNotifications( action: string, recipientIds?: number[] ) {
   return fetch( "/api/admin/notifications", {
@@ -18,6 +18,7 @@ export function useNotificationsInbox() {
   const [ readOverrides, setReadOverrides ] = useState<Map<number, string | null>>( new Map() );
   const [ deletedIds, setDeletedIds ] = useState<Set<number>>( new Set() );
   const [ retriedFailureIds, setRetriedFailureIds ] = useState<Set<number>>( new Set() );
+  const [ deletedFailureIds, setDeletedFailureIds ] = useState<Set<number>>( new Set() );
 
   const { data: inboxData, refetch, isPending } = useQuery( {
     queryKey: qk.notifications(),
@@ -33,6 +34,8 @@ export function useNotificationsInbox() {
       return {
         notifications: notifData.success ? notifData.notifications as NotificationItem[] : [],
         failedDeliveries: notifData.success ? notifData.failedDeliveries as FailedDelivery[] : [],
+        mockSmsEnabled: notifData.success && notifData.mockSmsEnabled === true,
+        mockSmsMessages: notifData.success ? notifData.mockSmsMessages as MockSmsMessage[] : [],
         reminders: reminderData.success ? reminderData.reminders as ReminderDelivery[] : [],
       };
     },
@@ -71,10 +74,14 @@ export function useNotificationsInbox() {
   }, [ deletedIds, inboxData?.notifications, readOverrides ] );
 
   const failed = useMemo( () => {
-    return ( inboxData?.failedDeliveries || [] ).filter( delivery => !retriedFailureIds.has( delivery.id ) );
-  }, [ inboxData?.failedDeliveries, retriedFailureIds ] );
+    return ( inboxData?.failedDeliveries || [] ).filter( delivery =>
+      !retriedFailureIds.has( delivery.id ) && !deletedFailureIds.has( delivery.id )
+    );
+  }, [ deletedFailureIds, inboxData?.failedDeliveries, retriedFailureIds ] );
 
   const reminders = inboxData?.reminders || [];
+  const mockSmsEnabled = inboxData?.mockSmsEnabled || false;
+  const mockSmsMessages = inboxData?.mockSmsMessages || [];
 
   const load = useCallback( () => refetch( { cancelRefetch: true } ), [ refetch ] );
 
@@ -134,10 +141,32 @@ export function useNotificationsInbox() {
     }
   }, [] );
 
+  const deleteFailure = useCallback( async ( deliveryId: number ) => {
+    try {
+      const response = await fetch( "/api/admin/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify( { action: "delete_failure", deliveryId } ),
+      } );
+      if ( !response.ok ) {
+        toast.error( "Unable to delete delivery failure" );
+        return false;
+      }
+      setDeletedFailureIds( current => new Set( current ).add( deliveryId ) );
+      toast.success( "Delivery failure deleted" );
+      return true;
+    } catch {
+      toast.error( "Unable to delete delivery failure" );
+      return false;
+    }
+  }, [] );
+
   return {
     items,
     failed,
     reminders,
+    mockSmsEnabled,
+    mockSmsMessages,
     isLoading: isPending,
     load,
     markAllRead,
@@ -145,5 +174,6 @@ export function useNotificationsInbox() {
     markUnreadIds,
     deleteIds,
     retry,
+    deleteFailure,
   };
 }

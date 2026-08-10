@@ -18,4 +18,7 @@ export const pocketBaseCollections = {
   calendarFeedTokens: "calendar_feed_tokens",
   mockSmsMessages: "mock_sms_messages",
   pushReceipts: "push_receipts",
+  flightSnapshots: "flight_snapshots",
+  flightTracking: "flight_tracking",
+  flightProviderEvents: "flight_provider_events",
 } as const;

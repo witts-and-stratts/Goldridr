@@ -1,38 +1,76 @@
-import { useState, Suspense } from "react";
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
   DialogDescription
 } from "@/components/ui/dialog";
-import { BookingOptions } from "./BookingOptions";
-import { AirportForm } from "./forms/AirportForm";
-import { TownForm } from "./forms/TownForm";
-import { HourlyForm } from "./forms/HourlyForm";
+import { BookingFlow } from "./BookingFlow";
+import { isBookingServiceSlug, type BookingView } from "./booking-services";
+import "./BookingOverlay.css";
 
 interface BookingOverlayProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpen: () => void;
 }
 
-type View = "options" | "airport" | "town" | "hourly";
+// The overlay mirrors the standalone /book route in the URL so a popup session can be
+// shared, bookmarked and reopened with the browser back button.
+export function viewToHash( view: BookingView ): string {
+  return view === "options" ? "#book" : `#book-${ view }`;
+}
 
-export function BookingOverlay( { isOpen, onClose }: BookingOverlayProps ) {
-  const [ view, setView ] = useState<View>( "options" );
+export function hashToView( hash: string ): BookingView | null {
+  const value = hash.replace( /^#/, "" );
+  if ( value === "book" ) return "options";
+  const slug = value.startsWith( "book-" ) ? value.slice( "book-".length ) : "";
+  return isBookingServiceSlug( slug ) ? slug : null;
+}
+
+export function BookingOverlay( { isOpen, onClose, onOpen }: BookingOverlayProps ) {
+  const [ view, setView ] = useState<BookingView>( "options" );
+
+  const syncHash = useCallback( ( next: BookingView | null ) => {
+    const url = new URL( window.location.href );
+    url.hash = next ? viewToHash( next ) : "";
+    window.history.replaceState( null, "", url.toString() );
+  }, [] );
+
+  // Deep links land on the page with the hash already set, and back/forward moves
+  // between overlay views without a reload.
+  useEffect( () => {
+    const apply = () => {
+      const next = hashToView( window.location.hash );
+      if ( next ) {
+        setView( next );
+        onOpen();
+      } else {
+        onClose();
+      }
+    };
+    apply();
+    window.addEventListener( "hashchange", apply );
+    return () => window.removeEventListener( "hashchange", apply );
+  }, [ onOpen, onClose ] );
+
+  useEffect( () => {
+    if ( isOpen ) syncHash( view );
+  }, [ isOpen, view, syncHash ] );
 
   const handleClose = ( open: boolean ) => {
-    if ( !open ) {
-      onClose();
-      // Small delay to reset view after dialog closes
-      setTimeout( () => setView( "options" ), 300 );
-    }
+    if ( open ) return;
+    onClose();
+    syncHash( null );
+    // Small delay to reset view after dialog closes
+    setTimeout( () => setView( "options" ), 300 );
   };
-
-  const handleBookingSuccess = () => handleClose( false );
 
   return (
     <Dialog open={ isOpen } onOpenChange={ handleClose }>
-      <DialogContent className="max-w-10xl bg-black/60 border-none shadow-none p-0 overflow-hidden text-white sm:max-w-7xl h-full">
+      <DialogContent className="booking-overlay">
         <div className="sr-only">
           <DialogTitle>Booking Overlay</DialogTitle>
           <DialogDescription>
@@ -40,22 +78,12 @@ export function BookingOverlay( { isOpen, onClose }: BookingOverlayProps ) {
           </DialogDescription>
         </div>
 
-        <div className="flex items-center justify-center w-full min-h-[60vh]">
-          { view === "options" && (
-            <BookingOptions onSelect={ ( option ) => setView( option ) } />
-          ) }
-
-          { view === "airport" && (
-            <AirportForm onBack={ () => setView( "options" ) } onSuccess={ handleBookingSuccess } />
-          ) }
-
-          { view === "town" && (
-            <TownForm onBack={ () => setView( "options" ) } onSuccess={ handleBookingSuccess } />
-          ) }
-
-          { view === "hourly" && (
-            <HourlyForm onBack={ () => setView( "options" ) } onSuccess={ handleBookingSuccess } />
-          ) }
+        <div className="booking-overlay__frame">
+          <BookingFlow
+            view={ view }
+            onViewChange={ setView }
+            onSuccess={ () => handleClose( false ) }
+          />
         </div>
       </DialogContent>
     </Dialog>

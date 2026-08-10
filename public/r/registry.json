@@ -1,0 +1,243 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "goldridr",
+  "homepage": "https://goldridr.com",
+  "items": [
+    {
+      "name": "quill-editor",
+      "type": "registry:ui",
+      "title": "Editor",
+      "description": "A controlled rich-text editor built on Quill.",
+      "dependencies": ["quill"],
+      "files": [
+        {
+          "path": "src/components/ui/quill-editor.tsx",
+          "type": "registry:ui",
+          "target": "@ui/quill-editor.tsx"
+        }
+      ]
+    },
+    {
+      "name": "calendar-input",
+      "type": "registry:ui",
+      "title": "Calendar Input",
+      "description": "A date input composed from the calendar and popover primitives.",
+      "dependencies": ["date-fns", "lucide-react"],
+      "registryDependencies": ["button", "calendar", "popover"],
+      "files": [
+        {
+          "path": "src/components/ui/superfield/calendar-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/calendar-input.tsx"
+        }
+      ]
+    },
+    {
+      "name": "date-picker-input",
+      "type": "registry:ui",
+      "title": "Date Picker Input",
+      "description": "A keyboard-friendly date picker with typed input and calendar selection.",
+      "dependencies": ["@hugeicons/react", "@hugeicons/core-free-icons"],
+      "registryDependencies": ["calendar", "input-group", "popover"],
+      "files": [
+        {
+          "path": "src/components/ui/superfield/date-picker-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/date-picker-input.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/base-types.ts",
+          "type": "registry:ui",
+          "target": "@ui/superfield/base-types.ts"
+        }
+      ]
+    },
+    {
+      "name": "location-input",
+      "type": "registry:ui",
+      "title": "Location Input",
+      "description": "An address autocomplete input with keyboard navigation.",
+      "dependencies": ["motion"],
+      "registryDependencies": ["input"],
+      "files": [
+        {
+          "path": "src/components/ui/superfield/location-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/location-input.tsx"
+        }
+      ]
+    },
+    {
+      "name": "searchable-select",
+      "type": "registry:ui",
+      "title": "Searchable Select",
+      "description": "A searchable single-select control composed from command and popover primitives.",
+      "dependencies": ["@hugeicons/react", "@hugeicons/core-free-icons"],
+      "registryDependencies": ["command", "popover"],
+      "files": [
+        {
+          "path": "src/components/ui/superfield/searchable-select.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/searchable-select.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/base-types.ts",
+          "type": "registry:ui",
+          "target": "@ui/superfield/base-types.ts"
+        }
+      ]
+    },
+    {
+      "name": "tags-input",
+      "type": "registry:ui",
+      "title": "Tags Input",
+      "description": "A keyboard-operable input for creating and removing tags.",
+      "dependencies": ["lucide-react"],
+      "files": [
+        {
+          "path": "src/components/ui/superfield/tags-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/tags-input.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/base-types.ts",
+          "type": "registry:ui",
+          "target": "@ui/superfield/base-types.ts"
+        }
+      ]
+    },
+    {
+      "name": "time-picker-input",
+      "type": "registry:ui",
+      "title": "Time Picker Input",
+      "description": "A time picker composed from input-group, popover, and select primitives.",
+      "dependencies": ["@hugeicons/react", "@hugeicons/core-free-icons"],
+      "registryDependencies": ["input-group", "popover", "select"],
+      "files": [
+        {
+          "path": "src/components/ui/superfield/time-picker-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/time-picker-input.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/base-types.ts",
+          "type": "registry:ui",
+          "target": "@ui/superfield/base-types.ts"
+        }
+      ]
+    },
+    {
+      "name": "multi-select-input",
+      "type": "registry:ui",
+      "title": "Multi-select Input",
+      "description": "A reorderable multi-select control composed from the combobox primitive.",
+      "dependencies": ["@dnd-kit/core", "@dnd-kit/sortable", "@dnd-kit/utilities"],
+      "registryDependencies": ["combobox"],
+      "files": [
+        {
+          "path": "src/components/ui/superfield/multi-select-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/multi-select-input.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/base-types.ts",
+          "type": "registry:ui",
+          "target": "@ui/superfield/base-types.ts"
+        }
+      ]
+    },
+    {
+      "name": "super-field",
+      "type": "registry:ui",
+      "title": "Super Field",
+      "description": "A typed field primitive that composes inputs, selects, editors, date, time, location, tag, and multi-select controls.",
+      "dependencies": [
+        "@dnd-kit/core",
+        "@dnd-kit/sortable",
+        "@dnd-kit/utilities",
+        "@hugeicons/core-free-icons",
+        "@hugeicons/react",
+        "date-fns",
+        "lucide-react",
+        "motion",
+        "quill"
+      ],
+      "registryDependencies": [
+        "button",
+        "calendar",
+        "checkbox",
+        "combobox",
+        "command",
+        "field",
+        "input",
+        "input-group",
+        "popover",
+        "select",
+        "switch",
+        "textarea"
+      ],
+      "files": [
+        {
+          "path": "src/components/ui/super-field.tsx",
+          "type": "registry:ui",
+          "target": "@ui/super-field.tsx"
+        },
+        {
+          "path": "src/components/ui/quill-editor.tsx",
+          "type": "registry:ui",
+          "target": "@ui/quill-editor.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/base-types.ts",
+          "type": "registry:ui",
+          "target": "@ui/superfield/base-types.ts"
+        },
+        {
+          "path": "src/components/ui/superfield/calendar-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/calendar-input.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/date-picker-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/date-picker-input.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/field-renderers.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/field-renderers.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/location-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/location-input.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/multi-select-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/multi-select-input.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/searchable-select.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/searchable-select.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/tags-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/tags-input.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/time-picker-input.tsx",
+          "type": "registry:ui",
+          "target": "@ui/superfield/time-picker-input.tsx"
+        },
+        {
+          "path": "src/components/ui/superfield/types.ts",
+          "type": "registry:ui",
+          "target": "@ui/superfield/types.ts"
+        }
+      ]
+    }
+  ]
+}

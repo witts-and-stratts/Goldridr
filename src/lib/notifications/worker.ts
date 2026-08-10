@@ -11,6 +11,7 @@ import { zonedDateTimeToDate } from "./time";
 import { getPocketBaseClient } from "@/lib/pocketbase/client";
 import { pocketBaseCollections } from "@/lib/pocketbase/collections";
 import { first, legacyId } from "@/lib/pocketbase/core";
+import { buildSmsBody } from "./sms-program";
 
 const RETRY_DELAYS_MS = [ 60_000, 300_000, 900_000, 3_600_000, 21_600_000 ];
 
@@ -43,33 +44,6 @@ function parsePayload( delivery: NotificationDeliveryRecord ): Record<string, un
   } catch {
     return {};
   }
-}
-
-function smsBody( template: string | null, payload: Record<string, unknown> ): string {
-  if ( template === "manual_message" || template === "broadcast" ) return String( payload.message || "" ).slice( 0, 1500 );
-  const reference = String( payload.bookingReference || "" );
-  const tripDetails = payload.tripDetails && typeof payload.tripDetails === "object"
-    ? payload.tripDetails as Record<string, unknown>
-    : {};
-  const terminal = typeof tripDetails.terminal === "string" && tripDetails.terminal.trim()
-    ? ` Terminal: ${ tripDetails.terminal.trim() }.`
-    : "";
-  if ( template === "booking_reminder" ) {
-    return `Goldridr reminder: booking ${ reference } is scheduled for ${ payload.date } at ${ payload.time }.${ terminal }`;
-  }
-  if ( template === "booking_created" ) {
-    return `Goldridr: we received booking ${ reference } for ${ payload.date } at ${ payload.time }.${ terminal } We will notify you when it is confirmed.`;
-  }
-  if ( template === "booking_assignment" ) {
-    const chauffeur = String( payload.chauffeurName || "" );
-    return chauffeur
-      ? `Goldridr update: ${ chauffeur } is assigned to booking ${ reference }.${ terminal }`
-      : `Goldridr update: booking ${ reference } is awaiting a chauffeur assignment.${ terminal }`;
-  }
-  if ( template === "booking_deleted" ) {
-    return `Goldridr update: booking ${ reference } was deleted.${ terminal } Contact us if this was unexpected.`;
-  }
-  return `Goldridr update: booking ${ reference } is now ${ payload.status || "updated" }.${ terminal }`;
 }
 
 function retryAfterMs( error: unknown ): number | undefined {
@@ -193,7 +167,7 @@ export class NotificationWorker {
       const response = await this.smsTransport.send( {
         from: smsConfig.from,
         to: delivery.recipient,
-        body: smsBody( delivery.template, payload ),
+        body: buildSmsBody( delivery.template, payload ),
       } );
       result = {
         provider: response.provider,

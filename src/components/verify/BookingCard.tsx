@@ -3,8 +3,9 @@
 import { BookingData } from "@/types/booking";
 import { formatShortDate, formatTime, formatFullDate } from "@/lib/date-utils";
 import { getStatusColor, getStatusIcon } from "@/lib/booking-status";
-import { Plane, User } from "lucide-react";
+import { Maximize2, Plane, User } from "lucide-react";
 import { motion } from "motion/react";
+import Image from "next/image";
 import QRCode from "react-qr-code";
 
 // Reusable divider component
@@ -160,17 +161,27 @@ export function BookingCard( { booking, routeMapUrl, onMapClick }: BookingCardPr
             </div>
 
             {/* Map Preview */ }
-            { routeMapUrl && (
+            { responses?.pickup && (
               <button
                 type="button"
                 onClick={ onMapClick }
-                className="w-24 aspect-square rounded-xl overflow-hidden border border-white/10 hover:border-[#D4AF37] transition-colors flex-shrink-0"
+                className="group relative w-24 aspect-square overflow-hidden border border-white/10 bg-[#0a0a0a] hover:border-[#D4AF37] transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37]"
+                aria-label="Open interactive route map"
               >
-                <img
-                  src={ routeMapUrl }
-                  alt="Route map"
-                  className="w-full h-full object-cover"
-                />
+                { routeMapUrl && (
+                  <Image
+                    src={ routeMapUrl }
+                    alt=""
+                    fill
+                    unoptimized
+                    sizes="96px"
+                    className="object-cover opacity-75 transition-opacity group-hover:opacity-55"
+                  />
+                ) }
+                <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/25 text-xs font-wide uppercase tracking-wider text-white">
+                  <Maximize2 className="size-4 text-gold" />
+                  View map
+                </span>
               </button>
             ) }
           </div>

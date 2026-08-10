@@ -42,7 +42,7 @@ const navSections = [
       { label: "Dashboard", icon: LayoutDashboard, href: "/admin" },
       { label: "Inbox", icon: Mail, href: "/admin/notifications" },
       { label: "Settings", icon: Settings, href: "/admin/settings" },
-      { label: "Testing", icon: TestTube2, href: "/admin/testing", adminOnly: true },
+      { label: "Testing", icon: TestTube2, href: "/admin/testing", adminOnly: true, developmentOnly: true },
     ],
   },
   {
@@ -128,8 +128,8 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
           <Image
             src="/assets/images/goldridr-logo-main.svg"
             alt="Goldridr"
-            width={120}
-            height={28}
+            width={231}
+            height={48}
             className="h-7 w-auto object-contain group-data-[collapsible=icon]:hidden dark:invert"
             priority
           />
@@ -171,7 +171,8 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {section.items
-                      .filter(item => !("adminOnly" in item) || session.role === "admin")
+                      .filter(item => (!("adminOnly" in item) || session.role === "admin")
+                        && (!("developmentOnly" in item) || process.env.NODE_ENV === "development"))
                       .map(item => {
                       const isActive =
                         item.href === "/admin"

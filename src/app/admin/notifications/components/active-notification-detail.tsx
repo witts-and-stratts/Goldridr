@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import type { FailedDelivery, Folder, MessageThread, NotificationItem, ReminderDelivery } from "../types";
+import type { FailedDelivery, Folder, MessageThread, MockSmsMessage, NotificationItem, ReminderDelivery } from "../types";
 import { EmptyDetail } from "./empty-states";
 import { MessageThreadDetail } from "./message-thread-detail";
-import { FailureDetail, NotificationDetail, ReminderDetail } from "./notification-details";
+import { FailureDetail, NotificationDetail, ReminderDetail, SmsMessageDetail } from "./notification-details";
 
 interface ActiveNotificationDetailProps {
   folder: Folder;
@@ -10,11 +10,13 @@ interface ActiveNotificationDetailProps {
   reminder?: ReminderDelivery;
   failure?: FailedDelivery;
   thread?: MessageThread;
+  smsMessage?: MockSmsMessage;
   emptyNotificationLabel: string;
   onMarkRead: ( id: number ) => void;
   onMarkUnread: ( id: number ) => void;
   onDelete: ( id: number ) => void;
   onRetry: ( id: number ) => void;
+  onDeleteFailure: ( id: number ) => Promise<boolean>;
   onDeleteThread: ( thread: MessageThread ) => void;
   onMessageSent: () => unknown;
 }
@@ -27,15 +29,20 @@ const detailRenderers: Partial<Record<Folder, DetailRenderer>> = {
       ? <ReminderDetail reminder={reminder} />
       : <EmptyDetail label="Select a reminder delivery." />
   ),
-  failures: ( { failure, onRetry } ) => (
+  failures: ( { failure, onRetry, onDeleteFailure } ) => (
     failure
-      ? <FailureDetail delivery={failure} onRetry={() => onRetry( failure.id )} />
+      ? <FailureDetail delivery={failure} onRetry={() => onRetry( failure.id )} onDelete={() => onDeleteFailure( failure.id )} />
       : <EmptyDetail label="No delivery failure selected." />
   ),
   messages: ( { thread, onDeleteThread, onMessageSent, onMarkRead, emptyNotificationLabel } ) => (
     thread
       ? <MessageThreadDetail thread={thread} onDeleteThread={onDeleteThread} onMessageSent={onMessageSent} onMarkRead={onMarkRead} />
       : <EmptyDetail label={emptyNotificationLabel} />
+  ),
+  sms: ( { smsMessage } ) => (
+    smsMessage
+      ? <SmsMessageDetail message={smsMessage} />
+      : <EmptyDetail label="Select a mock SMS message." />
   ),
 };
 

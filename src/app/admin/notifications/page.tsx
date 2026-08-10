@@ -33,7 +33,7 @@ import { SummaryTile } from "./components/summary-tile";
 import { activeReminderStatuses, folders } from "./constants";
 import { useNotificationsInbox } from "./hooks/use-notifications-inbox";
 import { buildMessageThreads } from "./lib/message-threads";
-import type { Folder, MessageThread, NotificationItem } from "./types";
+import type { Folder, MessageThread, MockSmsMessage, NotificationItem } from "./types";
 import { filterFailures, filterNotifications, filterReminders } from "./utils";
 import styles from "@/styles/notifications.module.css";
 
@@ -44,6 +44,8 @@ export default function NotificationsPage() {
     items,
     failed,
     reminders,
+    mockSmsEnabled,
+    mockSmsMessages,
     isLoading,
     load,
     markAllRead,
@@ -51,6 +53,7 @@ export default function NotificationsPage() {
     markUnreadIds,
     deleteIds,
     retry,
+    deleteFailure,
   } = useNotificationsInbox();
 
   const [ folder, setFolder ] = useState<Folder>( "inbox" );
@@ -58,6 +61,7 @@ export default function NotificationsPage() {
   const [ selectedReminderId, setSelectedReminderId ] = useState<number | null>( null );
   const [ selectedFailureId, setSelectedFailureId ] = useState<number | null>( null );
   const [ selectedThreadKey, setSelectedThreadKey ] = useState<string | null>( null );
+  const [ selectedSmsSid, setSelectedSmsSid ] = useState<string | null>( null );
   const [ composeOpen, setComposeOpen ] = useState( false );
   const [ reminderOpen, setReminderOpen ] = useState( false );
   const [ search, setSearch ] = useState( "" );
@@ -89,11 +93,22 @@ export default function NotificationsPage() {
   const visibleThreadsData = useMemo( () => buildMessageThreads( items, search ), [ items, search ] );
   const visibleThreads = visibleThreadsData.threads;
   const visibleBroadcasts = visibleThreadsData.broadcasts;
+  const visibleSmsMessages = useMemo( () => {
+    const query = search.trim().toLowerCase();
+    if ( !query ) return mockSmsMessages;
+    return mockSmsMessages.filter( message =>
+      message.to.toLowerCase().includes( query )
+      || message.from.toLowerCase().includes( query )
+      || message.body.toLowerCase().includes( query )
+      || message.status.toLowerCase().includes( query )
+    );
+  }, [ mockSmsMessages, search ] );
 
   const selectedNotification = visibleItems.find( item => item.recipientId === selectedNotificationId ) || visibleItems[ 0 ];
   const selectedReminder = visibleReminders.find( reminder => reminder.id === selectedReminderId ) || visibleReminders[ 0 ];
   const selectedFailure = visibleFailures.find( delivery => delivery.id === selectedFailureId ) || visibleFailures[ 0 ];
   const selectedThread = visibleThreads.find( thread => thread.key === selectedThreadKey ) || visibleThreads[ 0 ];
+  const selectedSmsMessage = visibleSmsMessages.find( message => message.sid === selectedSmsSid ) || visibleSmsMessages[ 0 ];
   const unreadCount = useMemo( () => items.filter( item => !item.readAt ).length, [ items ] );
   const queuedReminderCount = useMemo(
     () => reminders.filter( reminder => activeReminderStatuses.has( reminder.status ) ).length,
@@ -109,10 +124,15 @@ export default function NotificationsPage() {
     bookings: items.filter( item => item.category === "bookings" ).length,
     reminders: reminders.length,
     messages: items.filter( item => item.category === "messages" ).length,
+    sms: mockSmsMessages.length,
     system: items.filter( item => item.category === "system" ).length,
     failures: failed.length,
-  } ), [ failed.length, items, reminders.length, unreadCount ] );
-  const folderLabel = folders.find( item => item.value === folder )?.label || "notifications";
+  } ), [ failed.length, items, mockSmsMessages.length, reminders.length, unreadCount ] );
+  const visibleFolders = useMemo( () => folders.filter( item =>
+    ( session.role === "admin" || item.value !== "failures" )
+    && ( item.value !== "sms" || mockSmsEnabled )
+  ), [ mockSmsEnabled, session.role ] );
+  const folderLabel = visibleFolders.find( item => item.value === folder )?.label || "notifications";
 
   const openMobileDetail = useCallback( () => {
     if ( window.matchMedia( "(max-width: 1023px)" ).matches ) setMobileDetailOpen( true );
@@ -253,6 +273,11 @@ export default function NotificationsPage() {
     openMobileDetail();
   }, [ openMobileDetail ] );
 
+  const selectSmsMessage = useCallback( ( message: MockSmsMessage ) => {
+    setSelectedSmsSid( message.sid );
+    openMobileDetail();
+  }, [ openMobileDetail ] );
+
   const deleteThread = useCallback( ( thread: MessageThread ) => {
     void deleteNotifications( thread.messages.map( message => message.recipientId ) );
     if ( selectedThreadKey === thread.key ) setSelectedThreadKey( null );
@@ -264,7 +289,9 @@ export default function NotificationsPage() {
       ? visibleFailures.length
       : folder === "messages"
         ? visibleThreads.length
-        : visibleItems.length;
+        : folder === "sms"
+          ? visibleSmsMessages.length
+          : visibleItems.length;
 
   return (
     <div className={styles.page}>
@@ -295,8 +322,7 @@ export default function NotificationsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              { folders
-                .filter( item => session.role === "admin" || item.value !== "failures" )
+              { visibleFolders
                 .map( item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem> ) }
             </SelectContent>
           </Select>
@@ -306,8 +332,7 @@ export default function NotificationsPage() {
       <div className={styles.shell}>
         <aside className={styles.sidebar}>
           <nav className={styles.sidebarNav}>
-            { folders
-              .filter( item => session.role === "admin" || item.value !== "failures" )
+            { visibleFolders
               .map( item => {
                 const count = item.value === "unread"
                   ? unreadCount
@@ -315,6 +340,8 @@ export default function NotificationsPage() {
                     ? reminders.length
                     : item.value === "failures"
                       ? failed.length
+                      : item.value === "sms"
+                        ? mockSmsMessages.length
                       : undefined;
                 return (
                   <Tooltip key={item.value}>
@@ -411,16 +438,19 @@ export default function NotificationsPage() {
             visibleFailures={visibleFailures}
             visibleThreads={visibleThreads}
             visibleBroadcasts={visibleBroadcasts}
+            visibleSmsMessages={visibleSmsMessages}
             selectedNotificationId={selectedNotificationId}
             selectedReminderId={selectedReminderId}
             selectedFailureId={selectedFailureId}
             selectedThreadKey={selectedThreadKey}
+            selectedSmsSid={selectedSmsSid}
             selectedIds={selectedIds}
             isSelecting={isSelecting}
             openMenuId={openMenuId}
             onReminderSelect={selectReminder}
             onFailureSelect={selectFailure}
             onThreadSelect={selectThread}
+            onSmsSelect={selectSmsMessage}
             onNotificationRowClick={handleRowClick}
             onSetMenuId={setOpenMenuId}
             onMarkRead={markRead}
@@ -438,11 +468,13 @@ export default function NotificationsPage() {
             reminder={selectedReminder}
             failure={selectedFailure}
             thread={selectedThread}
+            smsMessage={selectedSmsMessage}
             emptyNotificationLabel="Select a notification to read it."
             onMarkRead={id => markRead( [ id ] )}
             onMarkUnread={id => markUnread( [ id ] )}
             onDelete={id => deleteSelected( [ id ] )}
             onRetry={id => { void retry( id ); }}
+            onDeleteFailure={deleteFailure}
             onDeleteThread={deleteThread}
             onMessageSent={load}
           />
@@ -461,6 +493,7 @@ export default function NotificationsPage() {
             reminder={selectedReminder}
             failure={selectedFailure}
             thread={selectedThread}
+            smsMessage={selectedSmsMessage}
             emptyNotificationLabel="No detail available."
             onMarkRead={id => markRead( [ id ] )}
             onMarkUnread={id => markUnread( [ id ] )}
@@ -469,6 +502,11 @@ export default function NotificationsPage() {
               setMobileDetailOpen( false );
             }}
             onRetry={id => { void retry( id ); }}
+            onDeleteFailure={async id => {
+              const deleted = await deleteFailure( id );
+              if ( deleted ) setMobileDetailOpen( false );
+              return deleted;
+            }}
             onDeleteThread={thread => {
               deleteThread( thread );
               setMobileDetailOpen( false );

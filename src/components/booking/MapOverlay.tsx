@@ -1,15 +1,15 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Loader2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useEffect } from "react";
+import { InteractiveRouteMap } from "@/components/booking/InteractiveRouteMap";
 
 interface MapOverlayProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
-  routeMapUrl?: { small: string; large: string; } | null;
-  mapImageUrl?: string | null; // Direct image URL for simple maps
   pickupLocation: string;
   dropoffLocation?: string; // Optional for Hourly
   distanceData?: {
@@ -22,13 +22,22 @@ interface MapOverlayProps {
 export function MapOverlay( {
   isOpen,
   onClose,
-  routeMapUrl,
-  mapImageUrl,
   title,
   pickupLocation,
   dropoffLocation,
   distanceData,
 }: MapOverlayProps ) {
+  useEffect( () => {
+    if ( !isOpen ) return;
+
+    const onKeyDown = ( event: KeyboardEvent ) => {
+      if ( event.key === "Escape" ) onClose();
+    };
+
+    window.addEventListener( "keydown", onKeyDown );
+    return () => window.removeEventListener( "keydown", onKeyDown );
+  }, [ isOpen, onClose ] );
+
   return (
     <AnimatePresence>
       { isOpen && (
@@ -43,8 +52,11 @@ export function MapOverlay( {
             initial={ { scale: 0.9, opacity: 0 } }
             animate={ { scale: 1, opacity: 1 } }
             exit={ { scale: 0.9, opacity: 0 } }
-            className="relative w-full max-w-3xl bg-black rounded-xl border border-white/10 overflow-hidden"
+            className="relative w-full max-w-4xl overflow-hidden border border-white/10 bg-black"
             onClick={ ( e ) => e.stopPropagation() }
+            role="dialog"
+            aria-modal="true"
+            aria-label={ title || "Route map" }
           >
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h3 className="text-white font-wide uppercase tracking-wider text-2xl font-serif">{ title || "Route Map" }</h3>
@@ -53,28 +65,18 @@ export function MapOverlay( {
                 size="icon"
                 onClick={ onClose }
                 className="text-white/70 hover:text-white"
+                aria-label="Close map"
               >
                 <X className="h-5 w-5" />
               </Button>
             </div>
-            <div className="">
-              { mapImageUrl ? (
-                <img
-                  src={ mapImageUrl }
-                  alt="Map"
-                  className="w-full rounded-lg"
-                />
-              ) : routeMapUrl ? (
-                <img
-                  src={ routeMapUrl.large }
-                  alt="Route map"
-                  className="w-full rounded-lg"
-                />
-              ) : (
-                <div className="w-full h-[400px] bg-black/40 flex items-center justify-center rounded-lg">
-                  <Loader2 className="h-8 w-8 animate-spin text-gold" />
-                </div>
-              ) }
+            <div>
+              <InteractiveRouteMap
+                pickupLocation={ pickupLocation }
+                dropoffLocation={ dropoffLocation }
+                expanded
+                className="h-[min(62vh,560px)] w-full"
+              />
               <div className="mt-4 grid grid-cols-2 gap-4 text-sm p-4 pt-0">
                 <div className="flex items-start gap-2">
                   <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold shrink-0">A</div>

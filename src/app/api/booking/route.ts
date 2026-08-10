@@ -9,6 +9,9 @@ import {
 } from "@/lib/pocketbase/repository";
 import { bookingRecordToBookingData } from "@/lib/booking-data";
 import { createPocketBaseBookingCreated } from "@/lib/pocketbase/notifications";
+import { recordSmsConsent } from "@/lib/notifications/sms-consent";
+import { smsConsentEvidenceFromRequest } from "@/lib/notifications/sms-evidence";
+import { SMS_CONSENT_VERSION } from "@/lib/sms-consent-copy";
 import { getNotificationTimeZone } from "@/lib/admin-settings";
 import {
   assertFutureBookingTime,
@@ -36,27 +39,28 @@ const TripDetailsSchema = z.object( {
   estimatedDuration: z.string().optional(),
   estimatedDurationMinutes: z.number().optional(),
   passengers: z.union( [ z.string(), z.number() ] ).optional(),
-  flightNumber: z.string().optional(),
+  flightNumber: z.string().trim().max( 24 ).optional(),
   terminal: z.string().trim().max( 80 ).optional(),
 } ).loose();
 
-const BookingRequestSchema = z.object( {
+export const BookingRequestSchema = z.object( {
   date: z.iso.date( "A valid date is required" ),
   time: z.string().regex( /^(?:[01]\d|2[0-3]):[0-5]\d$/, "A valid time is required" ),
   duration: z.number().int().positive().max( 24 * 60 ).optional().default( 60 ),
   attendee: AttendeeSchema,
   notes: z.string().optional(),
   smsOptIn: z.boolean().optional().default( false ),
-  smsConsentVersion: z.string().optional().default( "2026-01" ),
+  marketingSmsOptIn: z.boolean().optional().default( false ),
+  smsConsentVersion: z.string().optional().default( SMS_CONSENT_VERSION ),
   tripType: z.enum( [ "airport", "city", "hourly" ] ).optional().default( "airport" ),
   tripDetails: TripDetailsSchema.optional(),
   discountCode: z.string().trim().optional().default( "" ),
 } ).superRefine( ( input, ctx ) => {
-  if ( input.tripType === "airport" && !input.tripDetails?.terminal?.trim() ) {
+  if ( ( input.smsOptIn || input.marketingSmsOptIn ) && !input.attendee.phone?.trim() ) {
     ctx.addIssue( {
       code: "custom",
-      path: [ "tripDetails", "terminal" ],
-      message: "Terminal is required for airport bookings",
+      path: [ "attendee", "phone" ],
+      message: "A mobile phone number is required when opting in to text messages",
     } );
   }
 } );
@@ -197,6 +201,9 @@ export async function POST( req: Request ) {
     }
 
     const bookingReference = generateBookingReference();
+    const smsConsented = Boolean( input.smsOptIn && input.attendee.phone );
+    const marketingSmsConsented = Boolean( input.marketingSmsOptIn && input.attendee.phone );
+    const smsConsentedAt = smsConsented ? new Date().toISOString() : null;
     const savedBooking = await saveBooking( {
       reference: bookingReference,
       tripType: input.tripType || "airport",
@@ -211,9 +218,29 @@ export async function POST( req: Request ) {
       tripDetails: JSON.stringify( input.tripDetails || {} ),
       discountCode: input.discountCode || null,
       chauffeurId: assignedChauffeur.id,
-      smsConsentVersion: input.smsOptIn && input.attendee.phone ? input.smsConsentVersion : null,
-      smsConsentedAt: input.smsOptIn && input.attendee.phone ? new Date().toISOString() : null,
+      smsConsentVersion: smsConsented ? SMS_CONSENT_VERSION : null,
+      smsConsentedAt,
     } );
+
+    if ( smsConsented ) {
+      const evidence = smsConsentEvidenceFromRequest( req, "transactional" );
+      await recordSmsConsent( {
+        customerEmail: input.attendee.email,
+        phone: input.attendee.phone!,
+        ...evidence,
+        consentedAt: smsConsentedAt!,
+      } );
+    }
+
+    if ( marketingSmsConsented ) {
+      const evidence = smsConsentEvidenceFromRequest( req, "marketing" );
+      await recordSmsConsent( {
+        customerEmail: input.attendee.email,
+        phone: input.attendee.phone!,
+        ...evidence,
+        consentedAt: smsConsentedAt || new Date().toISOString(),
+      } );
+    }
 
     await createPocketBaseBookingCreated( savedBooking );
 

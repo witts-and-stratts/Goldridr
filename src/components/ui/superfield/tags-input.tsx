@@ -1,7 +1,7 @@
 import { AriaAttributes, KeyboardEvent, useEffect, useRef, useState, WheelEvent } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BaseFieldProps } from "./types";
+import { BaseFieldProps } from "./base-types";
 
 export interface TagsInputProps {
   id?: string;

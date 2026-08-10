@@ -1,4 +1,4 @@
-# Goldridr PocketBase service
+# GoldRidrPocketBase service
 
 PocketBase is Goldridr's sole application data store for authentication, bookings, operations, notifications, and delivery state.
 
