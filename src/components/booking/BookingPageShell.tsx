@@ -22,7 +22,7 @@ export function BookingPageShell( { service }: { service?: BookingServiceSlug } 
             <BookingPageFlow service={ service } />
           </Suspense>
         </div>
-        <SmsProgramTerms />
+        {/* <SmsProgramTerms /> */}
       </main>
       <Footer />
     </>
