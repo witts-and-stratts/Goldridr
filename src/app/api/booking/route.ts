@@ -63,13 +63,6 @@ export const BookingRequestSchema = z.object( {
       message: "A mobile phone number is required when opting in to text messages",
     } );
   }
-  if ( input.attendee.phone?.trim() && !input.smsOptIn && !input.marketingSmsOptIn ) {
-    ctx.addIssue( {
-      code: "custom",
-      path: [ "smsOptIn" ],
-      message: "At least one text message preference is required when providing a phone number",
-    } );
-  }
 } );
 
 type BookingRequestInput = z.infer<typeof BookingRequestSchema>;

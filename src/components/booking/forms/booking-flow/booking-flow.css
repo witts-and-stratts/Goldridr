@@ -50,10 +50,6 @@
 }
 
 .booking-flow__footer-action {
-  @apply ml-auto min-w-48;
-}
-
-.booking-flow__footer-action--full {
   @apply w-full;
 }
 

@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 
 import type { BookingStep } from './types';
 import type { TripFormApi } from './use-booking-forms';
@@ -29,10 +28,7 @@ export function BookingFlowActions({
             type='submit'
             form={tripFormId}
             disabled={submitting}
-            className={cn(
-              'booking-flow__footer-action',
-              'booking-flow__footer-action--full',
-            )}
+            className='booking-flow__footer-action'
           >
             Continue
           </Button>
@@ -58,10 +54,7 @@ export function BookingFlowActions({
       type='button'
       disabled={isSubmitting}
       onClick={onConfirm}
-      className={cn(
-        'booking-flow__footer-action',
-        'booking-flow__footer-action--full',
-      )}
+      className='booking-flow__footer-action'
     >
       {isSubmitting ? 'Processing booking…' : 'Confirm Booking'}
     </Button>

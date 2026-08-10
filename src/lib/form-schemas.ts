@@ -58,13 +58,6 @@ export const ContactFormSchema = z.object( {
       message: "Enter a mobile phone number to receive text messages",
     } );
   }
-  if ( input.phone.trim() && !input.smsOptIn && !input.marketingSmsOptIn ) {
-    ctx.addIssue( {
-      code: "custom",
-      path: [ "smsOptIn" ],
-      message: "Choose at least one text message preference or remove your phone number",
-    } );
-  }
 } );
 
 export type ContactFormData = z.infer<typeof ContactFormSchema>;

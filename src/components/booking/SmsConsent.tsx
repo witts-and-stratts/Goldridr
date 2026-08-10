@@ -14,7 +14,6 @@ import {
 
 interface SmsConsentProps {
   form: unknown;
-  required?: boolean;
 }
 
 type SmsConsentField = {
@@ -22,7 +21,7 @@ type SmsConsentField = {
   handleChange: ( value: boolean ) => void;
 };
 
-export function SmsConsent( { form, required = false }: SmsConsentProps ) {
+export function SmsConsent( { form }: SmsConsentProps ) {
   const typedForm = form as {
     Field: ( props: {
       name: "marketingSmsOptIn" | "smsOptIn";
@@ -38,22 +37,15 @@ export function SmsConsent( { form, required = false }: SmsConsentProps ) {
         return (
           <fieldset
             className="space-y-3"
-            aria-required={ required }
             aria-invalid={ Boolean( error ) }
           >
-            {/* <legend className="mb-3 text-sm font-semibold text-foreground">
+            {/* <legend className="text-sm font-semibold text-foreground">
               Text message preferences{ " " }
-              { required ? (
-                <span className="text-destructive">*</span>
-              ) : (
-                <span className="font-normal text-muted-foreground">(optional)</span>
-              ) }
+              <span className="font-normal text-muted-foreground">(optional)</span>
             </legend> */}
-            {/* { required && (
-              <p className="text-sm text-muted-foreground">
-                Choose at least one option when providing a phone number.
-              </p>
-            ) } */}
+            {/* <p className="text-sm leading-6 text-muted-foreground">
+              Choose which kinds of messages GoldRidr may send to the phone number above.
+            </p> */}
 
             <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
               <typedForm.Field name="marketingSmsOptIn">

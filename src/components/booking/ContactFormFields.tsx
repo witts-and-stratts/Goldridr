@@ -3,7 +3,6 @@
 import { SuperField } from "@/components/ui/super-field";
 import { getFieldErrorMessage } from "@/lib/form-schemas";
 import { SmsConsent } from "@/components/booking/SmsConsent";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { ChangeEvent, ReactNode } from "react";
 
 interface ContactFormFieldsProps {
@@ -18,15 +17,10 @@ type ContactTextField = {
 };
 
 export function ContactFormFields( { form }: ContactFormFieldsProps ) {
-  const shouldReduceMotion = useReducedMotion();
   const typedForm = form as {
     Field: ( props: {
       name: string;
       children: ( field: ContactTextField ) => ReactNode;
-    } ) => ReactNode;
-    Subscribe: ( props: {
-      selector: ( state: { values: { phone?: string } } ) => boolean;
-      children: ( hasPhone: boolean ) => ReactNode;
     } ) => ReactNode;
     setFieldValue: ( name: "marketingSmsOptIn" | "smsOptIn", value: boolean ) => void;
   };
@@ -122,39 +116,7 @@ export function ContactFormFields( { form }: ContactFormFieldsProps ) {
           />
         ) }
       </typedForm.Field>
-      <typedForm.Subscribe
-        selector={ ( state ) => Boolean( state.values.phone?.trim() ) }
-      >
-        { ( hasPhone ) => (
-          <AnimatePresence initial={ false }>
-            { hasPhone && (
-              <motion.div
-                key="sms-consent"
-                className="overflow-hidden"
-                initial={ shouldReduceMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, height: 0, clipPath: "inset(0 0 100% 0)" } }
-                animate={ shouldReduceMotion
-                  ? { opacity: 1 }
-                  : { opacity: 1, height: "auto", clipPath: "inset(0 0 0% 0)" } }
-                exit={ shouldReduceMotion
-                  ? { opacity: 0, transition: { duration: 0 } }
-                  : {
-                      opacity: 0,
-                      height: 0,
-                      clipPath: "inset(0 0 100% 0)",
-                      transition: { duration: 0.18, ease: [ 0.4, 0, 1, 1 ] },
-                    } }
-                transition={ shouldReduceMotion
-                  ? { duration: 0 }
-                  : { duration: 0.32, ease: [ 0.16, 1, 0.3, 1 ] } }
-              >
-                <SmsConsent form={ form } required />
-              </motion.div>
-            ) }
-          </AnimatePresence>
-        ) }
-      </typedForm.Subscribe>
+      <SmsConsent form={ form } />
     </>
   );
 }

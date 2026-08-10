@@ -23,7 +23,7 @@ export function buildSmsBody( template: string | null, payload: Record<string, u
     : "";
 
   if ( template === "booking_reminder" ) {
-    return withCompliance( `GoldRidrreminder: booking ${ reference } is scheduled for ${ payload.date } at ${ payload.time }.${ terminal }`, SMS_BODY_OPT_OUT );
+    return withCompliance( `Goldridr reminder: booking ${ reference } is scheduled for ${ payload.date } at ${ payload.time }.${ terminal }`, SMS_BODY_OPT_OUT );
   }
   if ( template === "booking_created" ) {
     return withCompliance( `Goldridr: we received booking ${ reference } for ${ payload.date } at ${ payload.time }.${ terminal } We will notify you when it is confirmed.`, SMS_BODY_FULL_DISCLOSURE );
@@ -31,13 +31,13 @@ export function buildSmsBody( template: string | null, payload: Record<string, u
   if ( template === "booking_assignment" ) {
     const chauffeur = String( payload.chauffeurName || "" );
     return withCompliance( chauffeur
-      ? `GoldRidrupdate: ${ chauffeur } is assigned to booking ${ reference }.${ terminal }`
-      : `GoldRidrupdate: booking ${ reference } is awaiting a chauffeur assignment.${ terminal }`, SMS_BODY_OPT_OUT );
+      ? `Goldridr update: ${ chauffeur } is assigned to booking ${ reference }.${ terminal }`
+      : `Goldridr update: booking ${ reference } is awaiting a chauffeur assignment.${ terminal }`, SMS_BODY_OPT_OUT );
   }
   if ( template === "booking_deleted" ) {
-    return withCompliance( `GoldRidrupdate: booking ${ reference } was deleted.${ terminal } Contact us if this was unexpected.`, SMS_BODY_OPT_OUT );
+    return withCompliance( `Goldridr update: booking ${ reference } was deleted.${ terminal } Contact us if this was unexpected.`, SMS_BODY_OPT_OUT );
   }
-  return withCompliance( `GoldRidrupdate: booking ${ reference } is now ${ payload.status || "updated" }.${ terminal }`, SMS_BODY_OPT_OUT );
+  return withCompliance( `Goldridr update: booking ${ reference } is now ${ payload.status || "updated" }.${ terminal }`, SMS_BODY_OPT_OUT );
 }
 
 export function resolveTwilioWebhookUrl( request: Request, configuredUrl?: string ): string {

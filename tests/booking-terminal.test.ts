@@ -36,7 +36,7 @@ test( "airport booking API schema accepts a missing flight number and terminal" 
   assert.equal( result.success, true );
 } );
 
-test( "booking API requires a text message preference with a phone number", () => {
+test( "booking API accepts a phone number without a text message preference", () => {
   const booking = {
     date: "2099-06-11",
     time: "13:01",
@@ -47,7 +47,7 @@ test( "booking API requires a text message preference with a phone number", () =
     },
   };
 
-  assert.equal( BookingRequestSchema.safeParse( booking ).success, false );
+  assert.equal( BookingRequestSchema.safeParse( booking ).success, true );
   assert.equal(
     BookingRequestSchema.safeParse( { ...booking, smsOptIn: true } ).success,
     true,

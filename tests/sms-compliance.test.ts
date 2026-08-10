@@ -49,7 +49,7 @@ test( "marketing and transactional opt-ins are separate complete disclosures", (
   assert.notEqual( SMS_MARKETING_CONSENT_DISCLOSURE, SMS_CONSENT_DISCLOSURE );
 } );
 
-test( "phone numbers and text message preferences require each other", () => {
+test( "text message preferences are optional when providing a phone number", () => {
   const base = {
     name: "Jane Smith",
     email: "jane@example.com",
@@ -63,7 +63,7 @@ test( "phone numbers and text message preferences require each other", () => {
   assert.equal( ContactFormSchema.safeParse( base ).success, true );
   assert.equal( ContactFormSchema.safeParse( { ...base, smsOptIn: true } ).success, false );
   assert.equal( ContactFormSchema.safeParse( { ...base, marketingSmsOptIn: true } ).success, false );
-  assert.equal( ContactFormSchema.safeParse( { ...base, phone: "+17135550123" } ).success, false );
+  assert.equal( ContactFormSchema.safeParse( { ...base, phone: "+17135550123" } ).success, true );
   assert.equal( ContactFormSchema.safeParse( { ...base, phone: "+17135550123", smsOptIn: true } ).success, true );
   assert.equal( ContactFormSchema.safeParse( { ...base, phone: "+17135550123", marketingSmsOptIn: true } ).success, true );
 } );
@@ -144,6 +144,9 @@ test( "public compliance surfaces contain no placeholder phone and expose review
   assert.match( contact, /NEXT_PUBLIC_CONTACT_PHONE/ );
 
   const consent = readFileSync( "src/components/booking/SmsConsent.tsx", "utf8" );
+  const contactFields = readFileSync( "src/components/booking/ContactFormFields.tsx", "utf8" );
   assert.match( consent, /name="marketingSmsOptIn"/ );
   assert.match( consent, /name="smsOptIn"/ );
+  assert.match( contactFields, /<SmsConsent form=\{ form \} \/>/ );
+  assert.doesNotMatch( contactFields, /hasPhone/ );
 } );
