@@ -1,6 +1,6 @@
 # A2P 10DLC Compliance
 
-How Goldridr collects SMS consent, what it sends, and what to paste into the Twilio
+How GoldRidrcollects SMS consent, what it sends, and what to paste into the Twilio
 campaign registration form.
 
 Source of the requirements: Twilio, *A2P 10DLC Campaign with Twilio – First Time
@@ -12,7 +12,8 @@ Success* (<https://www.youtube.com/watch?v=IUXJbMD7Qz4>), plus
 
 ## 1. Where consent is collected
 
-Goldridr has exactly **one** opt-in method: a web form. There is no verbal script, no
+GoldRidrhas exactly **one** opt-in method: a web form with two separate program choices.
+There is no verbal script, no
 paper form and no SMS keyword opt-in. If any of those are ever added, every one of them
 must be documented in the registration — missing a single flow is an automatic
 rejection.
@@ -37,7 +38,7 @@ The same flow is also reachable as an overlay on any page via the `#book`,
 | Rule | Implementation |
 |---|---|
 | Checkbox is not pre-checked | `SmsConsent.tsx` — `checked={ field.state.value === true }`, default `false` in each form's `defaultValues` |
-| Consent is not bundled | One checkbox, transactional only. No marketing checkbox exists because Goldridr sends no marketing SMS |
+| Consent is not bundled | Two separate optional checkboxes: GoldRidrOffers (marketing) and GoldRidrRide Notifications (transactional). Selecting one never selects the other |
 | Consent is not required to transact | Phone field is labelled "Phone (optional)"; `phone: z.string().optional()` in `src/app/api/booking/route.ts`. The form submits with the field blank |
 | Disclosure shown at opt-in | Frequency, rates and HELP/STOP, from `src/lib/sms-consent-copy.ts` |
 | Privacy policy linked at opt-in | `/terms` and `/privacy` links inside the consent block |
@@ -48,12 +49,10 @@ The checkbox is on step 2 of a multi-step form, so a reviewer given only a URL m
 reach it. **Attach a screenshot** of the consent block, hosted publicly (Google Drive,
 link sharing on), alongside the URL.
 
-> There is a server-rendered `SmsProgramTerms` block in
-> `src/components/booking/BookingPageShell.tsx` that puts the same disclosure in the
-> initial HTML of every `/book` page, where a reviewer sees it without JavaScript and
-> without completing step 1. **It is currently commented out.** While it stays commented
-> out, the hosted screenshot is the only evidence of the disclosure, and the `/book`
-> URLs alone will not show a reviewer the consent language.
+There is also a server-rendered `SmsProgramTerms` block in
+`src/components/booking/BookingPageShell.tsx`. It puts the same disclosure in the initial
+HTML of every `/book` page, where a reviewer sees it without JavaScript or completing
+step 1. The hosted screenshot remains the clearest evidence of the actual unchecked box.
 
 ---
 
@@ -129,7 +128,7 @@ Twilio retries.
 `src/lib/notifications/sms-consent.ts`. Phone numbers are normalised to their last 10
 digits, because booking phones are free text while Twilio always sends E.164.
 
-The current consent wording is version `2026-01`. **Bump `smsConsentVersion` in
+The current consent wording is version `2026-08`. **Bump `smsConsentVersion` in
 `src/app/api/booking/route.ts` whenever the copy in `sms-consent-copy.ts` changes**, so
 each stored consent points at the exact language the customer agreed to.
 
@@ -144,22 +143,23 @@ each stored consent points at the exact language the customer agreed to.
 | `TWILIO_INBOUND_AUTO_REPLY` | `false` while Advanced Opt-Out is enabled |
 
 In the Twilio Console, set the Messaging Service **"A message comes in"** webhook to
-`https://<domain>/api/webhooks/twilio` (HTTP POST).
+`https://goldridr.com/api/webhooks/twilio` (HTTP POST).
 
 ---
 
 ## 6. Pre-submission checklist
 
-- [ ] Every URL in the submission loads publicly. A 404 is an immediate rejection.
-- [ ] Consent screenshot uploaded and the link is publicly accessible.
-- [ ] Brand name, website domain and contact email match each other.
-- [ ] **`src/app/contact/page.tsx` still contains placeholder contact details
-      (`+1 555 123 4567`, and `+1 (555) 000-0000`). Replace these with the real phone
-      number before submitting** — a reviewer cross-referencing the brand against a
-      visibly fake number is exactly the inconsistency the guidance warns about.
-- [ ] Use case is **Customer Care** / low-volume mixed — *not* Marketing, *not* 2FA.
-- [ ] Sample messages cover every template in §3.
-- [ ] Every sample names the brand and ends with opt-out instructions.
+- [ ] Deploy and verify every URL in the submission. A 404 is an immediate rejection.
+- [ ] Verify `https://goldridr.com/assets/a2p-sms-consent.png` loads publicly after deployment.
+- [x] Brand name, website domain and support email match in source.
+- [ ] Set the repository variable `NEXT_PUBLIC_CONTACT_PHONE` to the real public business
+      number before the production image is built. When it is blank, the contact page omits
+      phone contact instead of displaying placeholder data.
+- [ ] Select **Low Volume** when eligible, otherwise the single standard transactional use
+      case that Twilio confirms matches the production content (most likely Customer Care).
+      Do not select Marketing or Mixed for the current message set.
+- [x] Sample messages cover every production template in §3.
+- [x] Every sample names the brand and ends with opt-out instructions.
 
 ---
 
@@ -170,7 +170,7 @@ Replace `<…>` placeholders before submitting. Everything else is ready to past
 ### Campaign description
 
 ```
-Goldridr is a chauffeured car service operating in Houston, Texas. This campaign sends
+GoldRidris a chauffeured car service operating in Houston, Texas. This campaign sends
 transactional notifications to passengers about rides they have booked with us:
 booking confirmation, pickup reminders, chauffeur assignment, and changes to a
 scheduled ride. We do not send marketing, promotional or sales messages on this
@@ -181,31 +181,30 @@ box on our booking form receive messages, and only about their own booking.
 ### How do end users consent to receive messages?
 
 ```
-End users opt in through a checkbox on the booking form at https://<domain>/book
+End users opt in through a checkbox on the booking form at https://goldridr.com/book
 (also reachable at /book/airport, /book/city and /book/hourly). Consent is collected on
 step 2 of the form, alongside passenger contact details. A screenshot of the consent
-step is available here: <public screenshot URL>
+step is available here: https://goldridr.com/assets/a2p-sms-consent.png
 
 The phone number field is optional and the booking form submits successfully without a
 phone number, so consent to receive text messages is never a condition of booking a
-ride. The checkbox is not pre-checked and must be ticked manually by the passenger.
+ride. Both checkboxes are optional, are not pre-checked, and must be selected manually.
 
-The checkbox reads:
-"Yes, I would like to receive automated text messages from Goldridr about my booking
+The transactional checkbox reads:
+"Yes, I would like to receive automated transactional text messages from GoldRidrabout my booking
 confirmations, pickup reminders, chauffeur arrival updates and changes to my scheduled
 ride."
 
-Displayed immediately beneath the checkbox, before submission:
+Displayed inside the same transactional opt-in message, before submission:
 - Message Frequency: Message frequency varies. You will receive up to 6 messages per
   booking.
-- Standard Rates: Message and data rates may apply depending on your mobile phone
+- Rates: Message and data rates may apply depending on your mobile phone
   service plan.
-- Help & Stop: Reply HELP for help or STOP to cancel at any time.
-- "By providing your phone number and checking the box above, you agree to receive text
-  messages from Goldridr. Consent is not required to make a purchase or book a ride."
+- Help & Stop: Reply HELP for help. Reply STOP to cancel at any time.
+- Consent is not required to make a purchase or book a ride.
 
-Links to our Terms of Service (https://<domain>/terms) and Privacy Policy
-(https://<domain>/privacy) are shown next to the checkbox at the point of consent.
+Links to our Terms of Service (https://goldridr.com/terms) and Privacy Policy
+(https://goldridr.com/privacy) are shown next to the checkbox at the point of consent.
 
 This web form is our only opt-in method. We do not collect consent verbally, on paper,
 or by SMS keyword.
@@ -222,14 +221,14 @@ data rates may apply. Reply HELP for help, STOP to cancel.
 ### Opt-out message
 
 ```
-You have been unsubscribed from Goldridr messages. No further messages will be sent.
+You have been unsubscribed from GoldRidrmessages. No further messages will be sent.
 Reply START to resubscribe.
 ```
 
 ### Help message
 
 ```
-Goldridr ride notifications. Msg frequency varies, up to 6 msgs per booking. Msg & data
+GoldRidrride notifications. Msg frequency varies, up to 6 msgs per booking. Msg & data
 rates may apply. Reply STOP to cancel. Support: concierge@goldridr.com
 ```
 
@@ -240,16 +239,16 @@ rates may apply. Reply STOP to cancel. Support: concierge@goldridr.com
    will notify you when it is confirmed. Msg frequency varies, up to 6 msgs per
    booking. Msg & data rates may apply. Reply HELP for help, STOP to cancel.
 
-2. Goldridr update: booking GR-1A2BCD is now confirmed. Terminal: C. Reply STOP to opt
+2. GoldRidrupdate: booking GR-1A2BCD is now confirmed. Terminal: C. Reply STOP to opt
    out.
 
-3. Goldridr update: James O. is assigned to booking GR-1A2BCD. Terminal: C. Reply STOP
+3. GoldRidrupdate: James O. is assigned to booking GR-1A2BCD. Terminal: C. Reply STOP
    to opt out.
 
-4. Goldridr reminder: booking GR-1A2BCD is scheduled for 2026-08-14 at 14:30. Terminal:
+4. GoldRidrreminder: booking GR-1A2BCD is scheduled for 2026-08-14 at 14:30. Terminal:
    C. Reply STOP to opt out.
 
-5. Goldridr update: booking GR-1A2BCD was deleted. Terminal: C. Contact us if this was
+5. GoldRidrupdate: booking GR-1A2BCD was deleted. Terminal: C. Contact us if this was
    unexpected. Reply STOP to opt out.
 ```
 
@@ -270,4 +269,53 @@ and support contact.
 ```
 No mobile information will be shared with third parties or affiliates for marketing or
 promotional purposes.
+```
+
+---
+
+## 8. Separate GoldRidrOffers campaign
+
+The marketing checkbox does not expand the transactional campaign above. Register and
+approve **GoldRidrOffers** as a separate marketing campaign before sending promotional
+texts. Do not import the marketing consent into GoldRidrRide Notifications or treat a
+transactional opt-in as marketing consent.
+
+### Marketing campaign description
+
+```
+GoldRidrTechnology LLC sends recurring GoldRidrOffers messages to customers who
+separately and voluntarily opt in on the GoldRidrbooking form. Messages include special
+offers, new-service announcements, and ride promotions. Customers may book without
+joining this program. GoldRidrRide Notifications use a different checkbox and campaign.
+```
+
+### Marketing message flow
+
+```
+End users opt in through the unchecked GoldRidrOffers checkbox on step 2 of the booking
+form at https://goldridr.com/book. Evidence is available at
+https://goldridr.com/assets/a2p-sms-consent.png. The phone field and both SMS choices are
+optional. The GoldRidrOffers checkbox states that messages are recurring automated
+marketing texts about special offers, new services and ride promotions; frequency varies,
+up to 4 messages per month; message and data rates may apply; reply HELP for help and
+STOP to cancel; and consent is not required to purchase or book. Terms and Privacy links
+are displayed beside both choices. Selecting GoldRidrOffers does not select Goldridr
+Ride Notifications, and selecting Ride Notifications does not select GoldRidrOffers.
+```
+
+### Marketing opt-in confirmation
+
+```
+Welcome to GoldRidrOffers! Up to 4 msgs/month. Msg & data rates may apply. Reply HELP
+for help, STOP to cancel.
+```
+
+### Marketing sample messages
+
+```
+GoldRidrOffers: Save [Discount] on your next chauffeured ride with code [Code] through
+[Expiry Date]. Reply STOP to opt out.
+
+GoldRidrOffers: [New Service] is now available for Houston-area reservations. Learn more
+at [GoldRidrURL]. Reply STOP to opt out.
 ```

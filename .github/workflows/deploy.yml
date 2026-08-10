@@ -113,6 +113,7 @@ jobs:
             NEXT_PUBLIC_BASE_URL=${{ vars.NEXT_PUBLIC_BASE_URL }}
             NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ vars.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
             NEXT_PUBLIC_MAILPIT_UI_URL=${{ vars.NEXT_PUBLIC_MAILPIT_UI_URL }}
+            NEXT_PUBLIC_CONTACT_PHONE=${{ vars.NEXT_PUBLIC_CONTACT_PHONE }}
 
       - name: Build PocketBase image
         if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.pocketbase == 'true'

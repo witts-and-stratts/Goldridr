@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { BookingFlow } from "./BookingFlow";
 import { isBookingServiceSlug, type BookingView } from "./booking-services";
+import "./BookingOverlay.css";
 
 interface BookingOverlayProps {
   isOpen: boolean;
@@ -69,7 +70,7 @@ export function BookingOverlay( { isOpen, onClose, onOpen }: BookingOverlayProps
 
   return (
     <Dialog open={ isOpen } onOpenChange={ handleClose }>
-      <DialogContent className="inset-0 left-0 top-0 h-dvh max-h-none w-screen max-w-none translate-x-0 translate-y-0 gap-0 overflow-y-auto rounded-none border-none bg-black/60 p-0 text-white shadow-none sm:max-w-none">
+      <DialogContent className="booking-overlay">
         <div className="sr-only">
           <DialogTitle>Booking Overlay</DialogTitle>
           <DialogDescription>
@@ -77,7 +78,7 @@ export function BookingOverlay( { isOpen, onClose, onOpen }: BookingOverlayProps
           </DialogDescription>
         </div>
 
-        <div className="flex min-h-full w-full items-center justify-center p-4 lg:p-0 lg:[&_.vega-form]:h-full lg:[&_.vega-form]:max-w-none lg:[&_.vega-form]:rounded-none lg:[&_.vega-form]:border-0 lg:[&_.vega-form>div]:max-h-none">
+        <div className="booking-overlay__frame">
           <BookingFlow
             view={ view }
             onViewChange={ setView }

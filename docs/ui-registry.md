@@ -1,6 +1,6 @@
-# Goldridr UI Registry
+# GoldRidrUI Registry
 
-Goldridr uses the shadcn `base-vega` style. The canonical component sources live in `src/components/ui`; generated registry artifacts live in `public/r`.
+GoldRidruses the shadcn `base-vega` style. The canonical component sources live in `src/components/ui`; generated registry artifacts live in `public/r`.
 
 ## Commands
 

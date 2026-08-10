@@ -30,8 +30,8 @@ export async function writeFlightSnapshot( key: FlightLookupKey, snapshot: Fligh
   const data = {
     lookupKey,
     flightIata: key.flightIata,
-    flightDate: key.flightDate,
-    direction: key.direction,
+    flightDate: snapshot.flightDate,
+    direction: snapshot.direction,
     provider: snapshot.provider,
     status: snapshot.status,
     snapshot,

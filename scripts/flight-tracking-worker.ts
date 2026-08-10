@@ -41,10 +41,11 @@ async function wait(): Promise<void> {
 
 async function main(): Promise<void> {
   const { FlightTrackingWorker } = await import( "@/lib/flights/tracking" );
+  const { getPrimaryFlightProvider } = await import( "@/lib/flights/providers" );
   const worker = new FlightTrackingWorker();
   await worker.verify();
   if ( readinessFile ) fs.writeFileSync( readinessFile, String( process.pid ) );
-  log( "info", "worker.ready", { pollMs, automaticProviderEnabled: Boolean( process.env.FLIGHT_PRIMARY_PROVIDER ) } );
+  log( "info", "worker.ready", { pollMs, automaticProviderEnabled: Boolean( getPrimaryFlightProvider() ) } );
   try {
     while ( !stopping ) {
       const startedAt = Date.now();

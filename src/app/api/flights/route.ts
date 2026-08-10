@@ -3,7 +3,7 @@ import { FlightProviderBudgetError, lookupFlight } from "@/lib/flights/service";
 import { normalizeFlightLookupKey } from "@/lib/flights/types";
 
 function invalidLookup() {
-  return NextResponse.json( { error: "A valid flight number, date, and airport direction are required" }, { status: 400 } );
+  return NextResponse.json( { error: "A valid flight number is required" }, { status: 400 } );
 }
 
 export async function GET( request: Request ) {

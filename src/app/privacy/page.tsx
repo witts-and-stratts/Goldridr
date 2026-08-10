@@ -6,7 +6,7 @@ import { Footer } from "@/components/home/Footer";
 export const metadata: Metadata = {
   title: "Privacy Policy & SMS Privacy | Goldridr",
   description:
-    "Learn how Goldridr collects, uses, discloses, retains, and protects personal information, including mobile information and SMS consent.",
+    "Learn how GoldRidrcollects, uses, discloses, retains, and protects personal information, including mobile information and SMS consent.",
   alternates: { canonical: "/privacy" },
 };
 
@@ -37,23 +37,23 @@ export default function PrivacyPage() {
     <>
       <Header />
       <main className="relative min-h-screen text-white selection:bg-gold/30">
-        <div className="container mx-auto px-4 pb-24 pt-40">
-          <div className="mx-auto max-w-5xl">
+        <div className="mx-auto pb-24 pt-40 px-4 md:px-6 lg:px-8">
+          <div className="mx-auto">
             <p className="site-label mb-4 text-center text-gold">Legal</p>
             <h1 className="site-heading text-center">
               Privacy <span className="text-gold">Policy</span>
             </h1>
             <p className="site-copy mx-auto mt-5 max-w-2xl text-center text-gray-400">
-              This policy explains what personal information Goldridr handles, why we use
+              This policy explains what personal information GoldRidrhandles, why we use
               it, when we disclose it, and the choices available to you.
             </p>
             <p className="site-copy mx-auto mt-4 text-center text-sm text-gray-500">
               Effective and last updated: 6 August 2026
             </p>
 
-            <div className="mt-12 grid gap-10 lg:grid-cols-[15rem_minmax(0,1fr)]">
+            <div className="mt-12 grid gap-10 lg:grid-cols-[20rem_minmax(0,1fr)]">
               <aside className="lg:sticky lg:top-28 lg:self-start">
-                <nav aria-label="Privacy Policy sections" className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                <nav aria-label="Privacy Policy sections" className="border border-white/10 bg-white/3 p-5">
                   <p className="mb-3 text-sm font-semibold text-white">On this page</p>
                   <ol className="space-y-2 text-sm text-gray-400">
                     { sections.map( ( [ id, label ], index ) => (
@@ -71,10 +71,9 @@ export default function PrivacyPage() {
                 <section id="scope" className={ sectionClass }>
                   <h2 className={ headingClass }>1. Scope and who controls your information</h2>
                   <p>
-                    This Privacy Policy applies to personal information processed by Goldridr
-                    Technology LLC (&quot;Goldridr,&quot; &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) through the Goldridr
+                    This Privacy Policy applies to personal information processed by GoldRidr(&quot;Goldridr,&quot; &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) through the Goldridr
                     website, booking services, chauffeur and administrative tools, customer support,
-                    email, and the Goldridr Ride Notifications SMS program. Goldridr is responsible
+                    email, and the GoldRidr Ride Notifications SMS program. GoldRidr is responsible
                     for deciding how and why that information is used.
                   </p>
                   <p className="mt-4">
@@ -110,7 +109,7 @@ export default function PrivacyPage() {
                     We may maintain the amount, currency, payment method type, transaction reference,
                     payment status, refund status, and related records. When a payment processor
                     handles card or bank credentials, it receives that information directly under its
-                    own privacy terms; Goldridr does not need the full payment-card number to maintain
+                    own privacy terms; GoldRidrdoes not need the full payment-card number to maintain
                     a booking and payment ledger.
                   </p>
 
@@ -194,7 +193,7 @@ export default function PrivacyPage() {
                     </p>
                   </div>
 
-                  <h3 className={ subheadingClass }>5.1 What the program collects</h3>
+                  <h3 className={ subheadingClass }>5.1 What the programs collect</h3>
                   <p>
                     If you affirmatively opt in, we process your mobile number, booking reference,
                     the consent language and version shown to you, consent timestamp and source,
@@ -205,17 +204,19 @@ export default function PrivacyPage() {
 
                   <h3 className={ subheadingClass }>5.2 What we send</h3>
                   <p>
-                    Goldridr Ride Notifications are transactional messages about booking confirmations,
+                    GoldRidr Ride Notifications are transactional messages about booking confirmations,
                     pickup reminders, chauffeur assignments or arrivals, and changes or cancellations
                     affecting your scheduled ride. Message frequency varies, up to six messages per
-                    booking. Message and data rates may apply. The program does not send marketing or
-                    promotional texts, and SMS consent is not a condition of purchase or booking.
+                    booking. GoldRidr Offers are recurring marketing messages about special offers,
+                    new services, and ride promotions. Message frequency varies, up to four messages
+                    per month. Message and data rates may apply. Each program has a separate, optional,
+                    unchecked consent box, and SMS consent is not a condition of purchase or booking.
                   </p>
 
                   <h3 className={ subheadingClass }>5.3 Your SMS choices</h3>
                   <p>
                     <strong className="text-white">Reply STOP to opt out at any time.</strong> We may
-                    send one confirmation and will then stop program texts unless you later provide
+                    send one confirmation and will then stop all GoldRidr texts unless you later provide
                     valid consent. <strong className="text-white">Reply HELP for help</strong>, or
                     email{ " " }<a href="mailto:support@goldridr.com" className={ linkClass }>support@goldridr.com</a>.
                     We also recognise the supported opt-out, help, and re-enrollment keywords described
@@ -260,7 +261,7 @@ export default function PrivacyPage() {
                     inaccuracies; delete information you provided or that we obtained about you; obtain
                     a portable copy; opt out of a sale, targeted advertising, or certain profiling; limit
                     or withdraw consent for sensitive-data processing; and appeal a denied request.
-                    Goldridr does not discriminate against you for exercising a privacy right.
+                    GoldRidr does not discriminate against you for exercising a privacy right.
                   </p>
                   <p className="mt-4">
                     To submit a request, email support@goldridr.com with the subject &quot;Privacy Request&quot;
@@ -350,7 +351,7 @@ export default function PrivacyPage() {
                 <section id="transfers" className={ sectionClass }>
                   <h2 className={ headingClass }>12. Data location and transfers</h2>
                   <p>
-                    Goldridr operates in the United States and uses providers that may process
+                    GoldRidr operates in the United States and uses providers that may process
                     information in the United States and other countries. Privacy protections and
                     government-access rules may differ from those where you live. Where required, we
                     use appropriate contractual or other safeguards for cross-border transfers.
@@ -374,9 +375,12 @@ export default function PrivacyPage() {
                     Direct privacy questions, requests, complaints, and appeals to:
                   </p>
                   <p className="mt-4">
-                    Goldridr Technology LLC<br />
+                    Joy Muller LLC d.b.a GoldRidr<br />
                     Attn: Privacy<br />
-                    Houston, Texas, United States<br />
+                    14504 Briar Forest Dr. <br />
+                    Apt. 524 <br />
+                    Houston, 77077<br />
+                    Texas, United States<br />
                     Email:{ " " }<a href="mailto:support@goldridr.com" className={ linkClass }>support@goldridr.com</a>
                   </p>
                   <p className="mt-4">

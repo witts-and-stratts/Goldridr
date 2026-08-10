@@ -18,6 +18,10 @@ export type SmsConfig =
   | { transport: "twilio"; accountSid: string; authToken: string; from: string; }
   | { transport: "mock"; from: string; };
 
+export function getConfiguredSmsTransport(): SmsTransportName {
+  return ( process.env.TWILIO_TRANSPORT || ( process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN ? "twilio" : "mock" ) ) as SmsTransportName;
+}
+
 function required( name: string ): string {
   const value = process.env[ name ]?.trim();
   if ( !value ) throw new Error( `${ name } is required` );
@@ -97,7 +101,7 @@ export async function getEmailConfig(): Promise<EmailConfig> {
 }
 
 export async function getSmsConfig() {
-  const transport = ( process.env.TWILIO_TRANSPORT || ( process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN ? "twilio" : "mock" ) ) as SmsTransportName;
+  const transport = getConfiguredSmsTransport();
   if ( transport === "mock" ) {
     return {
       transport: "mock" as const,

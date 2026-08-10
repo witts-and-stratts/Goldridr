@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { AlertTriangle, BellRing, Check, CheckSquare, MailOpen, MoreHorizontal, Square, Trash2 } from "lucide-react";
+import { AlertTriangle, BellRing, Check, CheckSquare, MailOpen, MessageSquareText, MoreHorizontal, Square, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Badge } from "@/components/admin-ui/badge";
 import { Button } from "@/components/admin-ui/button";
@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/admin-ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { FailedDelivery, Folder, MessageThread, NotificationItem, ReminderDelivery } from "../types";
+import type { FailedDelivery, Folder, MessageThread, MockSmsMessage, NotificationItem, ReminderDelivery } from "../types";
 import { relativeTime, statusVariant } from "../utils";
 import { EmptyList } from "./empty-states";
 import { ListSkeleton } from "./list-skeleton";
@@ -28,16 +28,19 @@ interface NotificationListProps {
   visibleFailures: FailedDelivery[];
   visibleThreads: MessageThread[];
   visibleBroadcasts: NotificationItem[];
+  visibleSmsMessages: MockSmsMessage[];
   selectedNotificationId: number | null;
   selectedReminderId: number | null;
   selectedFailureId: number | null;
   selectedThreadKey: string | null;
+  selectedSmsSid: string | null;
   selectedIds: Set<number>;
   isSelecting: boolean;
   openMenuId: number | null;
   onReminderSelect: ( id: number ) => void;
   onFailureSelect: ( id: number ) => void;
   onThreadSelect: ( thread: MessageThread ) => void;
+  onSmsSelect: ( message: MockSmsMessage ) => void;
   onNotificationRowClick: ( item: NotificationItem, index: number, event: React.MouseEvent ) => void;
   onSetMenuId: ( id: number | null ) => void;
   onMarkRead: ( ids: number[] ) => void;
@@ -55,16 +58,19 @@ export function NotificationList( {
   visibleFailures,
   visibleThreads,
   visibleBroadcasts,
+  visibleSmsMessages,
   selectedNotificationId,
   selectedReminderId,
   selectedFailureId,
   selectedThreadKey,
+  selectedSmsSid,
   selectedIds,
   isSelecting,
   openMenuId,
   onReminderSelect,
   onFailureSelect,
   onThreadSelect,
+  onSmsSelect,
   onNotificationRowClick,
   onSetMenuId,
   onMarkRead,
@@ -86,6 +92,40 @@ export function NotificationList( {
         onThreadSelect={onThreadSelect}
       />
     );
+  }
+
+  if ( folder === "sms" ) {
+    return visibleSmsMessages.length
+      ? (
+        <AnimatePresence initial={false} mode="popLayout">
+          {visibleSmsMessages.map( message => (
+            <motion.button
+              key={message.sid}
+              layout
+              initial={rowInitial}
+              animate={rowAnimate}
+              exit={rowExit}
+              transition={rowTransition}
+              type="button"
+              onClick={() => onSmsSelect( message )}
+              className={cn( styles.failureRow, selectedSmsSid === message.sid && styles.rowActive )}
+            >
+              <div className={styles.failureLayout}>
+                <MessageSquareText className={styles.failureIcon} />
+                <div className={styles.rowBody}>
+                  <div className={styles.rowHead}>
+                    <p className="truncate text-sm font-medium">{message.to}</p>
+                    <span className={styles.rowTime}>{relativeTime( message.dateCreated )}</span>
+                  </div>
+                  <p className={styles.rowPreview}>{message.body}</p>
+                  <span className={styles.rowMeta}>{message.status}</span>
+                </div>
+              </div>
+            </motion.button>
+          ) )}
+        </AnimatePresence>
+      )
+      : <EmptyList label="No mock SMS messages." />;
   }
 
   if ( folder === "reminders" ) {
@@ -141,7 +181,7 @@ export function NotificationList( {
                 <div className={styles.rowBody}>
                   <div className={styles.rowHead}>
                     <p className="truncate text-sm font-medium">{delivery.title}</p>
-                    <Badge variant="destructive">Failed</Badge>
+                    <span className={styles.rowTime}>{relativeTime( delivery.failedAt )}</span>
                   </div>
                   <p className="mt-1 truncate text-xs text-muted-foreground">{delivery.channel.toUpperCase()} · {delivery.recipient}</p>
                   <p className={styles.failureError}>{delivery.lastError}</p>

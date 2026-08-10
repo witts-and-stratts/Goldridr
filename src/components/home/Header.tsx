@@ -71,10 +71,9 @@ export function Header( { className }: HeaderProps ) {
           ) ) }
         </div>
         <Button
-          variant="outline"
+          // variant="outline"
           size={ 'lg' }
           onClick={ handleBookNow }
-          className={ 'bg-black/20 border-gold/80' }
         >
           RESERVE A RIDE
         </Button>
@@ -83,9 +82,10 @@ export function Header( { className }: HeaderProps ) {
       {/* Mobile Navigation */ }
       <div className="flex items-center gap-2 md:hidden z-50 relative">
         <Button
-          variant="outline"
+          // variant="outline"
+          size={ 'sm' }
+          className="px-3 py-2"
           onClick={ handleBookNow }
-          className={ 'bg-black/20 border-gold/80 px-3 h-8 text-sm tracking-widest' }
         >
           RESERVE A RIDE
         </Button>

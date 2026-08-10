@@ -1,0 +1,130 @@
+@reference "tailwindcss";
+@reference "../../../../styles/globals.css";
+
+.booking-flow {
+  @apply relative m-2 grid w-full max-w-6xl overflow-hidden rounded-2xl! border-[0.5px]! border-gray-400/20 bg-black/10 backdrop-blur-3xl lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)];
+}
+
+.booking-flow__close {
+  @apply absolute right-5 top-5 z-20 flex size-9 items-center justify-center border border-white/10 text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring;
+}
+
+.booking-flow__main {
+  @apply flex max-h-[88vh] min-h-[520px] flex-col p-6 sm:p-10;
+}
+
+.booking-flow__header {
+  @apply shrink-0;
+}
+
+.booking-flow__heading-row {
+  @apply flex min-h-9 flex-wrap items-center gap-x-4 pr-12;
+}
+
+.booking-flow__back {
+  @apply mt-1 rounded-full bg-gold/8 text-center text-white hover:bg-gold/20;
+}
+
+.booking-flow__title {
+  @apply order-last md:mt-4 w-full font-wide text-2xl lowercase tracking-widest text-white lg:order-0 lg:mt-0 lg:w-auto;
+}
+
+.booking-flow__progress {
+  @apply mt-6 grid grid-cols-3 gap-3;
+}
+
+.booking-flow__progress-segment {
+  @apply h-px bg-white/15 transition-colors;
+}
+
+.booking-flow__progress-segment--active {
+  @apply bg-gold;
+}
+
+.booking-flow__scroll-area {
+  @apply mt-8 flex-1 overflow-y-auto rounded-md pr-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/20;
+}
+
+.booking-flow__footer {
+  @apply mt-8 flex shrink-0 items-center gap-4;
+}
+
+.booking-flow__footer-action {
+  @apply ml-auto min-w-48;
+}
+
+.booking-flow__footer-action--full {
+  @apply w-full;
+}
+
+.booking-flow__trip-form {
+  @apply space-y-6;
+}
+
+.booking-flow__contact-form {
+  @apply space-y-4;
+}
+
+.booking-flow__service-tabs {
+  @apply mb-10 w-full;
+}
+
+.booking-flow__service-tab {
+  @apply font-wide uppercase tracking-widest max-md:px-2 max-md:text-xs max-md:tracking-wider;
+}
+
+.booking-flow__airport-section {
+  @apply space-y-6;
+}
+
+.booking-flow__airport-fieldset {
+  @apply space-y-2;
+}
+
+.booking-flow__airport-legend {
+  @apply text-sm font-medium text-white;
+}
+
+.booking-flow__direction-grid {
+  @apply grid grid-cols-2 gap-2;
+}
+
+.booking-flow__direction-button {
+  @apply max-md:px-2 max-md:text-xs;
+}
+
+.booking-flow__flight-grid {
+  @apply grid gap-6 sm:grid-cols-3;
+}
+
+.booking-flow__flight-lookup {
+  @apply flex h-full items-end;
+}
+
+.booking-flow__full-width {
+  @apply w-full;
+}
+
+.booking-flow__spinner {
+  @apply size-4 animate-spin;
+}
+
+.booking-flow__field--error {
+  @apply border-destructive focus-visible:ring-destructive;
+}
+
+.booking-flow__field-error {
+  @apply font-normal;
+}
+
+.booking-flow__two-column-grid {
+  @apply grid grid-cols-2 gap-4 sm:gap-6;
+}
+
+.booking-flow__field--compact {
+  @apply min-w-0;
+}
+
+.booking-flow__date-field {
+  @apply font-sans tracking-normal;
+}

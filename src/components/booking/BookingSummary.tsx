@@ -1,11 +1,21 @@
 "use client";
 
-import { Loader2, MapPin, Plane } from "lucide-react";
+import { Loader2, Plane } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+
+interface BookingSummaryData {
+  date?: Date | string;
+  time?: string;
+  passengers?: string | number;
+  flightNumber?: string;
+  terminal?: string;
+  pickupLocation?: string;
+  dropoffLocation?: string;
+}
 
 interface BookingSummaryProps {
   bookingType: "airport" | "town" | "hourly";
-  bookingData: any;
+  bookingData: BookingSummaryData;
   distanceData?: {
     total_miles: number;
     duration_text: string;
@@ -32,9 +42,7 @@ interface BookingSummaryProps {
     destinationAirport: string;
     flightDate: string;
   } | null;
-  mapPreviewUrl?: string | null; // URL for the small preview image
   isDistanceLoading?: boolean;
-  onShowMap: () => void;
 }
 
 export function BookingSummary( {
@@ -43,12 +51,10 @@ export function BookingSummary( {
   distanceData,
   hourlyData,
   flightDetails,
-  mapPreviewUrl,
   isDistanceLoading,
-  onShowMap,
 }: BookingSummaryProps ) {
   return (
-    <motion.div className="overflow-hidden rounded-[10px] bg-black/60 text-white text-sm shadow-lg border border-border/20">
+    <motion.div className="overflow-hidden rounded-md bg-black/60 text-white text-sm shadow-lg border border-border/20 m-4 mr-2 h-[calc(100%-2rem)]">
       {/* Flight Details Section (Airport Only) */ }
       { bookingType === "airport" && flightDetails && (
         <>
@@ -80,13 +86,13 @@ export function BookingSummary( {
         <div className="flex justify-between">
           <div>
             <span className="block text-xs text-gray-500">Date</span>
-            <span className="font-bold text-lg font-wide">
+            <span className="font-bold font-wide text-2xl">
               { bookingData.date ? new Date( bookingData.date ).toLocaleDateString( undefined, { day: 'numeric', month: 'short' } ) : '-' }
             </span>
           </div>
           <div className="text-right">
             <span className="block text-xs text-gray-500">Time</span>
-            <span className="font-bold text-lg font-wide">{ bookingData.time || '-' }</span>
+            <span className="font-bold text-2xl font-wide">{ bookingData.time || '-' }</span>
           </div>
         </div>
 
@@ -94,11 +100,11 @@ export function BookingSummary( {
           <div className="flex justify-between">
             <div>
               <span className="block text-xs text-gray-500">Duration</span>
-              <span className="font-bold text-lg font-wide">{ hourlyData?.hours || 0 } Hours</span>
+              <span className="font-bold text-2xl font-wide">{ hourlyData?.hours || 0 } Hours</span>
             </div>
             <div className="text-right">
               <span className="block text-xs text-gray-500">Rate</span>
-              <span className="font-bold text-lg font-wide">${ hourlyData?.rate || 0 }/hr</span>
+              <span className="font-bold text-2xl font-wide">${ hourlyData?.rate || 0 }/hr</span>
             </div>
           </div>
         ) : (
@@ -126,8 +132,8 @@ export function BookingSummary( {
       <div className="border-t border-dashed border-gray-800 mx-5"></div>
 
       {/* Location Section */ }
-      <div className="p-5 pt-4 space-y-3 flex justify-between gap-5">
-        <div className="flex-1 flex flex-col gap-2">
+      <div className="p-5 pt-4 space-y-3">
+        <div className="flex flex-col gap-2">
           <div>
             <span className="block text-xs text-gray-500">Pickup Location</span>
             <span className="font-normal text-white text-lg leading-tight">{ bookingData.pickupLocation }</span>
@@ -142,29 +148,6 @@ export function BookingSummary( {
             </>
           ) }
         </div>
-
-        {/* Map Preview Button */ }
-        <button
-          type="button"
-          onClick={ onShowMap }
-          className={ `rounded-xl overflow-hidden border border-white/10 hover:border-gold transition-colors flex-shrink-0 ${ bookingType === "hourly" ? "w-24 h-20" : "w-1/3 min-w-[120px]" }` }
-        >
-          { mapPreviewUrl ? (
-            <img
-              src={ mapPreviewUrl }
-              alt="Map preview"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full bg-black/40 flex items-center justify-center">
-              { isDistanceLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-gold" />
-              ) : (
-                <MapPin className="h-5 w-5 text-gold" />
-              ) }
-            </div>
-          ) }
-        </button>
       </div>
 
       <div className="border-t border-dashed border-gray-800 mx-5"></div>
@@ -178,7 +161,7 @@ export function BookingSummary( {
             </div>
             <div className="flex justify-between items-end">
               <span className="text-xs text-gray-500">Total</span>
-              <span className="text-2xl font-bold text-gold font-wide">${ hourlyData.totalPrice.toFixed( 2 ) }</span>
+              <span className="text-3xl font-bold text-gold font-wide">${ hourlyData.totalPrice.toFixed( 2 ) }</span>
             </div>
           </div>
         ) : (
@@ -217,7 +200,7 @@ export function BookingSummary( {
                   </div>
                   <div className="flex justify-between items-end">
                     <span className="text-xs text-gray-500">Estimated Total</span>
-                    <span className="text-2xl font-bold text-gold font-wide">${ distanceData.total_price.toFixed( 2 ) }</span>
+                    <span className="text-3xl font-bold text-gold font-wide">${ distanceData.total_price.toFixed( 2 ) }</span>
                   </div>
                 </div>
               </motion.div>

@@ -1,6 +1,7 @@
 import { getPocketBaseClient } from "@/lib/pocketbase/client";
 import { pocketBaseCollections } from "@/lib/pocketbase/collections";
 import { createWithLegacyId, first } from "@/lib/pocketbase/core";
+import type { SmsCampaignType } from "./sms-evidence";
 
 // Carriers require an auditable record of when each number consented and when it
 // revoked. The sms_consents collection is that ledger; bookings.smsConsentedAt is the
@@ -44,21 +45,31 @@ export async function recordSmsConsent( input: {
   customerEmail: string;
   phone: string;
   consentVersion: string;
+  campaignType: SmsCampaignType;
   consentedAt?: string;
+  consentSource?: string;
+  consentText?: string;
+  ipAddress?: string;
+  userAgent?: string;
 } ): Promise<void> {
   const normalized = normalizePhone( input.phone );
   if ( !normalized || !input.customerEmail ) return;
   const consentedAt = input.consentedAt || new Date().toISOString();
   const existing = await first(
     pocketBaseCollections.smsConsents,
-    "phone = {:phone} && customerEmail = {:email}",
-    { phone: normalized, email: input.customerEmail }
+    "phone = {:phone} && customerEmail = {:email} && campaignType = {:campaignType}",
+    { phone: normalized, email: input.customerEmail, campaignType: input.campaignType }
   );
   if ( existing ) {
     await getPocketBaseClient().collection( pocketBaseCollections.smsConsents ).update( existing.id, {
       consentVersion: input.consentVersion,
+      campaignType: input.campaignType,
       consentedAt,
       revokedAt: "",
+      consentSource: input.consentSource || "",
+      consentText: input.consentText || "",
+      ipAddress: input.ipAddress || "",
+      userAgent: input.userAgent || "",
     } );
     return;
   }
@@ -66,8 +77,13 @@ export async function recordSmsConsent( input: {
     customerEmail: input.customerEmail,
     phone: normalized,
     consentVersion: input.consentVersion,
+    campaignType: input.campaignType,
     consentedAt,
     revokedAt: "",
+    consentSource: input.consentSource || "",
+    consentText: input.consentText || "",
+    ipAddress: input.ipAddress || "",
+    userAgent: input.userAgent || "",
     sourceCreatedAt: consentedAt,
   } );
 }
@@ -116,9 +132,16 @@ export async function restoreSmsConsent( phone: string ): Promise<{ ledgerRestor
   return { ledgerRestored: ledger.length, bookingsRestored: bookings.length };
 }
 
-export async function hasActiveSmsConsent( phone: string ): Promise<boolean> {
+export async function hasActiveSmsConsent(
+  phone: string,
+  campaignType: SmsCampaignType = "transactional"
+): Promise<boolean> {
   const normalized = normalizePhone( phone );
   if ( !normalized ) return false;
-  const record = await first( pocketBaseCollections.smsConsents, "phone = {:phone}", { phone: normalized } );
+  const record = await first(
+    pocketBaseCollections.smsConsents,
+    "phone = {:phone} && campaignType = {:campaignType}",
+    { phone: normalized, campaignType }
+  );
   return Boolean( record && !record.revokedAt );
 }

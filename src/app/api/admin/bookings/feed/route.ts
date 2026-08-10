@@ -57,7 +57,7 @@ export async function GET( request: Request ) {
       "PRODID:-//Goldridr//Chauffeur Operations Feed//EN",
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
-      "X-WR-CALNAME:Goldridr Bookings Feed",
+      "X-WR-CALNAME:GoldRidrBookings Feed",
       "X-WR-TIMEZONE:America/Chicago",
       "X-WR-CALDESC:Chauffeur reservations dispatch schedule for Goldridr.",
     ];

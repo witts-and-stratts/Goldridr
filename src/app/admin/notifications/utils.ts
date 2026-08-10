@@ -2,6 +2,7 @@ import type { FailedDelivery, Folder, NotificationItem, ReminderDelivery, Status
 
 export function relativeTime( value: string ) {
   const date = new Date( value );
+  if ( Number.isNaN( date.getTime() ) ) return "Unknown date";
   const delta = Date.now() - date.getTime();
   if ( delta < 60_000 ) return "Now";
   if ( delta < 3_600_000 ) return `${ Math.floor( delta / 60_000 ) }m`;
@@ -9,9 +10,14 @@ export function relativeTime( value: string ) {
   return date.toLocaleDateString( "en-US", { month: "short", day: "numeric" } );
 }
 
+export function formatDateTime( value: string ) {
+  const date = new Date( value );
+  return Number.isNaN( date.getTime() ) ? "Unknown date" : date.toLocaleString();
+}
+
 export function statusVariant( status: string ): StatusVariant {
   if ( status === "delivered" ) return "default";
-  if ( status === "failed" || status === "dead_letter" ) return "destructive";
+  if ( status === "failed" || status === "dead_letter" || status === "undelivered" ) return "destructive";
   return "outline";
 }
 

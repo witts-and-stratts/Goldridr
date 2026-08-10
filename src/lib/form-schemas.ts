@@ -16,9 +16,9 @@ export const TimeSchema = z.string().regex( /^(?:[01]\d|2[0-3]):[0-5]\d$/, {
 
 export const PassengersSchema = z.string().min( 1, "Number of passengers is required" );
 
-export const FlightNumberSchema = z.string().min( 2, "Flight number is required" );
+export const FlightNumberSchema = z.string().trim().max( 24, "Flight number is too long" );
 
-export const TerminalSchema = z.string().trim().min( 1, "Terminal is required" ).max( 80, "Terminal is too long" );
+export const TerminalSchema = z.string().trim().max( 80, "Terminal is too long" );
 
 export const DurationSchema = z.string().min( 1, "Duration is required" );
 
@@ -49,6 +49,22 @@ export const ContactFormSchema = z.object( {
   notes: z.string(),
   discountCode: z.string().trim().max( 32, "Discount code is too long" ),
   smsOptIn: z.boolean(),
+  marketingSmsOptIn: z.boolean(),
+} ).superRefine( ( input, ctx ) => {
+  if ( ( input.smsOptIn || input.marketingSmsOptIn ) && !input.phone.trim() ) {
+    ctx.addIssue( {
+      code: "custom",
+      path: [ "phone" ],
+      message: "Enter a mobile phone number to receive text messages",
+    } );
+  }
+  if ( input.phone.trim() && !input.smsOptIn && !input.marketingSmsOptIn ) {
+    ctx.addIssue( {
+      code: "custom",
+      path: [ "smsOptIn" ],
+      message: "Choose at least one text message preference or remove your phone number",
+    } );
+  }
 } );
 
 export type ContactFormData = z.infer<typeof ContactFormSchema>;
@@ -90,8 +106,8 @@ export const UnifiedBookingSchema = z.object( {
   time: TimeSchema,
   passengers: PassengersSchema,
   luggage: z.string(),
-  flightNumber: z.string(),
-  terminal: z.string(),
+  flightNumber: FlightNumberSchema,
+  terminal: TerminalSchema,
   duration: z.string(),
 } ).superRefine( ( data, ctx ) => {
   const requireWith = ( schema: z.ZodType, value: unknown, path: string ) => {
@@ -103,11 +119,6 @@ export const UnifiedBookingSchema = z.object( {
 
   if ( data.serviceType !== "hourly" ) {
     requireWith( LocationSchema, data.dropoffLocation, "dropoffLocation" );
-  }
-
-  if ( data.serviceType === "airport" ) {
-    requireWith( FlightNumberSchema, data.flightNumber.trim(), "flightNumber" );
-    requireWith( TerminalSchema, data.terminal, "terminal" );
   }
 
   if ( data.serviceType === "hourly" ) {

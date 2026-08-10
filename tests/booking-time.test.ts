@@ -58,6 +58,7 @@ test( "booking API rejects a past pickup before checking availability", async ()
         email: "past@example.com",
         phone: "+17135550123",
       },
+      smsOptIn: true,
       tripType: "city",
       tripDetails: {
         pickupLocation: "Houston, Texas",

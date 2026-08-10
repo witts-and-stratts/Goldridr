@@ -2,8 +2,8 @@ export type FlightDirection = "to_airport" | "from_airport";
 
 export interface FlightLookupKey {
   flightIata: string;
-  flightDate: string;
-  direction: FlightDirection;
+  flightDate: string | null;
+  direction: FlightDirection | null;
 }
 
 export interface FlightPlace {
@@ -35,15 +35,22 @@ export function normalizeFlightLookupKey( input: Record<string, unknown> ): Flig
   const flightIata = String( input.flightIata ?? input.flight_iata ?? "" ).replaceAll( " ", "" ).toUpperCase();
   const flightDate = String( input.flightDate ?? input.flight_date ?? "" );
   const direction = String( input.direction ?? "" );
-  if ( !FLIGHT_IATA_PATTERN.test( flightIata ) || !DATE_PATTERN.test( flightDate ) ) return null;
-  if ( direction !== "to_airport" && direction !== "from_airport" ) return null;
-  const parsedDate = new Date( `${ flightDate }T00:00:00Z` );
-  if ( Number.isNaN( parsedDate.getTime() ) || parsedDate.toISOString().slice( 0, 10 ) !== flightDate ) return null;
-  return { flightIata, flightDate, direction };
+  if ( !FLIGHT_IATA_PATTERN.test( flightIata ) ) return null;
+  if ( flightDate ) {
+    if ( !DATE_PATTERN.test( flightDate ) ) return null;
+    const parsedDate = new Date( `${ flightDate }T00:00:00Z` );
+    if ( Number.isNaN( parsedDate.getTime() ) || parsedDate.toISOString().slice( 0, 10 ) !== flightDate ) return null;
+  }
+  if ( direction && direction !== "to_airport" && direction !== "from_airport" ) return null;
+  return {
+    flightIata,
+    flightDate: flightDate || null,
+    direction: direction === "to_airport" || direction === "from_airport" ? direction : null,
+  };
 }
 
 export function flightLookupId( key: FlightLookupKey ): string {
-  return `${ key.flightIata }:${ key.flightDate }:${ key.direction }`;
+  return `${ key.flightIata }:${ key.flightDate || "*" }:${ key.direction || "*" }`;
 }
 
 export function relevantFlightTime( snapshot: FlightSnapshot ): string | null {

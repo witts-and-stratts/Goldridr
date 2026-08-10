@@ -55,7 +55,7 @@ export async function lookupFlight( key: FlightLookupKey, options: { allowManual
   }
   if ( options.allowManualProvider ) {
     const manual = getManualFlightProvider();
-    if ( manual ) {
+    if ( manual && manual.id !== primary?.id ) {
       await assertManualBudget( manual.id );
       return { flight: await callProvider( manual, key ), cached: false, providerAvailable: true };
     }

@@ -1,0 +1,93 @@
+.slider {
+  --hero-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  width: 100vw;
+  max-width: none;
+  overflow: hidden;
+}
+
+.slider :global(.splide__track),
+.slider :global(.splide__slide) {
+  width: 100vw !important;
+  min-width: 100vw;
+}
+
+.slider:global(.is-initialized) .headline,
+.slider:global(.is-initialized) .description,
+.slider:global(.is-initialized) .cta,
+.slider:global(.is-initialized) .assurance {
+  opacity: 0;
+  transform: translateY(1.5rem);
+}
+
+.slider:global(.is-initialized) .heroImage {
+  transform: scale(1.045);
+}
+
+.slider:global(.is-initialized) :global(.splide__slide.is-active) .heroImage {
+  animation: hero-image-settle 1.4s var(--hero-ease) both;
+}
+
+.slider:global(.is-initialized) :global(.splide__slide.is-active) .headline {
+  animation: hero-title-reveal 720ms var(--hero-ease) 140ms both;
+}
+
+.slider:global(.is-initialized) :global(.splide__slide.is-active) .description {
+  animation: hero-copy-arrive 620ms var(--hero-ease) 300ms both;
+}
+
+.slider:global(.is-initialized) :global(.splide__slide.is-active) .cta {
+  animation: hero-copy-arrive 560ms var(--hero-ease) 430ms both;
+}
+
+.slider:global(.is-initialized) :global(.splide__slide.is-active) .assurance {
+  animation: hero-copy-arrive 520ms var(--hero-ease) 540ms both;
+}
+
+@keyframes hero-image-settle {
+  from {
+    transform: scale(1.045);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes hero-title-reveal {
+  from {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+    transform: translateY(2rem);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-copy-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slider:global(.is-initialized) .headline,
+  .slider:global(.is-initialized) .description,
+  .slider:global(.is-initialized) .cta,
+  .slider:global(.is-initialized) .assurance,
+  .slider:global(.is-initialized) .heroImage {
+    animation: none;
+    clip-path: none;
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -1,10 +1,10 @@
 ---
 
-# Goldridr — Project Guide
+# GoldRidr— Project Guide
 
 ## Overview
 
-Goldridr is a luxury chauffeur booking platform with two apps:
+GoldRidris a luxury chauffeur booking platform with two apps:
 
 - **Web admin** (`/src`) — Next.js 15, TypeScript, Tailwind, PocketBase. Admin dashboard for managing bookings, chauffeurs, discounts, payments, and settings.
 - **Driver app** (`/driver-app`) — Expo 56 (SDK 56), React Native 0.85, Expo Router. Used by drivers and admins on mobile.

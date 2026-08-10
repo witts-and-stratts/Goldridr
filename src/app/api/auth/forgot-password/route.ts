@@ -26,12 +26,12 @@ export async function POST( request: Request ) {
         await transport.send( {
           from,
           to: [ chauffeur.email ],
-          subject: "Reset your Goldridr password",
+          subject: "Reset your GoldRidrpassword",
           html: `
             <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0a0a0a;color:#fff">
               <h2 style="margin:0 0 8px;font-size:20px;color:#b99a56">Reset your password</h2>
               <p style="margin:0 0 24px;color:#aaa;font-size:14px">
-                Hi ${ chauffeur.name }, we received a request to reset your Goldridr password.
+                Hi ${ chauffeur.name }, we received a request to reset your GoldRidrpassword.
                 Click the button below — this link expires in 1&nbsp;hour.
               </p>
               <a href="${ resetUrl }"
@@ -43,7 +43,7 @@ export async function POST( request: Request ) {
               </p>
             </div>
           `,
-          text: `Reset your Goldridr password\n\nHi ${ chauffeur.name },\n\nClick the link below to reset your password (expires in 1 hour):\n\n${ resetUrl }\n\nIf you didn't request this, ignore this email.`,
+          text: `Reset your GoldRidrpassword\n\nHi ${ chauffeur.name },\n\nClick the link below to reset your password (expires in 1 hour):\n\n${ resetUrl }\n\nIf you didn't request this, ignore this email.`,
           idempotencyKey: randomUUID(),
         } );
         await transport.close();

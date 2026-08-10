@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Loader2, RotateCcw } from "lucide-react";
+import { Button } from "../ui/button";
 
 interface InteractiveRouteMapProps {
   pickupLocation: string;
@@ -143,7 +144,8 @@ export function InteractiveRouteMap( {
           clickableIcons: false,
           disableDefaultUI: false,
           fullscreenControl: expanded,
-          gestureHandling: expanded ? "greedy" : "cooperative",
+          gestureHandling: "greedy",
+          scrollwheel: true,
           mapTypeControl: false,
           rotateControl: false,
           scaleControl: expanded,
@@ -339,17 +341,16 @@ export function InteractiveRouteMap( {
           <div className="absolute inset-x-4 top-4 flex items-center gap-3 border border-white/10 bg-black/90 px-3 py-2 text-xs text-white/70">
             <AlertCircle className="size-4 shrink-0 text-gold" />
             <span className="min-w-0 flex-1">We couldn&apos;t draw this route. Check the addresses and try again.</span>
-            <button
+            <Button
               type="button"
               onClick={ () => {
                 if ( mapRef.current ) setRouteRetryCount( count => count + 1 );
                 else setMapRetryCount( count => count + 1 );
               } }
-              className="flex shrink-0 items-center gap-1.5 border border-gold/50 px-2 py-1 font-wide uppercase tracking-wider text-gold transition-colors hover:bg-gold hover:text-black focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold"
             >
               <RotateCcw className="size-3" />
               Retry
-            </button>
+            </Button>
           </div>
         ) }
       </div>

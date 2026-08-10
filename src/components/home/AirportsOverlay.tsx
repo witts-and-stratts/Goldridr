@@ -9,39 +9,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Plane } from "lucide-react";
 import { useBookingOverlay } from "@/components/booking/BookingContext";
+import { HOUSTON_AIRPORTS } from "@/lib/airports";
 
 interface AirportsOverlayProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const HOUSTON_AIRPORTS = [
-  {
-    name: "George Bush Intercontinental Airport (IAH)",
-    description: "The primary international airport serving the Greater Houston area.",
-    type: "International Hub"
-  },
-  {
-    name: "William P. Hobby Airport (HOU)",
-    description: "Houston's oldest commercial airport, a key hub for domestic flights.",
-    type: "Domestic Hub"
-  },
-  {
-    name: "Ellington Airport (EFD)",
-    description: "Serving the US military, NASA, and general aviation.",
-    type: "Military / Space"
-  },
-  {
-    name: "David Wayne Hooks Memorial Airport (DWH)",
-    description: "One of the largest private airports in the US, specializing in charter flights.",
-    type: "Private / Charter"
-  },
-  {
-    name: "Sugar Land Regional Airport (SGR)",
-    description: "A popular choice for corporate aviation in the southwest Houston area.",
-    type: "Corporate / Executive"
-  }
-];
 
 export function AirportsOverlay( { isOpen, onClose }: AirportsOverlayProps ) {
   const { setIsOpen: setBookingOpen } = useBookingOverlay();

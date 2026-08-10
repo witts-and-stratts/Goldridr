@@ -106,7 +106,7 @@ services:
       NODE_ENV: production
       POCKETBASE_URL: ${POCKETBASE_URL:?POCKETBASE_URL must be http://pocketbase:8090}
       FLIGHT_TRACKING_READY_FILE: /tmp/flight-tracking-worker.ready
-      FLIGHT_PRIMARY_PROVIDER: ${FLIGHT_PRIMARY_PROVIDER:-}
+      FLIGHT_PRIMARY_PROVIDER: ${FLIGHT_PRIMARY_PROVIDER:-aviationstack}
       FLIGHT_AVIATIONSTACK_ENABLED: ${FLIGHT_AVIATIONSTACK_ENABLED:-false}
     depends_on:
       pocketbase:
