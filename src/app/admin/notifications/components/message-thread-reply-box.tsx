@@ -28,6 +28,7 @@ export function MessageThreadReplyBox( {
   onPendingAdd,
   onPendingUpdate,
   onPendingRemove,
+  defaultChannels,
 }: {
   bookingReference: string | null;
   bookingOptions: string[];
@@ -36,12 +37,13 @@ export function MessageThreadReplyBox( {
   onPendingAdd: ( pending: PendingMessage ) => void;
   onPendingUpdate: ( id: string, patch: Partial<PendingMessage> ) => void;
   onPendingRemove: ( id: string ) => void;
+  defaultChannels?: string[];
 } ) {
   const [ showMoreOptions, setShowMoreOptions ] = useState( false );
   const [ subjectInput, setSubjectInput ] = useState( "" );
   const [ bookingOverride, setBookingOverride ] = useState( "default" );
   const [ message, setMessage ] = useState( "" );
-  const [ channels, setChannels ] = useState<string[]>( [ "email" ] );
+  const [ channels, setChannels ] = useState<string[]>( defaultChannels || [ "email" ] );
   const [ sending, setSending ] = useState( false );
 
   const effectiveBookingReference = bookingOverride === "default" ? bookingReference : bookingOverride;

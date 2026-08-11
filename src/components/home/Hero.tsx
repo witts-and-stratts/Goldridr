@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { getImageProps } from "next/image";
 import { useEffect, useRef } from "react";
 import Splide from "@splidejs/splide";
 import { useBookingOverlay } from "../booking/BookingContext";
@@ -9,12 +9,16 @@ import { Header } from "./Header";
 import styles from "./Hero.module.css";
 
 const HERO_BG = "/assets/images/goldridr-chauffeur-and-client.jpg";
+const HERO_BG_PORTRAIT = "/assets/images/goldridr-chauffeur-and-client-vertical.jpg";
 const HERO_HOUSTON = "/assets/images/houston-skyline.jpg";
+const HERO_HOUSTON_PORTRAIT = "/assets/images/houston-skyline-vertical.jpg";
 const HERO_CLIENT= "/assets/images/gold-ridr-chauffeur-with-client.jpg";
+const HERO_CLIENT_PORTRAIT = "/assets/images/gold-ridr-chauffeur-with-client-vertical.jpg";
 
 export type HeroSlide = {
   id: number;
   image: string;
+  portraitImage?: string;
   title: string;
   description: string;
   cta: string;
@@ -25,6 +29,7 @@ const HERO_SLIDES: HeroSlide[] = [
   {
     id: 1,
     image: HERO_BG,
+    portraitImage: HERO_BG_PORTRAIT,
     title: "YOUR PERSONAL CHAFFEUR",
     description: "Private transportation coordinated, professionally handled every time.",
     cta: "ESTIMATE YOUR RIDE",
@@ -32,6 +37,7 @@ const HERO_SLIDES: HeroSlide[] = [
   {
     id: 2,
     image: HERO_HOUSTON,
+    portraitImage: HERO_HOUSTON_PORTRAIT,
     title: "Houston & Beyond",
     description: "Airport runs, city rides, and long-distance travel—structured for the way Houston moves",
     cta: "RIDE CALCULATOR",
@@ -39,6 +45,7 @@ const HERO_SLIDES: HeroSlide[] = [
   {
     id: 3,
     image: HERO_CLIENT,
+    portraitImage: HERO_CLIENT_PORTRAIT,
     title: "ARRIVE BETTER",
     description: "Experience premium chauffeured services, in Houston and beyond",
     cta: "CHECK AVAILABILITY",
@@ -89,43 +96,64 @@ export function Hero( { slides = HERO_SLIDES, ariaLabel = "GoldRidrhighlights" }
       >
         <div className="splide__track h-full w-full">
           <ul className="splide__list h-full w-full">
-            { slides.map( ( slide, index ) => (
-              <li key={ slide.id } className="splide__slide relative h-full w-full min-w-full shrink-0">
-                <div className="absolute inset-0 z-0">
-                  <Image
-                    src={ slide.image }
-                    alt={ slide.alt ?? "Luxury Chauffeured Services" }
-                    fill
-                    quality={100}
-                    className={ `object-cover object-bottom opacity-70 max-md:object-[70%_50%] ${ styles.heroImage }` }
-                    priority={ index === 0 }
-                  />
-                  <div className="absolute inset-0 bg-linear-to-b from-black/60 via-transparent via-35% to-black/90" />
-                </div>
+            { slides.map( ( slide, index ) => {
+              const imageProps = {
+                alt: slide.alt ?? "Luxury Chauffeured Services",
+                fill: true,
+                sizes: "100vw",
+                quality: 75,
+                fetchPriority: index === 0 ? "high" as const : undefined,
+                className: `object-cover object-bottom opacity-70 max-md:object-[70%_50%] ${ styles.heroImage }`,
+              };
+              const {
+                props: { alt: baseImageAlt, src: baseImageSrc, ...baseImageProps },
+              } = getImageProps( {
+                ...imageProps,
+                src: slide.image,
+              } );
+              const portraitSrcSet = slide.portraitImage
+                ? getImageProps( {
+                    ...imageProps,
+                    src: slide.portraitImage,
+                  } ).props.srcSet
+                : undefined;
 
-                <div className="relative z-10 flex h-full w-full flex-col items-center justify-end px-3 pb-16 text-center md:pb-24">
-                  <h1 className={ `site-heading site-heading mb-1 text-white ${ styles.headline }` }>
-                    { slide.title }
-                  </h1>
-                  <p className={ `text-base mt-3 tracking-wide text-gray-200 text-balance md:mt-2 max-w-200 ${ styles.description }` }>
-                    { slide.description }
-                  </p>
-                  <div className={ `mt-6 ${ styles.cta }` }>
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      className="bg-black/20"
-                      onClick={ () => setIsOpen( true ) }
-                    >
-                      { slide.cta }
-                    </Button>
+              return (
+                <li key={ slide.id } className="splide__slide relative h-full w-full min-w-full shrink-0">
+                  <div className="absolute inset-0 z-0">
+                    <picture>
+                      { portraitSrcSet && (
+                        <source media="(orientation: portrait)" srcSet={ portraitSrcSet } />
+                      ) }
+                      <img alt={ baseImageAlt } src={ baseImageSrc } { ...baseImageProps } />
+                    </picture>
+                    <div className="absolute inset-0 bg-linear-to-b from-black/60 via-transparent via-35% to-black/90" />
                   </div>
-                  <p className={ `mt-4 font-sans text-xs font-light tracking-wide text-gray-300 md:text-sm ${ styles.assurance }` }>
-                    Clear pricing. Confirmed scheduling. Professional handling.
-                  </p>
-                </div>
-              </li>
-            ) ) }
+
+                  <div className="relative z-10 flex h-full w-full flex-col items-center justify-end px-3 pb-16 text-center md:pb-24">
+                    <h1 className={ `site-heading site-heading mb-1 text-white ${ styles.headline }` }>
+                      { slide.title }
+                    </h1>
+                    <p className={ `text-base mt-3 tracking-wide text-gray-200 text-balance md:mt-2 max-w-200 ${ styles.description }` }>
+                      { slide.description }
+                    </p>
+                    <div className={ `mt-6 ${ styles.cta }` }>
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        className="bg-black/20"
+                        onClick={ () => setIsOpen( true ) }
+                      >
+                        { slide.cta }
+                      </Button>
+                    </div>
+                    <p className={ `mt-4 font-sans text-xs font-light tracking-wide text-gray-300 md:text-sm ${ styles.assurance }` }>
+                      Clear pricing. Confirmed scheduling. Professional handling.
+                    </p>
+                  </div>
+                </li>
+              );
+            } ) }
           </ul>
         </div>
       </div>

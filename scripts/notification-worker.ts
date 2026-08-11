@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { getPocketBaseClient } from "@/lib/pocketbase/client";
 import { pocketBaseCollections } from "@/lib/pocketbase/collections";
+import { purgeExpiredWebhookLogs } from "@/lib/notifications/webhook-logs";
 
 function loadEnvFile( filePath: string ): void {
   if ( !fs.existsSync( filePath ) ) return;
@@ -32,6 +33,7 @@ const readinessFile = process.env.NOTIFICATION_READY_FILE;
 let stopping = false;
 let wakePending = false;
 let wake: ( () => void ) | null = null;
+let lastWebhookCleanupAt = 0;
 
 type LogLevel = "info" | "warn" | "error";
 
@@ -111,6 +113,16 @@ async function main() {
     log( "info", "worker.ready", { readinessFile: readinessFile || null } );
     while ( !stopping ) {
       wakePending = false;
+      if ( Date.now() - lastWebhookCleanupAt >= 3_600_000 ) {
+        try {
+          const deleted = await purgeExpiredWebhookLogs();
+          lastWebhookCleanupAt = Date.now();
+          if ( deleted > 0 ) log( "info", "webhook_logs.cleanup_completed", { deleted } );
+        } catch ( error ) {
+          lastWebhookCleanupAt = Date.now();
+          log( "warn", "webhook_logs.cleanup_failed", errorDetails( error ) );
+        }
+      }
       let result;
       do {
         const startedAt = Date.now();

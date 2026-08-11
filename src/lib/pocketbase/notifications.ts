@@ -45,6 +45,32 @@ export async function createPocketBaseInboundEmail( input: { eventKey: string; p
     inAppUserIds: [ "admin" ],
   } );
 }
+export async function createPocketBaseInboundSms( input: { eventKey: string; providerMessageId: string; sender: string; recipient: string; body: string; receivedAt?: string; media?: Array<{ url: string; contentType: string }>; booking?: BookingRecord } ) {
+  const booking = input.booking;
+  return createNotification( {
+    type: "message.inbound_sms",
+    category: "messages",
+    title: booking ? `SMS from ${ booking.name }` : `SMS from ${ input.sender }`,
+    body: input.body || ( input.media?.length ? `${ input.media.length } media attachment${ input.media.length === 1 ? "" : "s" }` : "(Empty message)" ),
+    eventKey: input.eventKey,
+    bookingReference: booking?.reference,
+    metadata: {
+      direction: "inbound",
+      channel: "sms",
+      provider: "twilio",
+      providerMessageId: input.providerMessageId,
+      sender: input.sender,
+      recipient: input.recipient,
+      receivedAt: input.receivedAt || new Date().toISOString(),
+      media: input.media || [],
+      passengerName: booking?.name || "Unknown sender",
+      passengerEmail: booking?.email || "",
+      passengerPhone: booking?.phone || input.sender,
+      matched: Boolean( booking ),
+    },
+    inAppUserIds: [ "admin" ],
+  } );
+}
 export async function createPocketBaseBookingCreated( booking: BookingRecord ) { const data = { ...payload( booking, "", "" ), status: booking.status, pin: booking.pin || "" }; return createNotification( { type: "booking.created", category: "system", title: `Booking ${ booking.reference } received`, body: `Booking request received from ${ booking.name }.`, bookingReference: booking.reference, metadata: data, inAppUserIds: [ "admin" ], deliveries: bookingDeliveries( booking, [ "email", "sms" ], "booking_created", data ) } ); }
 export async function createPocketBaseBookingStatusUpdate( booking: BookingRecord ) { const data = { ...payload( booking, "", "" ), status: booking.status }; return createNotification( { type: "booking.status_updated", category: "system", title: `Booking ${ booking.reference } is ${ booking.status }`, body: `Booking status updated for ${ booking.name }.`, bookingReference: booking.reference, metadata: data, inAppUserIds: [ "admin" ], deliveries: bookingDeliveries( booking, [ "email", "sms" ], "booking_status", data ) } ); }
 export async function createPocketBaseFlightAlert( input: { bookingReference: string; chauffeurUserId?: string | null; title: string; body: string; fingerprint: string; metadata: Record<string, unknown> } ) {

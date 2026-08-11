@@ -7,6 +7,8 @@ import {
   revokeSmsConsent,
 } from "@/lib/notifications/sms-consent";
 import { resolveTwilioWebhookUrl } from "@/lib/notifications/sms-program";
+import { recordInboundSms } from "@/lib/notifications/inbound-sms";
+import { withWebhookAudit } from "@/lib/notifications/webhook-logs";
 import { recordPocketBaseProviderEvent } from "@/lib/pocketbase/notifications";
 import {
   SMS_HELP_REPLY,
@@ -28,49 +30,71 @@ function twiml( message?: string ): NextResponse {
 }
 
 export async function POST( request: Request ) {
-  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
-  const signature = request.headers.get( "x-twilio-signature" );
-  const raw = await request.text();
-  const params = Object.fromEntries( new URLSearchParams( raw ) );
+  return withWebhookAudit( "twilio", request, async ( { rawBody } ) => {
+    const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+    const signature = request.headers.get( "x-twilio-signature" );
+    const params = Object.fromEntries( new URLSearchParams( rawBody ) );
+    const eventId = String( params.MessageSid || "" ) || `inbound:${ randomUUID() }`;
+    const messageId = String( params.MessageSid || "" );
 
-  // Unsigned requests are only tolerated when Twilio is not configured at all, which is
-  // the mock transport used in local development and tests.
-  if ( authToken ) {
-    if ( !signature || !twilio.validateRequest( authToken, signature, resolveTwilioWebhookUrl( request, process.env.TWILIO_WEBHOOK_URL ), params ) ) {
-      return new NextResponse( "Invalid Twilio signature", { status: 403 } );
+    if ( authToken ) {
+      if ( !signature || !twilio.validateRequest( authToken, signature, resolveTwilioWebhookUrl( request, process.env.TWILIO_WEBHOOK_URL ), params ) ) {
+        return {
+          response: new NextResponse( "Invalid Twilio signature", { status: 403 } ),
+          audit: { validationStatus: "invalid", processingStatus: "rejected", eventType: "signature.invalid", providerEventId: eventId, providerMessageId: messageId },
+        };
+      }
+    } else if ( process.env.NODE_ENV === "production" ) {
+      return {
+        response: new NextResponse( "Twilio is not configured", { status: 503 } ),
+        audit: { validationStatus: "not_configured", processingStatus: "rejected", eventType: "configuration.missing", providerEventId: eventId, providerMessageId: messageId },
+      };
     }
-  } else if ( process.env.NODE_ENV === "production" ) {
-    return new NextResponse( "Twilio is not configured", { status: 503 } );
-  }
 
-  const from = String( params.From || "" );
-  const body = String( params.Body || "" );
-  const action = classifyInboundKeyword( body );
-  const eventId = String( params.MessageSid || "" ) || `inbound:${ randomUUID() }`;
+    const validationStatus = authToken ? "valid" as const : "not_applicable" as const;
+    const from = String( params.From || "" );
+    const to = String( params.To || "" );
+    const body = String( params.Body || "" );
+    const action = classifyInboundKeyword( body );
 
-  if ( !from ) return twiml();
+    if ( !from ) {
+      return {
+        response: twiml(),
+        audit: { validationStatus, processingStatus: "ignored", eventType: "sms.missing_sender", providerEventId: eventId, providerMessageId: messageId },
+      };
+    }
 
-  try {
-    if ( action === "opt_out" ) {
-      const result = await revokeSmsConsent( from );
-      await recordPocketBaseProviderEvent( "twilio", eventId, undefined, "sms.opt_out", { from, body, ...result } );
-      return twiml( AUTO_REPLY ? SMS_OPT_OUT_REPLY : undefined );
+    try {
+      if ( action === "opt_out" ) {
+        const result = await revokeSmsConsent( from );
+        await recordPocketBaseProviderEvent( "twilio", eventId, messageId, "sms.opt_out", { from, to, body, ...result } );
+        return { response: twiml( AUTO_REPLY ? SMS_OPT_OUT_REPLY : undefined ), audit: { validationStatus, processingStatus: "processed", eventType: "sms.opt_out", providerEventId: eventId, providerMessageId: messageId } };
+      }
+      if ( action === "opt_in" ) {
+        const result = await restoreSmsConsent( from );
+        await recordPocketBaseProviderEvent( "twilio", eventId, messageId, "sms.opt_in", { from, to, body, ...result } );
+        return { response: twiml( AUTO_REPLY && result.ledgerRestored > 0 ? SMS_OPT_IN_REPLY : undefined ), audit: { validationStatus, processingStatus: "processed", eventType: "sms.opt_in", providerEventId: eventId, providerMessageId: messageId } };
+      }
+      if ( action === "help" ) {
+        await recordPocketBaseProviderEvent( "twilio", eventId, messageId, "sms.help", { from, to, body } );
+        return { response: twiml( AUTO_REPLY ? SMS_HELP_REPLY : undefined ), audit: { validationStatus, processingStatus: "processed", eventType: "sms.help", providerEventId: eventId, providerMessageId: messageId } };
+      }
+      await recordInboundSms( { providerMessageId: eventId, from, to, body, params } );
+      await recordPocketBaseProviderEvent( "twilio", eventId, messageId, "sms.inbound", { from, to, body, numMedia: Number( params.NumMedia || 0 ) } );
+      return { response: twiml(), audit: { validationStatus, processingStatus: "processed", eventType: "sms.inbound", providerEventId: eventId, providerMessageId: messageId } };
+    } catch ( error ) {
+      console.error( "Twilio inbound webhook error:", error );
+      return {
+        response: twiml(),
+        audit: {
+          validationStatus,
+          processingStatus: "failed",
+          eventType: action === "unknown" ? "sms.inbound" : `sms.${ action }`,
+          providerEventId: eventId,
+          providerMessageId: messageId,
+          errorMessage: error instanceof Error ? error.message : String( error ),
+        },
+      };
     }
-    if ( action === "opt_in" ) {
-      const result = await restoreSmsConsent( from );
-      await recordPocketBaseProviderEvent( "twilio", eventId, undefined, "sms.opt_in", { from, body, ...result } );
-      return twiml( AUTO_REPLY && result.ledgerRestored > 0 ? SMS_OPT_IN_REPLY : undefined );
-    }
-    if ( action === "help" ) {
-      await recordPocketBaseProviderEvent( "twilio", eventId, undefined, "sms.help", { from, body } );
-      return twiml( AUTO_REPLY ? SMS_HELP_REPLY : undefined );
-    }
-    await recordPocketBaseProviderEvent( "twilio", eventId, undefined, "sms.inbound", { from, body } );
-    return twiml();
-  } catch ( error ) {
-    console.error( "Twilio inbound webhook error:", error );
-    // Never 500 back to Twilio for a STOP; the carrier-level opt-out has already taken
-    // effect and a non-200 only triggers retries.
-    return twiml();
-  }
+  } );
 }

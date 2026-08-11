@@ -54,7 +54,8 @@ The admin test bench lives at `/admin/testing` and exposes the mock SMS API at `
 
 Provider callbacks:
 
+- Twilio Programmable Messaging: `POST /api/webhooks/twilio`
 - Resend: `POST /api/webhooks/resend`
 - Amazon SES configuration-set events through SNS: `POST /api/webhooks/ses`
 
-Both routes reject unsigned payloads. Staff receive authenticated, user-isolated live updates from `/api/admin/notifications/stream`.
+The provider routes reject invalid signatures when their production credentials are configured. Administrators can inspect the sanitized 90-day request trail at `/admin/logs`; the notification worker removes expired log records hourly. Ordinary Twilio replies appear in Inbox, while STOP, START, and HELP remain compliance events. Staff receive authenticated, user-isolated live updates from `/api/admin/notifications/stream`.

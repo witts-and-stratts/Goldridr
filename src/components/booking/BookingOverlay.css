@@ -6,7 +6,7 @@
 }
 
 .booking-overlay__frame {
-  @apply flex h-full min-h-full w-full items-center justify-center p-4;
+  @apply flex h-full min-h-full w-full items-center justify-center md:p-4;
 }
 
 .booking-overlay__frame .vega-form {

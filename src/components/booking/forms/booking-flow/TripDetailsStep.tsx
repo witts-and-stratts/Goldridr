@@ -61,6 +61,7 @@ export function TripDetailsStep({
         onValueChange={(value) =>
           onServiceChange(value as BookingServiceType)
         }
+        className='booking-flow__service-tabs-sticky'
       >
         <TabsList activateOnFocus className='booking-flow__service-tabs'>
           {BOOKING_SERVICES.map((option) => (
