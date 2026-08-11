@@ -24,6 +24,9 @@ export function riderKeyFor( item: NotificationItem ): string | null {
   const email = getString( metadata.passengerEmail ).trim().toLowerCase();
   if ( email ) return email;
   if ( item.bookingReference ) return `booking:${ item.bookingReference }`;
+  const phone = getString( metadata.passengerPhone ) || getString( metadata.sender );
+  const normalizedPhone = phone.replace( /\D/g, "" );
+  if ( normalizedPhone ) return `sms:${ normalizedPhone }`;
   return null;
 }
 
@@ -59,15 +62,22 @@ export function buildMessageThreads(
     const metadata = metadataOf( last );
     const riderName = ( metadata && getString( metadata.passengerName ) ) || "Unknown rider";
     const riderEmail = ( metadata && getString( metadata.passengerEmail ) ) || null;
+    const riderPhone = ( metadata && ( getString( metadata.passengerPhone ) || getString( metadata.sender ) ) ) || null;
+    const unmatchedSms = messagesOnly.some( message => {
+      const value = metadataOf( message );
+      return message.type === "message.inbound_sms" && !message.bookingReference && value?.matched !== true;
+    } );
 
     return {
       key,
       riderName,
       riderEmail: riderEmail || null,
+      riderPhone: riderPhone || null,
       bookingReference: last.bookingReference || null,
       messages: sorted,
       unreadCount: messagesOnly.filter( message => isInbound( message ) && !message.readAt ).length,
       lastActivity: ( messagesOnly[ messagesOnly.length - 1 ] || last ).createdAt,
+      unmatchedSms,
     };
   } );
 
@@ -78,6 +88,7 @@ export function buildMessageThreads(
     threads = threads.filter( thread =>
       thread.riderName.toLowerCase().includes( query )
       || thread.riderEmail?.toLowerCase().includes( query )
+      || thread.riderPhone?.toLowerCase().includes( query )
       || thread.messages.some( message =>
         message.title.toLowerCase().includes( query )
         || message.body.toLowerCase().includes( query )

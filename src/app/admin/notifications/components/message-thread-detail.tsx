@@ -24,6 +24,8 @@ import {
   SelectValue,
 } from '@/components/admin-ui/select';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { useAdmin } from '@/app/admin/context';
 import type { MessageThread, NotificationItem } from '../types';
 import { isRecord } from '../utils';
 import {
@@ -150,6 +152,7 @@ export function MessageThreadDetail({
   onMarkRead: (id: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { session } = useAdmin();
   const [bookingFilter, setBookingFilter] = useState('all');
   const [trackedThreadKey, setTrackedThreadKey] = useState(thread.key);
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
@@ -193,6 +196,8 @@ export function MessageThreadDetail({
   );
 
   const lastMessage = visibleMessages[visibleMessages.length - 1];
+  const lastMetadata = lastMessage ? parseMetadata(lastMessage.metadata).value : null;
+  const preferredChannel = isRecord(lastMetadata) && lastMetadata.channel === 'sms' ? 'sms' : 'email';
   const replyBookingReference =
     bookingFilter === 'all' ? thread.bookingReference : bookingFilter;
 
@@ -227,6 +232,9 @@ export function MessageThreadDetail({
           {thread.riderEmail && (
             <p className={styles.threadHeaderEmail}>{thread.riderEmail}</p>
           )}
+          {thread.riderPhone && (
+            <p className={styles.threadHeaderEmail}>{thread.riderPhone}</p>
+          )}
         </div>
         <div className='flex items-center gap-2'>
           {bookingReferences.length > 0 && (
@@ -257,6 +265,9 @@ export function MessageThreadDetail({
       </div>
 
       <div ref={scrollRef} className={styles.threadScroll}>
+        {thread.unmatchedSms && session.role === 'admin' && (
+          <InboundSmsLinker thread={thread} onLinked={onMessageSent} />
+        )}
         {messageDays.map((day) => (
           <section
             key={day.key}
@@ -292,8 +303,67 @@ export function MessageThreadDetail({
         onPendingAdd={addPending}
         onPendingUpdate={updatePending}
         onPendingRemove={removePending}
+        defaultChannels={[preferredChannel]}
       />
     </article>
+  );
+}
+
+function InboundSmsLinker({ thread, onLinked }: { thread: MessageThread; onLinked: () => unknown }) {
+  const [bookings, setBookings] = useState<Array<{ reference: string; name: string; phone: string }>>([]);
+  const [reference, setReference] = useState('');
+  const [loading, setLoading] = useState(false);
+  const inbound = [...thread.messages].reverse().find(message => message.type === 'message.inbound_sms' && !message.bookingReference);
+
+  useEffect(() => {
+    let active = true;
+    void fetch('/api/admin/messages', { cache: 'no-store' })
+      .then(response => response.json())
+      .then(data => {
+        if (active && data.success) setBookings(data.riders || []);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const link = async () => {
+    if (!inbound || !reference) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/admin/inbound-sms/${inbound.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingReference: reference }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Unable to link message');
+      toast.success('SMS linked to booking');
+      await onLinked();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to link message');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!inbound) return null;
+  return (
+    <div className='mx-4 mt-4 flex flex-col gap-3 border bg-muted/30 p-3 sm:flex-row sm:items-center'>
+      <div className='min-w-0 flex-1'>
+        <p className='text-sm font-medium'>Unmatched SMS sender</p>
+        <p className='text-xs text-muted-foreground'>Link this number to a booking before replying.</p>
+      </div>
+      <Select value={reference} onValueChange={setReference}>
+        <SelectTrigger className='w-full sm:w-64'><SelectValue placeholder='Choose booking' /></SelectTrigger>
+        <SelectContent align='end'>
+          {bookings.map(booking => (
+            <SelectItem key={booking.reference} value={booking.reference}>
+              {booking.reference} · {booking.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button size='sm' disabled={!reference || loading} onClick={link}>{loading ? 'Linking…' : 'Link booking'}</Button>
+    </div>
   );
 }
 

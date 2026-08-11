@@ -1,7 +1,10 @@
 import type { LucideIcon } from "lucide-react";
 
 export interface NotificationItem {
+  id: number;
   recipientId: number;
+  eventKey: string;
+  type: string;
   category: string;
   title: string;
   body: string;
@@ -54,10 +57,12 @@ export interface MessageThread {
   key: string;
   riderName: string;
   riderEmail: string | null;
+  riderPhone: string | null;
   bookingReference: string | null;
   messages: NotificationItem[];
   unreadCount: number;
   lastActivity: string;
+  unmatchedSms: boolean;
 }
 
 export type Folder = "inbox" | "unread" | "bookings" | "reminders" | "messages" | "sms" | "system" | "failures";

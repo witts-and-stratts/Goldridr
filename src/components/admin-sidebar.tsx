@@ -8,6 +8,7 @@ import {
   LayoutDashboard, CalendarDays, Users, BookOpen,
   ShieldCheck, ChevronRight, LogOut, Mail, Settings,
   TestTube2, CreditCard, TicketPercent, ScanLine, Car,
+  ScrollText,
 } from "lucide-react"
 import {
   Collapsible,
@@ -41,6 +42,7 @@ const navSections = [
     items: [
       { label: "Dashboard", icon: LayoutDashboard, href: "/admin" },
       { label: "Inbox", icon: Mail, href: "/admin/notifications" },
+      { label: "Logs", icon: ScrollText, href: "/admin/logs", adminOnly: true },
       { label: "Settings", icon: Settings, href: "/admin/settings" },
       { label: "Testing", icon: TestTube2, href: "/admin/testing", adminOnly: true, developmentOnly: true },
     ],
@@ -123,7 +125,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
     <Sidebar {...props}>
       {/* Brand header */}
       <SidebarHeader>
-        <div className="flex h-10 items-center px-2">
+        <Link href="/admin" className="flex h-10 items-center px-2">
           {/* Full logo — shown when sidebar is expanded */}
           <Image
             src="/assets/images/goldridr-logo-main.svg"
@@ -142,7 +144,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
             className="hidden h-7 w-7 object-contain group-data-[collapsible=icon]:block dark:invert"
             priority
           />
-        </div>
+        </Link>
         <AccountSummary />
       </SidebarHeader>
 

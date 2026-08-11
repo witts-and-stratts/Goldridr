@@ -34,17 +34,6 @@ export function BookingFlowFrame({
       transition={{ duration: 0.3, ease: 'easeInOut' }}
       className='vega-form booking-flow dark'
     >
-      {onClose && (
-        <button
-          type='button'
-          onClick={onClose}
-          aria-label='Close booking'
-          className='booking-flow__close'
-        >
-          <X className='size-4' />
-        </button>
-      )}
-
       <div className='booking-flow__main'>
         <header className='booking-flow__header'>
           <div className='booking-flow__heading-row'>
@@ -54,7 +43,7 @@ export function BookingFlowFrame({
                 size='icon-sm'
                 onClick={onBack}
                 aria-label='Return to the previous booking step'
-                className='booking-flow__back text-white!'
+                className='booking-flow__back'
               >
                 <ChevronLeft strokeWidth={1} />
               </Button>
