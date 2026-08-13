@@ -1,4 +1,4 @@
-export type NotificationChannel = "in_app" | "email" | "sms";
+export type NotificationChannel = "in_app" | "email" | "sms" | "web_push";
 export type NotificationCategory = "bookings" | "reminders" | "messages" | "system";
 export type DeliveryStatus = "pending" | "processing" | "delivered" | "failed" | "dead_letter" | "cancelled";
 

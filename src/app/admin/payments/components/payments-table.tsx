@@ -1,6 +1,6 @@
 "use client";
 
-import { Banknote, CreditCard, MoreHorizontal, Trash2 } from "lucide-react";
+import { Banknote, Check, CreditCard, MoreHorizontal, RotateCcw, Trash2, X } from "lucide-react";
 import { Button } from "@/components/admin-ui/button";
 import { Card } from "@/components/admin-ui/card";
 import {
@@ -31,9 +31,11 @@ interface PaymentsTableProps {
   loading: boolean;
   onUpdateStatus: (payment: Payment, status: PaymentStatus) => void;
   onRemove: (payment: Payment) => void;
+  onVerify: (payment: Payment, action: "approve" | "reject") => void;
+  onRefund: (payment: Payment) => void;
 }
 
-export function PaymentsTable({ payments, filteredPayments, loading, onUpdateStatus, onRemove }: PaymentsTableProps) {
+export function PaymentsTable({ payments, filteredPayments, loading, onUpdateStatus, onRemove, onVerify, onRefund }: PaymentsTableProps) {
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
@@ -88,7 +90,8 @@ export function PaymentsTable({ payments, filteredPayments, loading, onUpdateSta
                   </div>
                 </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">
-                  {payment.transactionReference || "Manual"}
+                  <span>{payment.transactionReference || payment.confirmationReference || "Manual"}</span>
+                  <span className="mt-0.5 block font-sans text-xs uppercase tracking-wide">{payment.provider}</span>
                 </TableCell>
                 <TableCell className="font-semibold tabular-nums">
                   {formatMoney(payment.amountCents, payment.currency)}
@@ -110,8 +113,9 @@ export function PaymentsTable({ payments, filteredPayments, loading, onUpdateSta
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
-                      <DropdownMenuLabel>Set status</DropdownMenuLabel>
-                      {STATUS_OPTIONS.filter(option => option !== payment.status).map(option => (
+                      {payment.status === "awaiting_verification" ? <><DropdownMenuLabel>Zelle verification</DropdownMenuLabel><DropdownMenuItem onClick={() => onVerify(payment, "approve")}><Check className="size-4" />Approve payment</DropdownMenuItem><DropdownMenuItem onClick={() => onVerify(payment, "reject")} className="text-destructive"><X className="size-4" />Reject claim</DropdownMenuItem><DropdownMenuSeparator /></> : null}
+                      {payment.status === "paid" ? <><DropdownMenuItem onClick={() => onRefund(payment)}><RotateCcw className="size-4" />Issue full refund</DropdownMenuItem><DropdownMenuSeparator /></> : null}
+                      {payment.provider === "manual" && payment.status !== "awaiting_verification" && payment.status !== "paid" ? <><DropdownMenuLabel>Set status</DropdownMenuLabel>{STATUS_OPTIONS.filter(option => option !== payment.status).map(option => (
                         <DropdownMenuItem
                           key={option}
                           disabled={option === "paid" && payment.bookingStatus === "cancelled"}
@@ -120,9 +124,8 @@ export function PaymentsTable({ payments, filteredPayments, loading, onUpdateSta
                         >
                           {option}
                         </DropdownMenuItem>
-                      ))}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive" onClick={() => onRemove(payment)}>
+                      ))}<DropdownMenuSeparator /></> : null}
+                      <DropdownMenuItem className="text-destructive" disabled={payment.provider !== "manual"} onClick={() => onRemove(payment)}>
                         <Trash2 className="size-4" />
                         Delete record
                       </DropdownMenuItem>

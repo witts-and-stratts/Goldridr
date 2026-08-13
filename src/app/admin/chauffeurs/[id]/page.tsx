@@ -8,7 +8,7 @@ import { qk } from "@/lib/query-keys";
 import { useAdmin } from "../../context";
 import {
   ArrowLeft, Car, Mail, Phone, CalendarDays, BookOpen,
-  Plane, Clock, Navigation, CheckCircle2, XCircle, MoreHorizontal, Trash2, UserX,
+  Plane, Clock, Navigation, CheckCircle2, XCircle, MoreHorizontal, Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/admin-ui/button";
@@ -25,6 +25,7 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/admin-ui/dropdown-menu";
 import { BookingDetailDialog, type BookingDetail } from "@/components/booking/BookingDetailDialog";
+import { BookingStatusBadge } from "@/components/booking/BookingStatusBadge";
 
 interface Vehicle {
   id: number;
@@ -49,17 +50,6 @@ interface AdminChauffeur {
 const formatPrice = (n?: number) =>
   Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
 
-
-function StatusBadge({ status }: { status: string }) {
-  const s = status?.toLowerCase();
-  if (s === "confirmed" || s === "accepted")
-    return <Badge className="bg-green-500/15 text-green-600 border-green-500/30 hover:bg-green-500/20 gap-1.5 font-medium"><CheckCircle2 className="size-3" />Confirmed</Badge>;
-  if (s === "pending")
-    return <Badge className="bg-yellow-500/15 text-yellow-600 border-yellow-500/30 hover:bg-yellow-500/20 gap-1.5 font-medium"><Clock className="size-3" />Pending</Badge>;
-  if (s === "cancelled" || s === "rejected")
-    return <Badge variant="outline" className="text-red-500 border-red-500/30 bg-red-500/10 gap-1.5 font-medium"><XCircle className="size-3" />Cancelled</Badge>;
-  return <Badge variant="secondary">{status}</Badge>;
-}
 
 function ChauffeurStatusBadge({ status }: { status: string }) {
   const s = status?.toLowerCase();
@@ -336,7 +326,7 @@ export default function ChauffeurDashboardPage() {
                           <p className="text-xs text-muted-foreground">{b.time}</p>
                         </TableCell>
                         <TableCell className="font-semibold text-sm">{formatPrice(price)}</TableCell>
-                        <TableCell><StatusBadge status={b.status} /></TableCell>
+                        <TableCell><BookingStatusBadge status={b.status} /></TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

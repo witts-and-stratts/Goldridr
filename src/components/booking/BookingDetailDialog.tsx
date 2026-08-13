@@ -3,11 +3,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import {
-  CheckCircle2, XCircle, Clock, Trash2,
+  Clock, Trash2,
   Mail, Phone, MapPin, Plane, Users, Navigation, Send,
 } from "lucide-react";
 import { Button } from "@/components/admin-ui/button";
-import { Badge } from "@/components/admin-ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +19,7 @@ import { ChauffeurPicker } from "@/components/admin-ui/chauffeur-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/admin-ui/input";
 import { Checkbox } from "@/components/admin-ui/checkbox";
+import { BookingStatusBadge } from "@/components/booking/BookingStatusBadge";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export interface BookingDetail {
@@ -69,17 +69,6 @@ interface BookingDetailDialogProps {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 const formatPrice = (n?: number) =>
   Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
-
-function StatusBadge({ status }: { status: string }) {
-  const s = status?.toLowerCase();
-  if (s === "confirmed" || s === "accepted")
-    return <Badge className="bg-green-500/15 text-green-600 border-green-500/30 hover:bg-green-500/20 gap-1.5 font-medium"><CheckCircle2 className="size-3" />Confirmed</Badge>;
-  if (s === "pending")
-    return <Badge className="bg-yellow-500/15 text-yellow-600 border-yellow-500/30 hover:bg-yellow-500/20 gap-1.5 font-medium"><Clock className="size-3" />Pending</Badge>;
-  if (s === "cancelled" || s === "rejected")
-    return <Badge variant="outline" className="text-red-500 border-red-500/30 bg-red-500/10 gap-1.5 font-medium"><XCircle className="size-3" />Cancelled</Badge>;
-  return <Badge variant="secondary">{status}</Badge>;
-}
 
 // ── Component ──────────────────────────────────────────────────────────────────
 export function BookingDetailDialog({
@@ -181,7 +170,7 @@ export function BookingDetailDialog({
               <p className="booking-detail-fare">{formatPrice(fare)}</p>
             </div>
             <div className="booking-detail-meta">
-              <StatusBadge status={booking.status} />
+              <BookingStatusBadge status={booking.status} />
               <span className="text-xs text-muted-foreground">{new Date(booking.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })} · {booking.time}</span>
             </div>
             </header>

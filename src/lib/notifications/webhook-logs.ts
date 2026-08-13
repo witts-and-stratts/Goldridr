@@ -3,7 +3,7 @@ import type { RecordModel } from "pocketbase";
 import { getPocketBaseClient } from "@/lib/pocketbase/client";
 import { pocketBaseCollections } from "@/lib/pocketbase/collections";
 
-export type WebhookProvider = "twilio" | "resend" | "ses";
+export type WebhookProvider = "twilio" | "resend" | "ses" | "stripe" | "square" | "paypal";
 export type WebhookValidationStatus = "valid" | "invalid" | "not_configured" | "not_applicable";
 export type WebhookProcessingStatus = "processed" | "ignored" | "rejected" | "failed";
 

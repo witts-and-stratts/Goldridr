@@ -3,7 +3,7 @@ import { getSession, isAdmin } from "@/lib/auth";
 import { WebhookLogsPage } from "../webhook-logs-page";
 import type { LogProvider } from "../types";
 
-const providers = new Set<LogProvider>( [ "twilio", "resend", "ses" ] );
+const providers = new Set<LogProvider>( [ "twilio", "resend", "ses", "stripe", "square", "paypal" ] );
 
 export const instant = false;
 

@@ -38,8 +38,8 @@ export default function PaymentsPage() {
     },
   });
 
-  const payments = paymentsData ?? [];
-  const bookings = bookingsData ?? [];
+  const payments = useMemo(() => paymentsData ?? [], [paymentsData]);
+  const bookings = useMemo(() => bookingsData ?? [], [bookingsData]);
   const loading = paymentsPending;
 
   const [saving, setSaving] = useState(false);
@@ -160,6 +160,28 @@ export default function PaymentsPage() {
     }
   }
 
+  async function verifyZelle(payment: Payment, action: "approve" | "reject") {
+    const reason = action === "reject" ? window.prompt("Why could this transfer not be verified?") || "Transfer could not be verified" : undefined;
+    try {
+      const response = await fetch(`/api/admin/payments/${payment.id}/verification`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, reason }) });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "Verification failed");
+      await Promise.all([queryClient.invalidateQueries({ queryKey: qk.payments() }), queryClient.invalidateQueries({ queryKey: qk.bookings() })]);
+      toast.success(action === "approve" ? "Zelle payment approved and booking confirmed" : "Zelle claim rejected and slot released");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Verification failed"); }
+  }
+
+  async function refundPayment(payment: Payment) {
+    if (!window.confirm(`Issue a full ${payment.provider === "manual" ? "recorded Zelle " : ""}refund and cancel booking ${payment.bookingReference}?`)) return;
+    try {
+      const response = await fetch(`/api/admin/payments/${payment.id}/refund`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ manualConfirmed: payment.provider === "manual" }) });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "Refund failed");
+      await Promise.all([queryClient.invalidateQueries({ queryKey: qk.payments() }), queryClient.invalidateQueries({ queryKey: qk.bookings() })]);
+      toast.success("Payment refunded and booking cancelled");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Refund failed"); }
+  }
+
   return (
     <div className="mx-auto h-full max-w-7xl space-y-6 overflow-auto p-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -212,6 +234,8 @@ export default function PaymentsPage() {
         loading={loading}
         onUpdateStatus={updateStatus}
         onRemove={removePayment}
+        onVerify={verifyZelle}
+        onRefund={refundPayment}
       />
 
       <RecordPaymentDialog

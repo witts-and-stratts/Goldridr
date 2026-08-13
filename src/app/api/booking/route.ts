@@ -5,13 +5,18 @@ import {
   checkBookingClash,
   findAvailableChauffeur,
   DiscountCodeError,
+  getBookingByReference,
   saveBooking,
+  updateBookingStatus,
 } from "@/lib/pocketbase/repository";
 import { bookingRecordToBookingData } from "@/lib/booking-data";
-import { createPocketBaseBookingCreated } from "@/lib/pocketbase/notifications";
+import { createPocketBaseBookingCreated, createPocketBaseBookingStatusUpdate } from "@/lib/pocketbase/notifications";
 import { recordSmsConsent } from "@/lib/notifications/sms-consent";
 import { smsConsentEvidenceFromRequest } from "@/lib/notifications/sms-evidence";
 import { SMS_CONSENT_VERSION } from "@/lib/sms-consent-copy";
+import { getAppUrl, getPaymentSettings } from "@/lib/admin-settings";
+import { quoteBooking } from "@/lib/payments/quote";
+import { paymentToken, paymentTokenHash } from "@/lib/payments/tokens";
 import { getNotificationTimeZone } from "@/lib/admin-settings";
 import {
   assertFutureBookingTime,
@@ -41,6 +46,7 @@ const TripDetailsSchema = z.object( {
   passengers: z.union( [ z.string(), z.number() ] ).optional(),
   flightNumber: z.string().trim().max( 24 ).optional(),
   terminal: z.string().trim().max( 80 ).optional(),
+  hours: z.number().int().min( 1 ).max( 24 ).optional(),
 } ).loose();
 
 export const BookingRequestSchema = z.object( {
@@ -63,6 +69,9 @@ export const BookingRequestSchema = z.object( {
       message: "A mobile phone number is required when opting in to text messages",
     } );
   }
+  if ( !input.tripDetails?.pickupLocation?.trim() ) ctx.addIssue( { code: "custom", path: [ "tripDetails", "pickupLocation" ], message: "A pickup location is required" } );
+  if ( input.tripType !== "hourly" && !input.tripDetails?.dropoffLocation?.trim() ) ctx.addIssue( { code: "custom", path: [ "tripDetails", "dropoffLocation" ], message: "A destination is required" } );
+  if ( input.tripType === "hourly" && !input.tripDetails?.hours ) ctx.addIssue( { code: "custom", path: [ "tripDetails", "hours" ], message: "An hourly duration is required" } );
 } );
 
 type BookingRequestInput = z.infer<typeof BookingRequestSchema>;
@@ -184,8 +193,17 @@ export async function POST( req: Request ) {
     }
 
     const input: BookingRequestInput = parseResult.data;
-    const durationMinutes = input.duration ?? 60;
+    const tripDetails = input.tripDetails || {};
     assertFutureBookingTime( input.date, input.time, new Date(), await getNotificationTimeZone() );
+    const quote = await quoteBooking( {
+      type: input.tripType || "airport",
+      pickupLocation: tripDetails.pickupLocation!,
+      dropoffLocation: tripDetails.dropoffLocation,
+      hours: tripDetails.hours,
+    } );
+    const durationMinutes = input.tripType === "hourly"
+      ? ( tripDetails.hours || 1 ) * 60
+      : quote.durationMinutes || input.duration || 60;
     const assignedChauffeur = await findAvailableChauffeur( input.date, input.time, durationMinutes );
 
     if ( !assignedChauffeur ) {
@@ -201,6 +219,9 @@ export async function POST( req: Request ) {
     }
 
     const bookingReference = generateBookingReference();
+    const token = paymentToken();
+    const paymentSettings = await getPaymentSettings();
+    const holdExpiresAt = new Date( Date.now() + paymentSettings.holdMinutes * 60_000 ).toISOString();
     const smsConsented = Boolean( input.smsOptIn && input.attendee.phone );
     const marketingSmsConsented = Boolean( input.marketingSmsOptIn && input.attendee.phone );
     const smsConsentedAt = smsConsented ? new Date().toISOString() : null;
@@ -214,12 +235,25 @@ export async function POST( req: Request ) {
       email: input.attendee.email,
       phone: input.attendee.phone || "",
       notes: input.notes || "",
-      status: "pending",
-      tripDetails: JSON.stringify( input.tripDetails || {} ),
+      status: "pending_payment",
+      tripDetails: JSON.stringify( {
+        ...tripDetails,
+        estimatedPrice: quote.subtotalCents / 100,
+        estimatedDistance: quote.totalMiles,
+        estimatedDuration: quote.durationText,
+        estimatedDurationMinutes: quote.durationMinutes,
+        pricePerMile: quote.pricePerMile,
+      } ),
       discountCode: input.discountCode || null,
       chauffeurId: assignedChauffeur.id,
       smsConsentVersion: smsConsented ? SMS_CONSENT_VERSION : null,
       smsConsentedAt,
+      paymentFlow: {
+        tokenHash: paymentTokenHash( token ),
+        holdExpiresAt,
+        subtotalCents: quote.subtotalCents,
+        currency: quote.currency,
+      },
     } );
 
     if ( smsConsented ) {
@@ -242,13 +276,26 @@ export async function POST( req: Request ) {
       } );
     }
 
-    await createPocketBaseBookingCreated( savedBooking );
+    if ( savedBooking.quoteTotalCents === 0 ) {
+      await updateBookingStatus( savedBooking.reference, "confirmed" );
+      const confirmedBooking = await getBookingByReference( savedBooking.reference );
+      if ( confirmedBooking ) await createPocketBaseBookingStatusUpdate( confirmedBooking );
+      return NextResponse.json( {
+        success: true,
+        booking: await bookingRecordToBookingData( confirmedBooking || savedBooking ),
+        bookingId: savedBooking.id,
+        message: "Booking confirmed. Check your email or text messages for confirmation.",
+      } );
+    }
+
+    const paymentUrl = `${ ( await getAppUrl() ).replace( /\/$/, "" ) }/pay/${ encodeURIComponent( token ) }`;
+    await createPocketBaseBookingCreated( savedBooking, { paymentUrl, holdExpiresAt } );
 
     return NextResponse.json( {
       success: true,
       booking: await bookingRecordToBookingData( savedBooking ),
       bookingId: savedBooking.id,
-      message: "Booking confirmed successfully",
+      message: "Booking request received. Check your email or text messages to pay and confirm.",
     } );
   } catch ( error: unknown ) {
     if ( error instanceof DiscountCodeError ) {

@@ -54,6 +54,9 @@ services:
       HOSTNAME: 0.0.0.0
       PORT: 3000
       POCKETBASE_URL: ${POCKETBASE_URL:?POCKETBASE_URL must be http://pocketbase:8090}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:?NEXT_PUBLIC_VAPID_PUBLIC_KEY must be set}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:?VAPID_PRIVATE_KEY must be set}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:?VAPID_SUBJECT must be set}
     depends_on:
       pocketbase:
         condition: service_healthy
@@ -82,6 +85,9 @@ services:
     environment:
       NODE_ENV: production
       POCKETBASE_URL: ${POCKETBASE_URL:?POCKETBASE_URL must be http://pocketbase:8090}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:?NEXT_PUBLIC_VAPID_PUBLIC_KEY must be set}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:?VAPID_PRIVATE_KEY must be set}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:?VAPID_SUBJECT must be set}
       NOTIFICATION_READY_FILE: /tmp/notification-worker.ready
     depends_on:
       pocketbase:

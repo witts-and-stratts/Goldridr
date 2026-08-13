@@ -12,6 +12,14 @@ import { getPocketBaseClient } from "@/lib/pocketbase/client";
 import { pocketBaseCollections } from "@/lib/pocketbase/collections";
 import { first, legacyId } from "@/lib/pocketbase/core";
 import { buildSmsBody } from "./sms-program";
+import { expirePaymentHolds } from "@/lib/payments/hold-expiry";
+import {
+  enqueueWebPushDeliveries,
+  isStaleWebPushError,
+  isTransientWebPushError,
+  sendWebPushDelivery,
+  type WebPushPayload,
+} from "./web-push";
 
 const RETRY_DELAYS_MS = [ 60_000, 300_000, 900_000, 3_600_000, 21_600_000 ];
 
@@ -76,8 +84,11 @@ async function createAdminFailureAlert( delivery: NotificationDeliveryRecord, er
     body: `Delivery ${ delivery.id } to ${ delivery.recipient } exhausted retries: ${ error instanceof Error ? error.message : "Unknown error" }`,
     sourceCreatedAt: new Date().toISOString(),
   } );
-  await pb.collection( pocketBaseCollections.recipients ).create( {
+  const recipient = await pb.collection( pocketBaseCollections.recipients ).create( {
     legacyId: legacyId(), notification: notification.id, userId: "admin", sourceCreatedAt: new Date().toISOString(),
+  } );
+  await enqueueWebPushDeliveries( notification, [ recipient ] ).catch( enqueueError => {
+    console.error( "Unable to enqueue Web Push delivery-failure alert", enqueueError );
   } );
 }
 
@@ -104,6 +115,7 @@ export class NotificationWorker {
   async runOnce( limit = 20, concurrency = 5 ): Promise<{ claimed: number; delivered: number; failed: number }> {
     if ( !this.emailTransport ) await this.verify();
     await processPushReceipts( undefined );
+    await expirePaymentHolds();
     const deliveries = await this.queue.claim( limit );
     let delivered = 0;
     let failed = 0;
@@ -136,6 +148,14 @@ export class NotificationWorker {
           event: "notification.delivery.cancelled", deliveryId: delivery.id, notificationId: delivery.notificationId,
           channel: delivery.channel, template: delivery.template, attempts: delivery.attempts,
         } );
+        return;
+      }
+    }
+
+    if ( delivery.template === "payment_reminder" && notification.bookingReference ) {
+      const booking = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: String( notification.bookingReference ) } );
+      if ( !booking || booking.status !== "pending_payment" || !booking.holdExpiresAt || new Date( String( booking.holdExpiresAt ) ).getTime() <= Date.now() ) {
+        await this.queue.update( delivery, { status: "cancelled", leaseToken: null, leaseExpiresAt: null } );
         return;
       }
     }
@@ -176,6 +196,8 @@ export class NotificationWorker {
         rejected: [],
         metadata: { status: response.status },
       };
+    } else if ( delivery.channel === "web_push" ) {
+      result = await sendWebPushDelivery( delivery.recipient, payload as unknown as WebPushPayload );
     } else {
       throw new Error( `Unsupported delivery channel ${ delivery.channel }` );
     }
@@ -201,7 +223,22 @@ export class NotificationWorker {
 
   private async fail( delivery: NotificationDeliveryRecord, error: unknown ): Promise<void> {
     const attempts = delivery.attempts + 1;
-    const retry = isTransient( error ) && attempts <= RETRY_DELAYS_MS.length;
+    if ( delivery.channel === "web_push" && isStaleWebPushError( error ) ) {
+      await this.queue.update( delivery, {
+        status: "cancelled",
+        attempts,
+        lastError: error instanceof Error ? error.message : String( error ),
+        leaseToken: null,
+        leaseExpiresAt: null,
+      } );
+      this.emit( {
+        event: "notification.delivery.cancelled", deliveryId: delivery.id, notificationId: delivery.notificationId,
+        channel: delivery.channel, template: delivery.template, attempts,
+      } );
+      return;
+    }
+    const transient = delivery.channel === "web_push" ? isTransientWebPushError( error ) : isTransient( error );
+    const retry = transient && attempts <= RETRY_DELAYS_MS.length;
     if ( retry ) {
       const nextAttemptAt = nextAttempt( attempts - 1, error ).toISOString();
       await this.queue.update( delivery, {
@@ -230,7 +267,7 @@ export class NotificationWorker {
       event: "notification.delivery.failed", deliveryId: delivery.id, notificationId: delivery.notificationId,
       channel: delivery.channel, template: delivery.template, attempts, status, error: errorDetails( error ),
     } );
-    if ( status === "dead_letter" ) await createAdminFailureAlert( delivery, error );
+    if ( status === "dead_letter" && delivery.channel !== "web_push" ) await createAdminFailureAlert( delivery, error );
   }
 
   async close(): Promise<void> {

@@ -5,5 +5,5 @@ export function formatMoney(cents: number, currency = "USD") {
 }
 
 export function formatMethod(method: PaymentMethod): string {
-  return { card: "Card", cash: "Cash", bank_transfer: "Bank transfer", other: "Other" }[method];
+  return { card: "Card", apple_pay: "Apple Pay", cash_app: "Cash App Pay", venmo: "Venmo", zelle: "Zelle", cash: "Cash", bank_transfer: "Bank transfer", other: "Other" }[method];
 }

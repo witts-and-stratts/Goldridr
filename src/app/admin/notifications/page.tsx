@@ -3,6 +3,7 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { AlertTriangle, BellRing, Check, CheckSquare, Inbox, MailOpen, RefreshCw, Search, Send, Trash2 } from "lucide-react";
 import { MessageComposer } from "@/components/notifications/MessageComposer";
 import { ReminderComposer } from "@/components/notifications/ReminderComposer";
@@ -40,6 +41,7 @@ import styles from "@/styles/notifications.module.css";
 export default function NotificationsPage() {
   const { session } = useAdmin();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const {
     items,
     failed,
@@ -74,10 +76,6 @@ export default function NotificationsPage() {
   const lastClickedIndexRef = useRef<number | null>( null );
 
   const keepsOnlyUnread = folder === "unread" || unreadOnly;
-
-  useEffect( () => {
-    if ( !keepsOnlyUnread ) setRecentlyReadIds( new Set() );
-  }, [ keepsOnlyUnread ] );
 
   const visibleItems = useMemo( () => {
     const filtered = filterNotifications( { folder, items, search, unreadOnly } );
@@ -139,6 +137,21 @@ export default function NotificationsPage() {
   }, [] );
 
   useEffect( () => {
+    const itemId = Number( searchParams.get( "item" ) );
+    if ( !Number.isSafeInteger( itemId ) || itemId < 1 ) return;
+    const item = items.find( candidate => candidate.recipientId === itemId );
+    if ( !item ) return;
+    const frame = window.requestAnimationFrame( () => {
+      setFolder( "inbox" );
+      setUnreadOnly( false );
+      setSelectedNotificationId( itemId );
+      openMobileDetail();
+    } );
+    if ( !item.readAt ) void markReadIds( [ itemId ] );
+    return () => window.cancelAnimationFrame( frame );
+  }, [ items, markReadIds, openMobileDetail, searchParams ] );
+
+  useEffect( () => {
     const desktopQuery = window.matchMedia( "(min-width: 1024px)" );
     const closeOnDesktop = ( event: MediaQueryListEvent ) => {
       if ( event.matches ) setMobileDetailOpen( false );
@@ -150,6 +163,12 @@ export default function NotificationsPage() {
   const setFolderAndClearSearch = useCallback( ( value: Folder ) => {
     setFolder( value );
     setSearch( "" );
+    setRecentlyReadIds( new Set() );
+  }, [] );
+
+  const setUnreadFilter = useCallback( ( value: boolean ) => {
+    setUnreadOnly( value );
+    setRecentlyReadIds( new Set() );
   }, [] );
 
   const selectNotification = useCallback( ( item: NotificationItem ) => {
@@ -402,7 +421,7 @@ export default function NotificationsPage() {
                 {!isSelecting && (
                   <Label className={styles.unreadFilterLabel}>
                     Unread only
-                    <Switch checked={unreadOnly} onCheckedChange={setUnreadOnly} className="shadow-none" />
+                    <Switch checked={unreadOnly} onCheckedChange={setUnreadFilter} className="shadow-none" />
                   </Label>
                 )}
               </div>

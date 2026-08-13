@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import type { Booking } from "./types";
 import { formatPrice, chauffeurInitials, chauffeurColor } from "./utils";
 import { StatusBadge } from "./components/status-badge";
+import { formatBookingStatus } from "@/lib/booking-status-label";
 
 export default function BookingsPage() {
   const params = useParams<{ chauffeurId?: string }>();
@@ -91,7 +92,7 @@ export default function BookingsPage() {
     });
     toast.promise(promise, {
       loading: "Updating…",
-      success: `Booking ${reference} → ${newStatus}`,
+      success: `Booking ${reference} → ${formatBookingStatus( newStatus )}`,
       error: (e) => e.message,
     });
     return promise;

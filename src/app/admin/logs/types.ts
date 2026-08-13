@@ -1,4 +1,4 @@
-export type LogProvider = "twilio" | "resend" | "ses";
+export type LogProvider = "twilio" | "resend" | "ses" | "stripe" | "square" | "paypal";
 export type ValidationStatus = "valid" | "invalid" | "not_configured" | "not_applicable";
 export type ProcessingStatus = "processed" | "ignored" | "rejected" | "failed";
 

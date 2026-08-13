@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/admin-ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/admin-ui/popover";
+import { foregroundNotificationDetails } from "@/lib/notifications/foreground";
 
 interface NotificationItem {
   recipientId: number;
@@ -15,6 +18,7 @@ interface NotificationItem {
 }
 
 export function NotificationBell() {
+  const router = useRouter();
   const [ items, setItems ] = useState<NotificationItem[]>( [] );
   const [ unreadCount, setUnreadCount ] = useState( 0 );
 
@@ -38,6 +42,16 @@ export function NotificationBell() {
           seenIds.add( notification.recipientId );
           setItems( current => [ notification, ...current ].slice( 0, 5 ) );
           setUnreadCount( count => count + ( notification.readAt ? 0 : 1 ) );
+          const foreground = foregroundNotificationDetails( notification );
+          toast.info( foreground.title, {
+            id: foreground.id,
+            description: foreground.description,
+            duration: 8_000,
+            action: {
+              label: "View",
+              onClick: () => router.push( foreground.href ),
+            },
+          } );
         } );
       } )
       .catch( () => {} );
@@ -45,7 +59,7 @@ export function NotificationBell() {
       active = false;
       stream?.close();
     };
-  }, [] );
+  }, [ router ] );
 
   return (
     <Popover>
