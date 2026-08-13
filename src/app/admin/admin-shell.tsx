@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { AdminPwa } from "@/components/admin-pwa";
 import { useAdmin } from "./context";
 
 function label( s: string ) {
@@ -52,28 +53,29 @@ export function AdminShell( { children }: { children: React.ReactNode } ) {
       <SidebarProvider>
         <AdminSidebar />
         <SidebarInset>
-          <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+          <header className="admin-topbar flex h-12 shrink-0 items-center gap-2 border-b px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
-            <Breadcrumb>
-              <BreadcrumbList>
+            <Breadcrumb className="min-w-0 flex-1 overflow-hidden">
+              <BreadcrumbList className="flex-nowrap overflow-hidden">
                 <BreadcrumbItem>
                   <BreadcrumbLink href="/admin">Admin</BreadcrumbLink>
                 </BreadcrumbItem>
                 {crumbs.map( ( c, i ) => (
                   <React.Fragment key={i}>
                     <BreadcrumbSeparator />
-                    <BreadcrumbItem>
+                    <BreadcrumbItem className="min-w-0">
                       {c.href ? (
-                        <BreadcrumbLink href={c.href}>{c.label}</BreadcrumbLink>
+                        <BreadcrumbLink className="truncate" href={c.href}>{c.label}</BreadcrumbLink>
                       ) : (
-                        <BreadcrumbPage>{c.label}</BreadcrumbPage>
+                        <BreadcrumbPage className="truncate">{c.label}</BreadcrumbPage>
                       )}
                     </BreadcrumbItem>
                   </React.Fragment>
                 ) )}
               </BreadcrumbList>
             </Breadcrumb>
+            <AdminPwa showInstallPrompt />
             <NotificationBell />
           </header>
           <main className="flex-1 overflow-auto min-h-0">{children}</main>

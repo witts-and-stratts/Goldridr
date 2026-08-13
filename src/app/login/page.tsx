@@ -12,6 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/admin-ui/dialog";
+import { AdminPwa } from "@/components/admin-pwa";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -76,14 +77,16 @@ export default function LoginPage() {
 
   if (checking) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#0a0a0a] text-white">
+      <main className="admin-login flex min-h-dvh items-center justify-center bg-[#0a0a0a] text-white">
+        <AdminPwa />
         <Loader2 className="size-5 animate-spin text-[#b99a56]" />
       </main>
     );
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#080808] px-4 py-12 text-white">
+    <main className="admin-login relative flex min-h-dvh items-center justify-center overflow-hidden bg-[#080808] px-4 py-12 text-white">
+      <AdminPwa />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#2a2418_0,transparent_42%)] opacity-80" />
       <Card className="relative w-full max-w-md rounded-none border-white/10 bg-[#111]/95 text-white shadow-2xl">
         <CardHeader className="space-y-5 border-b border-white/10">
