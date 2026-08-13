@@ -32,3 +32,18 @@ test( "production injects and validates Web Push runtime configuration", async (
   assert.equal( ( compose.match( /^\s+VAPID_SUBJECT:/gm ) || [] ).length, 2 );
   assert.match( deploy, /NEXT_PUBLIC_VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT/ );
 } );
+
+test( "notification worker readiness does not depend on external providers", async () => {
+  const startup = await readFile( projectFile( "scripts/notification-worker.ts" ), "utf8" );
+  const worker = await readFile( projectFile( "src/lib/notifications/worker.ts" ), "utf8" );
+  const readyIndex = startup.indexOf( 'log( "info", "worker.ready"' );
+
+  assert.ok( readyIndex > 0 );
+  assert.ok( startup.indexOf( 'verifyInBackground( "email"', readyIndex ) > readyIndex );
+  assert.ok( startup.indexOf( 'verifyInBackground( "sms"', readyIndex ) > readyIndex );
+  assert.ok( startup.indexOf( 'verifyInBackground( "inbound_email"', readyIndex ) > readyIndex );
+  assert.doesNotMatch( startup, /await worker\.verify\(\)/ );
+  assert.doesNotMatch( startup, /await inboundEmail\.verify\(\)/ );
+  assert.match( worker, /if \( delivery\.channel === "email" \) \{\s+if \( !this\.emailTransport \)/ );
+  assert.doesNotMatch( worker, /async runOnce[\s\S]*?await this\.verify\(\)/ );
+} );
