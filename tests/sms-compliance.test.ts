@@ -73,22 +73,25 @@ test( "the first booking message confirms the program disclosures", () => {
     bookingReference: "GR-TEST",
     date: "2026-08-14",
     time: "14:30",
+    paymentUrl: "https://goldridr.com/pay/secure-token",
   } );
 
   assert.match( body, /^Goldridr:/ );
   assert.match( body, /GR-TEST/ );
+  assert.match( body, /https:\/\/goldridr\.com\/pay\/secure-token/ );
   assert.match( body, /Msg frequency varies/ );
   assert.match( body, /Msg & data rates may apply/ );
   assert.match( body, /Reply HELP for help, STOP to cancel/ );
 } );
 
 test( "every operational SMS template includes opt-out instructions", () => {
-  for ( const template of [ "booking_reminder", "booking_assignment", "booking_deleted", "booking_status" ] ) {
+  for ( const template of [ "payment_reminder", "booking_reminder", "booking_assignment", "booking_deleted", "booking_status" ] ) {
     const body = buildSmsBody( template, {
       bookingReference: "GR-TEST",
       date: "2026-08-14",
       time: "14:30",
       status: "confirmed",
+      paymentUrl: "https://goldridr.com/pay/secure-token",
     } );
     assert.match( body, /^Goldridr/ );
     assert.match( body, /Reply STOP to opt out\.$/ );

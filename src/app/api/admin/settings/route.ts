@@ -3,6 +3,18 @@ import z from "zod/v4";
 import { getAdminSettings, saveAdminSettings } from "@/lib/admin-settings";
 import { getRequestSession } from "@/lib/driver-auth";
 
+const ProviderCredentialsSchema = z.object( {
+  STRIPE_SECRET_KEY: z.string().trim().max( 5000 ).optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().trim().max( 5000 ).optional(),
+  SQUARE_ACCESS_TOKEN: z.string().trim().max( 5000 ).optional(),
+  SQUARE_APP_ID: z.string().trim().max( 5000 ).optional(),
+  SQUARE_LOCATION_ID: z.string().trim().max( 5000 ).optional(),
+  SQUARE_WEBHOOK_SIGNATURE_KEY: z.string().trim().max( 5000 ).optional(),
+  PAYPAL_CLIENT_ID: z.string().trim().max( 5000 ).optional(),
+  PAYPAL_CLIENT_SECRET: z.string().trim().max( 5000 ).optional(),
+  PAYPAL_WEBHOOK_ID: z.string().trim().max( 5000 ).optional(),
+} ).optional().default( {} );
+
 const SettingsSchema = z.object( {
   bookingBufferMinutes: z.number().int().min( 0 ).max( 240 ),
   notificationTimezone: z.string().trim().min( 1 ),
@@ -24,6 +36,34 @@ const SettingsSchema = z.object( {
   priceByMileCity: z.number().min( 0 ).max( 100 ),
   priceByMileHourly: z.number().min( 0 ).max( 100 ),
   twilioFromNumber: z.string().trim().min( 1 ),
+  activeProcessor: z.enum( [ "stripe", "square" ] ),
+  enabledProcessors: z.array( z.enum( [ "stripe", "square", "paypal", "zelle" ] ) ).min( 1 ),
+  enabledMethods: z.array( z.enum( [ "card", "apple_pay", "cash_app", "venmo", "zelle" ] ) ).min( 1 ),
+  zelleRecipient: z.string().trim().max( 200 ),
+  zelleInstructions: z.string().trim().max( 2000 ),
+  holdMinutes: z.number().int().min( 30 ).max( 1440 ),
+  zelleVerificationHours: z.number().int().min( 1 ).max( 168 ),
+  hourlyRate: z.number().min( 0 ).max( 10000 ),
+  squareEnvironment: z.enum( [ "sandbox", "production" ] ),
+  paypalEnvironment: z.enum( [ "sandbox", "production" ] ),
+  providerCredentials: ProviderCredentialsSchema,
+} ).superRefine( ( settings, context ) => {
+  const hasOnlineProcessor = settings.enabledProcessors.includes( "stripe" ) || settings.enabledProcessors.includes( "square" );
+  const hasAvailableMethod = settings.enabledMethods.some( method => {
+    if ( method === "venmo" ) return settings.enabledProcessors.includes( "paypal" );
+    if ( method === "zelle" ) return settings.enabledProcessors.includes( "zelle" );
+    return hasOnlineProcessor;
+  } );
+  if ( !hasAvailableMethod ) context.addIssue( {
+    code: "custom",
+    path: [ "enabledMethods" ],
+    message: "Select at least one payment method supported by an enabled booking processor",
+  } );
+  if ( hasOnlineProcessor && !settings.enabledProcessors.includes( settings.activeProcessor ) ) context.addIssue( {
+    code: "custom",
+    path: [ "activeProcessor" ],
+    message: "The active card processor must be enabled",
+  } );
 } );
 
 export async function GET( request: Request ) {
@@ -51,6 +91,6 @@ export async function PUT( request: Request ) {
   await saveAdminSettings( parsed.data );
   return NextResponse.json( {
     success: true,
-    settings: parsed.data,
+    settings: await getAdminSettings(),
   } );
 }

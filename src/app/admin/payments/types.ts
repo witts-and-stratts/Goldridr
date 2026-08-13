@@ -1,5 +1,5 @@
-export type PaymentStatus = "pending" | "paid" | "refunded" | "failed";
-export type PaymentMethod = "card" | "cash" | "bank_transfer" | "other";
+export type PaymentStatus = "pending" | "awaiting_verification" | "paid" | "refunded" | "failed" | "expired";
+export type PaymentMethod = "card" | "apple_pay" | "cash_app" | "venmo" | "zelle" | "cash" | "bank_transfer" | "other";
 
 export interface Payment {
   id: number;
@@ -7,8 +7,14 @@ export interface Payment {
   amountCents: number;
   currency: string;
   method: PaymentMethod;
+  provider: "stripe" | "square" | "paypal" | "manual";
   status: PaymentStatus;
   transactionReference: string | null;
+  externalId: string | null;
+  senderName: string | null;
+  confirmationReference: string | null;
+  verificationExpiresAt: string | null;
+  failureMessage: string | null;
   notes: string | null;
   paidAt: string | null;
   createdAt: string;

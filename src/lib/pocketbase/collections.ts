@@ -5,6 +5,7 @@ export const pocketBaseCollections = {
   preferences: "notification_preferences",
   deliveries: "notification_deliveries",
   pushTokens: "push_tokens",
+  webPushSubscriptions: "web_push_subscriptions",
   providerEvents: "notification_provider_events",
   webhookLogs: "webhook_logs",
   vehicles: "vehicles",

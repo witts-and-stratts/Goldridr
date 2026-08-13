@@ -45,6 +45,11 @@ test( "booking API accepts a phone number without a text message preference", ()
       email: "airport@example.com",
       phone: "+17135550123",
     },
+    tripType: "city",
+    tripDetails: {
+      pickupLocation: "Houston, Texas",
+      dropoffLocation: "Austin, Texas",
+    },
   };
 
   assert.equal( BookingRequestSchema.safeParse( booking ).success, true );

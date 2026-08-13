@@ -6,17 +6,23 @@ import { getPocketBaseClient } from "./client";
 import { pocketBaseCollections } from "./collections";
 import { legacyId } from "./core";
 import { sendPushToUsers } from "@/lib/notifications/push";
+import { enqueueWebPushDeliveries } from "@/lib/notifications/web-push";
+import { paymentNotificationFor, type PaymentNotificationInput } from "@/lib/notifications/payment-events";
+import { formatBookingStatus } from "@/lib/booking-status-label";
 
-async function createNotification( input: { type: string; category: "messages" | "reminders" | "system"; title: string; body: string; eventKey?: string; bookingReference?: string; actorUserId?: string; metadata?: Record<string, unknown>; inAppUserIds?: string[]; deliveries?: Array<{ channel: "email" | "sms"; recipient: string; template: string; payload: Record<string, unknown> }> } ) {
+async function createNotification( input: { type: string; category: "messages" | "reminders" | "system"; title: string; body: string; eventKey?: string; bookingReference?: string; actorUserId?: string; metadata?: Record<string, unknown>; inAppUserIds?: string[]; deliveries?: Array<{ channel: "email" | "sms"; recipient: string; template: string; payload: Record<string, unknown>; scheduledAt?: string; idempotencyKey?: string }> } ) {
   const pb = getPocketBaseClient();
   const notification = await pb.collection( pocketBaseCollections.notifications ).create( { legacyId: legacyId(), eventKey: input.eventKey || `${ input.type }:${ randomUUID() }`, type: input.type, category: input.category, title: input.title, body: input.body, bookingReference: input.bookingReference || "", actorUserId: input.actorUserId || "", metadata: input.metadata || {}, sourceCreatedAt: new Date().toISOString() } );
-  await Promise.all( ( input.inAppUserIds || [] ).map( userId => pb.collection( pocketBaseCollections.recipients ).create( { legacyId: legacyId(), notification: notification.id, userId, sourceCreatedAt: new Date().toISOString() } ) ) );
-  await Promise.all( ( input.deliveries || [] ).map( item => pb.collection( pocketBaseCollections.deliveries ).create( { legacyId: legacyId(), notification: notification.id, channel: item.channel, recipient: item.recipient, template: item.template, payload: item.payload, idempotencyKey: `${ notification.id }:${ item.channel }:${ item.recipient }`, status: "pending", scheduledAt: new Date().toISOString(), nextAttemptAt: new Date().toISOString(), attempts: 0 } ) ) );
+  const recipients = await Promise.all( ( input.inAppUserIds || [] ).map( userId => pb.collection( pocketBaseCollections.recipients ).create( { legacyId: legacyId(), notification: notification.id, userId, sourceCreatedAt: new Date().toISOString() } ) ) );
+  await enqueueWebPushDeliveries( notification, recipients ).catch( error => {
+    console.error( "Unable to enqueue Web Push deliveries", error );
+  } );
+  await Promise.all( ( input.deliveries || [] ).map( item => { const scheduledAt = item.scheduledAt || new Date().toISOString(); return pb.collection( pocketBaseCollections.deliveries ).create( { legacyId: legacyId(), notification: notification.id, channel: item.channel, recipient: item.recipient, template: item.template, payload: item.payload, idempotencyKey: item.idempotencyKey || `${ notification.id }:${ item.channel }:${ item.recipient }:${ item.template }`, status: "pending", scheduledAt, nextAttemptAt: scheduledAt, attempts: 0 } ); } ) );
   return Number( notification.legacyId );
 }
 
 function payload( booking: BookingRecord, subject: string, message: string ) { return { subject, message, bookingReference: booking.reference, passengerName: booking.name, passengerEmail: booking.email, passengerPhone: booking.phone, date: booking.date, time: booking.time, duration: booking.duration, tripType: booking.tripType, notes: booking.notes, tripDetails: JSON.parse( booking.tripDetails || "{}" ) }; }
-type Delivery = { channel: "email" | "sms"; recipient: string; template: string; payload: Record<string, unknown> };
+type Delivery = { channel: "email" | "sms"; recipient: string; template: string; payload: Record<string, unknown>; scheduledAt?: string; idempotencyKey?: string };
 function bookingDeliveries( booking: BookingRecord, channels: Array<"email" | "sms">, template: string, value: Record<string, unknown> ): Delivery[] { const deliveries: Delivery[] = []; if ( channels.includes( "email" ) && typeof booking.email === "string" && booking.email.trim() ) deliveries.push( { channel: "email", recipient: booking.email.trim(), template, payload: value } ); if ( channels.includes( "sms" ) && booking.phone && booking.smsConsentedAt ) deliveries.push( { channel: "sms", recipient: booking.phone, template, payload: value } ); return deliveries; }
 
 export async function createPocketBaseManualMessage( session: AuthSession, booking: BookingRecord, subject: string, message: string, channels: string[] ) { const data = payload( booking, subject, message ); const deliveryChannels = channels.filter( ( channel ): channel is "email" | "sms" => channel === "email" || channel === "sms" ); return createNotification( { type: "message.manual", category: "messages", title: subject, body: message, bookingReference: booking.reference, actorUserId: session.userId, metadata: { ...data, channels }, inAppUserIds: [ "admin" ], deliveries: bookingDeliveries( booking, deliveryChannels, "manual_message", data ) } ); }
@@ -71,8 +77,24 @@ export async function createPocketBaseInboundSms( input: { eventKey: string; pro
     inAppUserIds: [ "admin" ],
   } );
 }
-export async function createPocketBaseBookingCreated( booking: BookingRecord ) { const data = { ...payload( booking, "", "" ), status: booking.status, pin: booking.pin || "" }; return createNotification( { type: "booking.created", category: "system", title: `Booking ${ booking.reference } received`, body: `Booking request received from ${ booking.name }.`, bookingReference: booking.reference, metadata: data, inAppUserIds: [ "admin" ], deliveries: bookingDeliveries( booking, [ "email", "sms" ], "booking_created", data ) } ); }
-export async function createPocketBaseBookingStatusUpdate( booking: BookingRecord ) { const data = { ...payload( booking, "", "" ), status: booking.status }; return createNotification( { type: "booking.status_updated", category: "system", title: `Booking ${ booking.reference } is ${ booking.status }`, body: `Booking status updated for ${ booking.name }.`, bookingReference: booking.reference, metadata: data, inAppUserIds: [ "admin" ], deliveries: bookingDeliveries( booking, [ "email", "sms" ], "booking_status", data ) } ); }
+export async function createPocketBaseBookingCreated( booking: BookingRecord, payment?: { paymentUrl: string; holdExpiresAt: string } ) { const data = { ...payload( booking, "", "" ), status: booking.status, pin: booking.pin || "", paymentUrl: payment?.paymentUrl || "", holdExpiresAt: payment?.holdExpiresAt || "" }; const deliveries = bookingDeliveries( booking, [ "email", "sms" ], "booking_created", data ); if ( payment && booking.phone && booking.smsConsentedAt ) deliveries.push( { channel: "sms", recipient: booking.phone, template: "payment_reminder", payload: data, scheduledAt: new Date( Date.now() + 60 * 60_000 ).toISOString(), idempotencyKey: `payment-reminder:${ booking.reference }` } ); return createNotification( { type: "booking.created", category: "system", title: `Booking ${ booking.reference } received`, body: `Booking request received from ${ booking.name }.`, bookingReference: booking.reference, metadata: data, inAppUserIds: [ "admin" ], deliveries } ); }
+export async function createPocketBaseBookingStatusUpdate( booking: BookingRecord ) { const data = { ...payload( booking, "", "" ), status: booking.status }; return createNotification( { type: "booking.status_updated", category: "system", title: `Booking ${ booking.reference } is ${ formatBookingStatus( booking.status ) }`, body: `Booking status updated for ${ booking.name }.`, bookingReference: booking.reference, metadata: data, inAppUserIds: [ "admin" ], deliveries: bookingDeliveries( booking, [ "email", "sms" ], "booking_status", data ) } ); }
+export async function createPocketBasePaymentStatusUpdate(
+  payment: PaymentNotificationInput,
+  booking?: BookingRecord,
+) {
+  const event = paymentNotificationFor( payment );
+  return createNotification( {
+    type: event.type,
+    category: "system",
+    title: event.title,
+    body: event.body,
+    eventKey: event.eventKey,
+    bookingReference: payment.bookingReference,
+    metadata: { ...payment, passengerName: booking?.name || "" },
+    inAppUserIds: [ "admin" ],
+  } );
+}
 export async function createPocketBaseFlightAlert( input: { bookingReference: string; chauffeurUserId?: string | null; title: string; body: string; fingerprint: string; metadata: Record<string, unknown> } ) {
   const inAppUserIds = [ "admin", ...( input.chauffeurUserId ? [ input.chauffeurUserId ] : [] ) ];
   const notificationId = await createNotification( {

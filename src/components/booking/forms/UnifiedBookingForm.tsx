@@ -167,8 +167,8 @@ export function UnifiedBookingForm({
       toast.dismiss();
 
       if (data.success) {
-        toast.success('Booking confirmed!', {
-          description: `Your booking reference is ${data.booking?.reference || ''}. We'll send you a confirmation email shortly.`,
+        toast.success('Booking request received', {
+          description: `Your reference is ${data.booking?.reference || ''}. Check your email or text messages to pay and confirm.`,
         });
         onSuccess();
       } else {

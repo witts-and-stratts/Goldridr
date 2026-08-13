@@ -2,6 +2,7 @@ import {
   SMS_BODY_FULL_DISCLOSURE,
   SMS_BODY_OPT_OUT,
 } from "@/lib/sms-consent-copy";
+import { formatBookingStatus } from "@/lib/booking-status-label";
 
 function withCompliance( body: string, disclosure: string ): string {
   const trimmed = body.trim();
@@ -25,8 +26,11 @@ export function buildSmsBody( template: string | null, payload: Record<string, u
   if ( template === "booking_reminder" ) {
     return withCompliance( `Goldridr reminder: booking ${ reference } is scheduled for ${ payload.date } at ${ payload.time }.${ terminal }`, SMS_BODY_OPT_OUT );
   }
+  if ( template === "payment_reminder" ) {
+    return withCompliance( `Goldridr reminder: booking ${ reference } is still awaiting payment. Pay before your hold expires: ${ payload.paymentUrl || "" }`, SMS_BODY_OPT_OUT );
+  }
   if ( template === "booking_created" ) {
-    return withCompliance( `Goldridr: we received booking ${ reference } for ${ payload.date } at ${ payload.time }.${ terminal } We will notify you when it is confirmed.`, SMS_BODY_FULL_DISCLOSURE );
+    return withCompliance( `Goldridr: we received booking ${ reference } for ${ payload.date } at ${ payload.time }.${ terminal } Pay within 2 hours to confirm: ${ payload.paymentUrl || "" }`, SMS_BODY_FULL_DISCLOSURE );
   }
   if ( template === "booking_assignment" ) {
     const chauffeur = String( payload.chauffeurName || "" );
@@ -37,7 +41,8 @@ export function buildSmsBody( template: string | null, payload: Record<string, u
   if ( template === "booking_deleted" ) {
     return withCompliance( `Goldridr update: booking ${ reference } was deleted.${ terminal } Contact us if this was unexpected.`, SMS_BODY_OPT_OUT );
   }
-  return withCompliance( `Goldridr update: booking ${ reference } is now ${ payload.status || "updated" }.${ terminal }`, SMS_BODY_OPT_OUT );
+  const status = payload.status ? formatBookingStatus( String( payload.status ) ) : "Updated";
+  return withCompliance( `Goldridr update: booking ${ reference } is now ${ status }.${ terminal }`, SMS_BODY_OPT_OUT );
 }
 
 export function resolveTwilioWebhookUrl( request: Request, configuredUrl?: string ): string {

@@ -17,6 +17,7 @@ import {
 } from "@react-email/components";
 import { render } from "@react-email/render";
 import { getBookingQrImageUrl, getBookingVerifyUrl } from "@/lib/booking-qr";
+import { formatBookingStatus } from "@/lib/booking-status-label";
 import { getAppUrl } from "@/lib/admin-settings";
 import { getEmailConfig } from "./config";
 import type { RenderedEmail } from "./types";
@@ -158,7 +159,8 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
   const passenger = String( payload.passengerName || "Passenger" );
   const dateTime = payload.date && payload.time ? `${ payload.date } at ${ payload.time }` : "";
   const appUrl = String( payload.appUrl || await getAppUrl() );
-  const status = String( payload.status || "" );
+  const rawStatus = String( payload.status || "" );
+  const status = rawStatus ? formatBookingStatus( rawStatus ) : "";
   const message = String( payload.message || "" );
   const subject = String( payload.subject || "" );
 
@@ -169,15 +171,17 @@ async function contentFor( template: string, payload: Record<string, unknown> ):
         subject: `We received booking ${ reference }`,
         preview: "Your GoldRidrbooking request was received.",
         heading: "Booking request received",
-        message: `Hi ${ passenger }, your ride request is now with our team. We will send another update as soon as it is confirmed.${ pin ? " Share your 4-digit PIN with your driver at pickup to confirm the ride." : "" }`,
+        message: `Hi ${ passenger }, your chauffeur is held for two hours. Pay the quoted fare to confirm your ride.${ pin ? " Keep your 4-digit pickup PIN private until you meet your driver." : "" }`,
         appUrl,
-        footerNote: "Keep this email for your booking reference. This request is pending until you receive a confirmation update.",
-        booking: bookingContent( payload, reference, "Request received" ),
+        footerNote: "Your hold expires if payment is not completed by the time shown on the payment page.",
+        ctaLabel: "Pay to confirm",
+        ctaUrl: stringValue( payload.paymentUrl ),
+        booking: bookingContent( payload, reference, "Awaiting payment" ),
         ...( pin ? { details: [ [ "Your pickup PIN", pin ] as [ string, string ] ] } : {} ),
       };
     }
     case "booking_status": {
-      const normalizedStatus = status.toLowerCase();
+      const normalizedStatus = rawStatus.toLowerCase();
       if ( normalizedStatus === "confirmed" || normalizedStatus === "accepted" ) {
         return {
           subject: `Booking ${ reference } confirmed`,

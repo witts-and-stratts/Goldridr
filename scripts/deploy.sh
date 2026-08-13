@@ -26,6 +26,13 @@ if ! grep -qx 'POCKETBASE_URL=http://pocketbase:8090' .env; then
   exit 1
 fi
 
+for variable in NEXT_PUBLIC_VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT; do
+  if ! grep -q "^${variable}=." .env; then
+    echo "Set $variable in $DEPLOY_DIR/.env" >&2
+    exit 1
+  fi
+done
+
 previous_image=""
 previous_pocketbase_image=""
 previous_worker_image=""

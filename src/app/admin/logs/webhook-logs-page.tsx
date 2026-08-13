@@ -31,6 +31,9 @@ const providerLinks: Array<{ value: LogProvider | "all"; label: string; href: st
   { value: "twilio", label: "Twilio", href: "/admin/logs/twilio" },
   { value: "resend", label: "Resend", href: "/admin/logs/resend" },
   { value: "ses", label: "SES", href: "/admin/logs/ses" },
+  { value: "stripe", label: "Stripe", href: "/admin/logs/stripe" },
+  { value: "square", label: "Square", href: "/admin/logs/square" },
+  { value: "paypal", label: "PayPal", href: "/admin/logs/paypal" },
 ];
 
 async function fetchJson<T>( url: string ): Promise<T> {
@@ -113,7 +116,7 @@ export function WebhookLogsPage( { provider }: { provider?: LogProvider } ) {
         <div className={styles.headerRow}>
           <div>
             <h1 className={styles.title}>Webhook logs</h1>
-            <p className={styles.subtitle}>A 90-day request trail for Twilio, Resend, and Amazon SES.</p>
+            <p className={styles.subtitle}>A 90-day request trail for messaging and payment providers.</p>
           </div>
           <div className={styles.headerActions}>
             <Button variant="outline" size="sm" onClick={() => setPaused( value => !value )}>
