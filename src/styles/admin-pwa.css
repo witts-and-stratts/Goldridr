@@ -1,0 +1,92 @@
+.admin-login {
+  padding-top: max(3rem, env(safe-area-inset-top));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-bottom: max(3rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
+}
+
+@media (display-mode: standalone) {
+  .admin-dashboard {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+  }
+
+  body:has(.admin-dashboard) [data-slot="sidebar-container"] {
+    top: env(safe-area-inset-top);
+    bottom: env(safe-area-inset-bottom);
+    left: env(safe-area-inset-left);
+    height: auto;
+  }
+
+  body:has(.admin-dashboard) [data-slot="sidebar"][data-mobile="true"] {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+.admin-topbar {
+  min-width: 0;
+}
+
+.admin-install-offer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.admin-install-dismiss {
+  width: 2rem;
+  height: 2rem;
+}
+
+.admin-install-step {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: 0 0 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+@media (max-width: 520px) {
+  .admin-topbar {
+    padding-right: 0.5rem;
+    padding-left: 0.5rem;
+  }
+
+  .admin-topbar [data-slot="separator"] {
+    margin-right: 0;
+  }
+
+  .admin-install-button {
+    width: 2.25rem;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .admin-install-button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
+
+@media (pointer: coarse) {
+  .admin-topbar button,
+  .admin-install-offer button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
