@@ -15,19 +15,24 @@ import {
 export { isStaleWebPushError, isTransientWebPushError } from "./web-push-shared";
 export type { SerializableWebPushSubscription, WebPushPayload } from "./web-push-shared";
 
-function vapidConfiguration() {
+export function getWebPushConfiguration() {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || "";
   const privateKey = process.env.VAPID_PRIVATE_KEY?.trim() || "";
   const subject = process.env.VAPID_SUBJECT?.trim() || "";
-  return { publicKey, privateKey, subject, configured: Boolean( publicKey && privateKey && subject ) };
+  const missing = [
+    !publicKey ? "NEXT_PUBLIC_VAPID_PUBLIC_KEY" : "",
+    !privateKey ? "VAPID_PRIVATE_KEY" : "",
+    !subject ? "VAPID_SUBJECT" : "",
+  ].filter( Boolean );
+  return { publicKey, privateKey, subject, configured: missing.length === 0, missing };
 }
 
 export function isWebPushConfigured(): boolean {
-  return vapidConfiguration().configured;
+  return getWebPushConfiguration().configured;
 }
 
 function configureVapid(): void {
-  const config = vapidConfiguration();
+  const config = getWebPushConfiguration();
   if ( !config.configured ) throw new Error( "Web Push VAPID credentials are not configured" );
   webpush.setVapidDetails( config.subject, config.publicKey, config.privateKey );
 }

@@ -23,10 +23,19 @@ async function main() {
   let userId = "";
   let notificationId = "";
   let recipientId = "";
+  let settingId = "";
 
   try {
   await pb.health.check();
   await pb.collection("calendar_feed_tokens").getList(1, 1, { fields: "id" });
+  const setting = await pb.collection("app_settings").create({
+    key: `deploymentVerification:${suffix}`,
+    value: "ok",
+    sourceUpdatedAt: new Date().toISOString(),
+  });
+  settingId = setting.id;
+  const persistedSetting = await pb.collection("app_settings").getOne(settingId);
+  if (persistedSetting.value !== "ok") throw new Error("Settings persistence verification failed");
   const user = await pb.collection("app_users").create({
     email,
     password: `Verify-${suffix}-Aa1!`,
@@ -71,8 +80,9 @@ async function main() {
   const updated = await pb.collection("notification_recipients").getOne(recipientId);
   if (!updated.readAt) throw new Error("Notification read state was not persisted");
 
-  console.log("PocketBase health, calendar feed tokens, auth collection, notifications, and realtime verified.");
+  console.log("PocketBase health, settings persistence, calendar feed tokens, auth collection, notifications, and realtime verified.");
   } finally {
+    if (settingId) await pb.collection("app_settings").delete(settingId).catch(() => undefined);
     if (recipientId) await pb.collection("notification_recipients").delete(recipientId).catch(() => undefined);
     if (notificationId) await pb.collection("notifications").delete(notificationId).catch(() => undefined);
     if (userId) await pb.collection("app_users").delete(userId).catch(() => undefined);

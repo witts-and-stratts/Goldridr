@@ -68,7 +68,7 @@ const SettingsSchema = z.object( {
 
 export async function GET( request: Request ) {
   const session = await getRequestSession( request );
-  if ( !session ) return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
+  if ( !session || session.role !== "admin" ) return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
   return NextResponse.json( {
     success: true,
     settings: await getAdminSettings(),
@@ -77,9 +77,9 @@ export async function GET( request: Request ) {
 
 export async function PUT( request: Request ) {
   const session = await getRequestSession( request );
-  if ( !session ) return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
+  if ( !session || session.role !== "admin" ) return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
 
-  const body = await request.json();
+  const body = await request.json().catch( () => null );
   const parsed = SettingsSchema.safeParse( body );
   if ( !parsed.success ) {
     return NextResponse.json(
@@ -88,9 +88,34 @@ export async function PUT( request: Request ) {
     );
   }
 
-  await saveAdminSettings( parsed.data );
-  return NextResponse.json( {
-    success: true,
-    settings: await getAdminSettings(),
-  } );
+  try {
+    await saveAdminSettings( parsed.data );
+    return NextResponse.json( {
+      success: true,
+      settings: await getAdminSettings(),
+    } );
+  } catch ( error ) {
+    const status = error && typeof error === "object" && "status" in error && typeof error.status === "number" ? error.status : undefined;
+    const message = error instanceof Error ? error.message : "Unknown settings error";
+    console.error( "admin.settings.save_failed", { errorName: error instanceof Error ? error.name : "Error", status, message } );
+
+    if ( message.includes( "PAYMENT_SETTINGS_ENCRYPTION_KEY" ) || message.includes( "Stored payment credential is invalid" ) ) {
+      return NextResponse.json( {
+        success: false,
+        error: message.includes( "Stored payment credential" )
+          ? "A saved payment credential cannot be decrypted. Restore the original PAYMENT_SETTINGS_ENCRYPTION_KEY before replacing it."
+          : "Payment credential encryption is not configured. Set PAYMENT_SETTINGS_ENCRYPTION_KEY on the web service.",
+      }, { status: 503 } );
+    }
+
+    if ( status ) return NextResponse.json( {
+      success: false,
+      error: "PocketBase rejected the settings update. Verify the app_settings migration and web-service PocketBase credentials.",
+    }, { status: 502 } );
+
+    return NextResponse.json( {
+      success: false,
+      error: "Settings could not be saved. Check the web-service logs for admin.settings.save_failed.",
+    }, { status: 500 } );
+  }
 }

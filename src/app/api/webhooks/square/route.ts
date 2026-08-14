@@ -3,6 +3,7 @@ import { withWebhookAudit } from "@/lib/notifications/webhook-logs";
 import { createPocketBaseBookingStatusUpdate, recordPocketBaseProviderEvent } from "@/lib/pocketbase/notifications";
 import { refundProviderPayment, verifySquareWebhook } from "@/lib/payments/providers";
 import { markPaymentFailed, markPaymentPaid, markPaymentRefunded, paymentForExternalId, updatePaymentAttempt } from "@/lib/payments/repository";
+import { squarePaymentDetails } from "@/lib/payments/details";
 
 export async function POST( request: Request ) {
   return withWebhookAudit( "square", request, async ( { rawBody, payload } ) => {
@@ -19,7 +20,7 @@ export async function POST( request: Request ) {
       await updatePaymentAttempt( payment.id, { transactionReference: externalId } );
       const updated = ( await paymentForExternalId( "square", externalId ) )!;
       if ( status === "COMPLETED" ) {
-        const result = await markPaymentPaid( updated, externalId, squarePayment );
+        const result = await markPaymentPaid( updated, externalId, squarePayment, squarePaymentDetails( squarePayment ) );
         if ( result.late ) { const refund = await refundProviderPayment( updated ); await markPaymentRefunded( updated, refund ); }
         else if ( result.booking ) await createPocketBaseBookingStatusUpdate( result.booking );
       } else if ( [ "FAILED", "CANCELED" ].includes( status ) ) await markPaymentFailed( updated, `square_${ status.toLowerCase() }`, "Square did not complete the payment", squarePayment );

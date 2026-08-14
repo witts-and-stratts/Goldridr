@@ -3,6 +3,7 @@ import { withWebhookAudit } from "@/lib/notifications/webhook-logs";
 import { createPocketBaseBookingStatusUpdate, recordPocketBaseProviderEvent } from "@/lib/pocketbase/notifications";
 import { refundProviderPayment, verifyPayPalWebhook } from "@/lib/payments/providers";
 import { markPaymentFailed, markPaymentPaid, markPaymentRefunded, paymentForExternalId, updatePaymentAttempt } from "@/lib/payments/repository";
+import { paypalPaymentDetails } from "@/lib/payments/details";
 
 export async function POST( request: Request ) {
   return withWebhookAudit( "paypal", request, async ( { payload } ) => {
@@ -15,7 +16,9 @@ export async function POST( request: Request ) {
     if ( payment && event.event_type === "PAYMENT.CAPTURE.COMPLETED" ) {
       await updatePaymentAttempt( payment.id, { transactionReference: captureId } );
       const updated = ( await paymentForExternalId( "paypal", orderId ) )!;
-      const result = await markPaymentPaid( updated, captureId, event.resource );
+      const details = paypalPaymentDetails( event.resource );
+      if ( updated.method === "venmo" ) details.walletType ||= "venmo";
+      const result = await markPaymentPaid( updated, captureId, event.resource, details );
       if ( result.late ) { const refund = await refundProviderPayment( updated ); await markPaymentRefunded( updated, refund ); }
       else if ( result.booking ) await createPocketBaseBookingStatusUpdate( result.booking );
     } else if ( payment && [ "PAYMENT.CAPTURE.DENIED", "CHECKOUT.PAYMENT-APPROVAL.REVERSED" ].includes( event.event_type || "" ) ) {

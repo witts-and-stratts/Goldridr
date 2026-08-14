@@ -1,6 +1,6 @@
 "use client";
 
-import { Banknote, Check, CreditCard, MoreHorizontal, RotateCcw, Trash2, X } from "lucide-react";
+import { Banknote, Check, CreditCard, Eye, MoreHorizontal, RotateCcw, Trash2, X } from "lucide-react";
 import { Button } from "@/components/admin-ui/button";
 import { Card } from "@/components/admin-ui/card";
 import {
@@ -33,9 +33,10 @@ interface PaymentsTableProps {
   onRemove: (payment: Payment) => void;
   onVerify: (payment: Payment, action: "approve" | "reject") => void;
   onRefund: (payment: Payment) => void;
+  onViewDetails: (payment: Payment) => void;
 }
 
-export function PaymentsTable({ payments, filteredPayments, loading, onUpdateStatus, onRemove, onVerify, onRefund }: PaymentsTableProps) {
+export function PaymentsTable({ payments, filteredPayments, loading, onUpdateStatus, onRemove, onVerify, onRefund, onViewDetails }: PaymentsTableProps) {
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
@@ -74,7 +75,22 @@ export function PaymentsTable({ payments, filteredPayments, loading, onUpdateSta
                 </TableCell>
               </TableRow>
             ) : filteredPayments.map(payment => (
-              <TableRow key={payment.id}>
+              <TableRow
+                key={payment.id}
+                tabIndex={0}
+                aria-label={`View payment ${payment.transactionReference || payment.confirmationReference || payment.bookingReference}`}
+                className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                onClick={event => {
+                  const target = event.target as HTMLElement;
+                  if (!event.currentTarget.contains(target) || target.closest("button, a")) return;
+                  onViewDetails(payment);
+                }}
+                onKeyDown={event => {
+                  if (event.target !== event.currentTarget || !["Enter", " "].includes(event.key)) return;
+                  event.preventDefault();
+                  onViewDetails(payment);
+                }}
+              >
                 <TableCell className="pl-6">
                   <p className="text-sm font-medium">{payment.customerName}</p>
                   <p className="text-xs text-muted-foreground">{payment.customerEmail}</p>
@@ -86,11 +102,11 @@ export function PaymentsTable({ payments, filteredPayments, loading, onUpdateSta
                 <TableCell>
                   <div className="flex items-center gap-2 text-sm">
                     {payment.method === "cash" ? <Banknote className="size-3.5 text-muted-foreground" /> : <CreditCard className="size-3.5 text-muted-foreground" />}
-                    {formatMethod(payment.method)}
+                    <span>{formatMethod(payment.method)}{payment.cardLast4 ? <span className="mt-0.5 block text-xs text-muted-foreground">{payment.cardBrand || "Card"} •••• {payment.cardLast4}</span> : payment.walletType ? <span className="mt-0.5 block text-xs capitalize text-muted-foreground">{payment.walletType.replaceAll("_", " ")}</span> : null}</span>
                   </div>
                 </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">
-                  <span>{payment.transactionReference || payment.confirmationReference || "Manual"}</span>
+                  <button type="button" onClick={() => onViewDetails(payment)} className="max-w-48 truncate text-left underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title="View transaction details">{payment.transactionReference || payment.confirmationReference || "Manual"}</button>
                   <span className="mt-0.5 block font-sans text-xs uppercase tracking-wide">{payment.provider}</span>
                 </TableCell>
                 <TableCell className="font-semibold tabular-nums">
@@ -113,6 +129,8 @@ export function PaymentsTable({ payments, filteredPayments, loading, onUpdateSta
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem onClick={() => onViewDetails(payment)}><Eye className="size-4" />View transaction</DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       {payment.status === "awaiting_verification" ? <><DropdownMenuLabel>Zelle verification</DropdownMenuLabel><DropdownMenuItem onClick={() => onVerify(payment, "approve")}><Check className="size-4" />Approve payment</DropdownMenuItem><DropdownMenuItem onClick={() => onVerify(payment, "reject")} className="text-destructive"><X className="size-4" />Reject claim</DropdownMenuItem><DropdownMenuSeparator /></> : null}
                       {payment.status === "paid" ? <><DropdownMenuItem onClick={() => onRefund(payment)}><RotateCcw className="size-4" />Issue full refund</DropdownMenuItem><DropdownMenuSeparator /></> : null}
                       {payment.provider === "manual" && payment.status !== "awaiting_verification" && payment.status !== "paid" ? <><DropdownMenuLabel>Set status</DropdownMenuLabel>{STATUS_OPTIONS.filter(option => option !== payment.status).map(option => (

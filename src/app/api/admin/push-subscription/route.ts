@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSession, isAdmin } from "@/lib/auth";
 import {
   deleteWebPushSubscription,
+  getWebPushConfiguration,
   isWebPushConfigured,
   saveWebPushSubscription,
   sendTestWebPush,
@@ -20,6 +21,18 @@ async function requireAdmin() {
 
 function unavailable() {
   return NextResponse.json( { success: false, error: "Native notifications are not configured" }, { status: 503 } );
+}
+
+export async function GET() {
+  const session = await requireAdmin();
+  if ( !session ) return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
+  const configuration = getWebPushConfiguration();
+  return NextResponse.json( {
+    success: true,
+    configured: configuration.configured,
+    publicKey: configuration.configured ? configuration.publicKey : "",
+    missing: configuration.missing,
+  } );
 }
 
 export async function PUT( request: Request ) {

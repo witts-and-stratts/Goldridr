@@ -47,3 +47,12 @@ test( "notification worker readiness does not depend on external providers", asy
   assert.match( worker, /if \( delivery\.channel === "email" \) \{\s+if \( !this\.emailTransport \)/ );
   assert.doesNotMatch( worker, /async runOnce[\s\S]*?await this\.verify\(\)/ );
 } );
+
+test( "deployment verifies settings persistence before accepting a release", async () => {
+  const deploy = await readFile( projectFile( "scripts/deploy.sh" ), "utf8" );
+  const verify = await readFile( projectFile( "scripts/pocketbase-verify.ts" ), "utf8" );
+
+  assert.match( deploy, /npm run pocketbase:verify/ );
+  assert.match( verify, /collection\("app_settings"\)\.create/ );
+  assert.match( verify, /Settings persistence verification failed/ );
+} );

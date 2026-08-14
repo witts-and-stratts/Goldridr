@@ -19,6 +19,13 @@ export interface PaymentAttempt {
   verificationExpiresAt: string | null;
   failureCode: string | null;
   failureMessage: string | null;
+  cardLast4: string | null;
+  cardBrand: string | null;
+  cardExpiryMonth: number | null;
+  cardExpiryYear: number | null;
+  walletType: string | null;
+  receiptUrl: string | null;
+  providerMetadata: unknown;
   paidAt: string | null;
   refundedAt: string | null;
 }

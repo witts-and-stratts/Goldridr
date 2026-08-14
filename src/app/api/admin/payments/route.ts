@@ -9,8 +9,8 @@ import {
   updatePayment,
 } from "@/lib/pocketbase/repository";
 
-const PaymentStatus = z.enum( [ "pending", "paid", "refunded", "failed" ] );
-const PaymentMethod = z.enum( [ "card", "cash", "bank_transfer", "other" ] );
+const PaymentStatus = z.enum( [ "pending", "awaiting_verification", "paid", "refunded", "failed", "expired" ] );
+const PaymentMethod = z.enum( [ "card", "zelle", "cash", "bank_transfer", "other" ] );
 
 const CreatePaymentSchema = z.object( {
   bookingReference: z.string().min( 1 ),

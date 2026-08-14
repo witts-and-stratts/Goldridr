@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "npm@11.18.0",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 3004",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -14,9 +14,11 @@
     "flights:worker": "tsx scripts/flight-tracking-worker.ts",
     "pocketbase:backup": "tsx scripts/pocketbase-backup.ts",
     "pocketbase:migrate": "docker compose exec pocketbase pocketbase migrate up --dir=/pb/pb_data --migrationsDir=/pb/pb_migrations",
-    "pocketbase:verify": "tsx scripts/pocketbase-verify.ts",
+    "pocketbase:verify": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --import tsx scripts/pocketbase-verify.ts",
     "registry:validate": "shadcn registry validate",
-    "registry:build": "shadcn build registry.json --output public/r"
+    "registry:build": "shadcn build registry.json --output public/r",
+    "stripe-event:listen": "stripe listen --forward-to localhost:3001/api/webhooks/stripe",
+    "ngrok:listen": "ngrok http 3004 --log=stdout --log-format=logfmt --log-level=debug"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1066.0",
