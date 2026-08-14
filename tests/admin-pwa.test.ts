@@ -44,12 +44,17 @@ test("admin service worker displays native notifications and deep-links inbox it
 
 test("native notification registration is admin-only and validates subscriptions", async () => {
   const route = await readFile(projectFile("src/app/api/admin/push-subscription/route.ts"), "utf8");
+  const settings = await readFile(projectFile("src/app/admin/settings/components/native-notification-settings.tsx"), "utf8");
 
   assert.match(route, /isAdmin\( session \)/);
+  assert.match(route, /export async function GET/);
+  assert.match(route, /getWebPushConfiguration/);
   assert.match(route, /webPushSubscriptionSchema\.safeParse/);
   assert.match(route, /export async function PUT/);
   assert.match(route, /export async function DELETE/);
   assert.match(route, /export async function POST/);
+  assert.match(settings, /fetch\( "\/api\/admin\/push-subscription"/);
+  assert.doesNotMatch(settings, /process\.env\.NEXT_PUBLIC_VAPID_PUBLIC_KEY/);
 });
 
 test("admin shell shows new inbox events as deduplicated foreground toasts", async () => {

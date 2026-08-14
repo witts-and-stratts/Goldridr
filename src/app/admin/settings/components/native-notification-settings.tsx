@@ -44,7 +44,7 @@ async function apiRequest( method: "PUT" | "POST" | "DELETE", subscription: Push
 }
 
 export function NativeNotificationSettings() {
-  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
+  const [ vapidPublicKey, setVapidPublicKey ] = useState( "" );
   const [ state, setState ] = useState<NativeNotificationState>( "checking" );
   const [ busy, setBusy ] = useState<"enable" | "disable" | "test" | null>( null );
   const [ detail, setDetail ] = useState( "Checking this device…" );
@@ -55,9 +55,21 @@ export function NativeNotificationSettings() {
       setDetail( "This browser does not support Web Push notifications." );
       return;
     }
-    if ( !vapidPublicKey ) {
-      setState( "unsupported" );
-      setDetail( "Web Push has not been configured on this deployment." );
+    try {
+      const response = await fetch( "/api/admin/push-subscription", { cache: "no-store" } );
+      const configuration = await response.json().catch( () => ( {} ) ) as { configured?: boolean; publicKey?: string; missing?: string[]; error?: string };
+      if ( !response.ok ) throw new Error( configuration.error || "Unable to check Web Push configuration" );
+      if ( !configuration.configured || !configuration.publicKey ) {
+        setState( "unsupported" );
+        setDetail( configuration.missing?.length
+          ? `Web Push is missing ${ configuration.missing.join( ", " ) } on the web service.`
+          : "Web Push has not been configured on this deployment." );
+        return;
+      }
+      setVapidPublicKey( configuration.publicKey );
+    } catch ( error ) {
+      setState( "error" );
+      setDetail( error instanceof Error ? error.message : "Unable to check Web Push configuration." );
       return;
     }
     if ( isIosDevice() && !isStandalone() ) {
@@ -86,7 +98,7 @@ export function NativeNotificationSettings() {
       setState( "error" );
       setDetail( "This device could not connect to the notification service. Try again." );
     }
-  }, [ vapidPublicKey ] );
+  }, [] );
 
   useEffect( () => {
     const frame = window.requestAnimationFrame( () => {
@@ -98,6 +110,7 @@ export function NativeNotificationSettings() {
   const enable = async () => {
     setBusy( "enable" );
     try {
+      if ( !vapidPublicKey ) throw new Error( "Web Push configuration is unavailable. Reload the page and try again." );
       const permission = await Notification.requestPermission();
       if ( permission !== "granted" ) {
         setState( permission === "denied" ? "blocked" : "disabled" );

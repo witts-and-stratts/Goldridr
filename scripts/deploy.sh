@@ -128,6 +128,13 @@ if ! docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans --
   exit 1
 fi
 
+if ! docker compose --env-file .env -f "$COMPOSE_FILE" run --rm --no-deps notifications-worker npm run pocketbase:verify; then
+  echo "PocketBase application persistence verification failed" >&2
+  docker compose --env-file .env -f "$COMPOSE_FILE" logs --tail=100 pocketbase web notifications-worker >&2
+  rollback_release
+  exit 1
+fi
+
 container_id="$(docker compose --env-file .env -f "$COMPOSE_FILE" ps -q web)"
 status=""
 

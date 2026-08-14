@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronRight, Clock3, Loader2, XCircle } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { siApplepay, siCashapp, siMastercard, siVenmo, siVisa, siZelle, type SimpleIcon } from "simple-icons";
 import { InteractiveRouteMap } from "@/components/booking/InteractiveRouteMap";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -27,6 +28,13 @@ type Checkout = {
   activeProcessor: "stripe" | "square";
   zelleRecipient: string;
   zelleInstructions: string;
+  billingContact: {
+    givenName: string;
+    familyName: string;
+    email: string;
+    phone: string;
+    countryCode: string;
+  };
   square: { applicationId: string; locationId: string; environment: "production" | "sandbox" } | null;
   paypal: { clientId: string; environment: "production" | "sandbox" } | null;
   credentialHealth: { stripe: boolean; square: boolean; paypal: boolean };
@@ -93,6 +101,7 @@ function loadScript( id: string, src: string ): Promise<void> {
 }
 
 export function CheckoutClient( { token }: { token: string } ) {
+  const router = useRouter();
   const [ checkout, setCheckout ] = useState<Checkout | null>( null );
   const [ selected, setSelected ] = useState<Method | null>( null );
   const [ loading, setLoading ] = useState( true );
@@ -129,27 +138,12 @@ export function CheckoutClient( { token }: { token: string } ) {
     return () => window.clearInterval( timer );
   }, [ checkout?.holdExpiresAt ] );
 
-  const pollForConfirmation = useCallback( async () => {
-    for ( let attempt = 0; attempt < 30; attempt++ ) {
-      const current = await loadCheckout();
-      if ( [ "confirmed", "payment_review", "payment_expired", "cancelled" ].includes( current.status ) ) return;
-      await new Promise( resolve => window.setTimeout( resolve, 2000 ) );
-    }
-  }, [ loadCheckout ] );
-
-  useEffect( () => {
-    if ( new URLSearchParams( window.location.search ).get( "payment" ) === "success" ) {
-      const timer = window.setTimeout( () => pollForConfirmation().catch( cause => setError( cause instanceof Error ? cause.message : "Unable to verify payment" ) ), 0 );
-      return () => window.clearTimeout( timer );
-    }
-  }, [ pollForConfirmation ] );
-
   const processSquareSource = useCallback( async ( method: Method, sourceId: string ) => {
     const response = await fetch( `/api/payments/checkout/${ encodeURIComponent( token ) }/square`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify( { method, sourceId } ) } );
-    const data = await response.json();
+    const data = await response.json().catch( () => ( {} ) );
     if ( !response.ok ) throw new Error( data.error || "Square could not complete the payment" );
-    await pollForConfirmation();
-  }, [ pollForConfirmation, token ] );
+    router.push( `/pay/${ encodeURIComponent( token ) }/confirmation` );
+  }, [ router, token ] );
 
   useEffect( () => {
     squareMethod.current = null;
@@ -196,8 +190,7 @@ export function CheckoutClient( { token }: { token: string } ) {
           setSubmitting( true );
           const response = await fetch( `/api/payments/checkout/${ encodeURIComponent( token ) }/paypal-capture`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify( { orderId: data.orderID } ) } );
           if ( !response.ok ) throw new Error( "Venmo could not be captured" );
-          await pollForConfirmation();
-          setSubmitting( false );
+          router.push( `/pay/${ encodeURIComponent( token ) }/confirmation` );
         },
         onError: ( cause: unknown ) => setError( cause instanceof Error ? cause.message : "Venmo could not complete the payment" ),
       } );
@@ -205,7 +198,7 @@ export function CheckoutClient( { token }: { token: string } ) {
       paypalRendered.current = true;
       return buttons.render( "#venmo-button" );
     } ).catch( cause => setError( cause instanceof Error ? cause.message : "Venmo is unavailable" ) );
-  }, [ checkout?.paypal, pollForConfirmation, selected, token ] );
+  }, [ checkout?.paypal, router, selected, token ] );
 
   const onlinePay = async () => {
     if ( !checkout || !selected || selected === "venmo" || selected === "zelle" ) return;
@@ -214,7 +207,7 @@ export function CheckoutClient( { token }: { token: string } ) {
     try {
       if ( checkout.activeProcessor === "square" ) {
         if ( !squareMethod.current?.tokenize ) throw new Error( "The payment control is still loading" );
-        const tokenResult = await squareMethod.current.tokenize( selected === "card" ? { amount: ( checkout.totalCents / 100 ).toFixed( 2 ), currencyCode: "USD", intent: "CHARGE", customerInitiated: true, sellerKeyedIn: false } : undefined );
+        const tokenResult = await squareMethod.current.tokenize( selected === "card" ? { amount: ( checkout.totalCents / 100 ).toFixed( 2 ), billingContact: checkout.billingContact, currencyCode: "USD", intent: "CHARGE", customerInitiated: true, sellerKeyedIn: false } : undefined );
         if ( tokenResult.status !== "OK" || !tokenResult.token ) throw new Error( tokenResult.errors?.[ 0 ]?.message || "Payment authorization failed" );
         await processSquareSource( selected, tokenResult.token );
         return;

@@ -123,6 +123,7 @@ export function RecordPaymentDialog({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="zelle">Zelle</SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="bank_transfer">Bank transfer</SelectItem>
                   <SelectItem value="other">Other</SelectItem>

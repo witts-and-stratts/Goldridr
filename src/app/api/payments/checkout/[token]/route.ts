@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPaymentCredentialHealth, getPaymentSettings } from "@/lib/admin-settings";
-import { expirePaymentHolds, findBookingByPaymentToken } from "@/lib/payments/repository";
+import { expirePaymentHolds, findBookingByPaymentToken, latestPaymentForBooking } from "@/lib/payments/repository";
 import { paypalBrowserConfig, squareBrowserConfig } from "@/lib/payments/providers";
 
 export async function GET( _request: Request, { params }: { params: Promise<{ token: string }> } ) {
@@ -11,6 +11,7 @@ export async function GET( _request: Request, { params }: { params: Promise<{ to
   const settings = await getPaymentSettings();
   const health = await getPaymentCredentialHealth();
   const trip = JSON.parse( booking.tripDetails || "{}" ) as Record<string, unknown>;
+  const payment = await latestPaymentForBooking( booking.reference );
 
   let square: Awaited<ReturnType<typeof squareBrowserConfig>> | null = null;
   let paypal: Awaited<ReturnType<typeof paypalBrowserConfig>> | null = null;
@@ -38,9 +39,35 @@ export async function GET( _request: Request, { params }: { params: Promise<{ to
       activeProcessor: settings.activeProcessor,
       zelleRecipient: settings.zelleRecipient,
       zelleInstructions: settings.zelleInstructions,
+      billingContact: (() => {
+        const nameParts = booking.name.trim().split(/\s+/).filter( Boolean );
+        return {
+          givenName: nameParts[0] || "Customer",
+          familyName: nameParts.slice( 1 ).join( " " ) || nameParts[0] || "Customer",
+          email: booking.email,
+          phone: booking.phone,
+          countryCode: "US",
+        };
+      })(),
       square,
       paypal,
       credentialHealth: health,
+      payment: payment ? {
+        status: payment.status,
+        method: payment.method,
+        provider: payment.provider,
+        amountCents: payment.amountCents,
+        currency: payment.currency,
+        paymentReference: payment.transactionReference,
+        cardLast4: payment.cardLast4,
+        cardBrand: payment.cardBrand,
+        cardExpiryMonth: payment.cardExpiryMonth,
+        cardExpiryYear: payment.cardExpiryYear,
+        walletType: payment.walletType,
+        receiptUrl: payment.receiptUrl,
+        paidAt: payment.paidAt,
+        failureMessage: payment.failureMessage,
+      } : null,
     },
   } );
 }

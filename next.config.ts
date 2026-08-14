@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
     root: process.cwd(),
   },
   cacheComponents: true,
-  allowedDevOrigins: ['100.104.165.110', 'localhost', '127.0.0.1'],
+  allowedDevOrigins: ['100.104.165.110', 'localhost', '127.0.0.1', 'wittss-macbook-pro-2.tail0f543.ts.net', 'true-apes-follow.loca.lt', 'goldridr.local'],
   async headers() {
     return [
       {

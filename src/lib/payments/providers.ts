@@ -1,5 +1,5 @@
 import "server-only";
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import Stripe from "stripe";
 import { getPaymentCredential, getPaymentSettings, type PaymentCredentialKey } from "@/lib/admin-settings";
 import type { BookingRecord } from "@/lib/pocketbase/repository";
@@ -33,7 +33,7 @@ export async function createStripeCheckout( payment: PaymentAttempt, booking: Bo
     client_reference_id: booking.reference,
     metadata: { paymentId: String( payment.id ), bookingReference: booking.reference, method },
     payment_intent_data: { metadata: { paymentId: String( payment.id ), bookingReference: booking.reference, method } },
-    success_url: `${ paymentPageUrl }?payment=success`,
+    success_url: `${ paymentPageUrl }/confirmation`,
     cancel_url: `${ paymentPageUrl }?payment=cancelled`,
     ...( canUseProviderExpiry ? { expires_at: expiresAt } : {} ),
   }, { idempotencyKey: payment.idempotencyKey || undefined } );
@@ -45,8 +45,16 @@ export async function constructStripeEvent( rawBody: string, signature: string )
   return ( await stripeClient() ).webhooks.constructEvent( rawBody, signature, await required( "STRIPE_WEBHOOK_SECRET" ) );
 }
 
+export async function retrieveStripeCheckout( sessionId: string ): Promise<Stripe.Checkout.Session> {
+  return ( await stripeClient() ).checkout.sessions.retrieve( sessionId, { expand: [ "payment_intent.latest_charge" ] } );
+}
+
 async function squareBaseUrl(): Promise<string> {
   return ( await getPaymentSettings() ).squareEnvironment === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com";
+}
+
+function squareIdempotencyKey( value: string | number ): string {
+  return `sq_${ createHash( "sha256" ).update( String( value ) ).digest( "hex" ).slice( 0, 40 ) }`;
 }
 
 async function squareRequest( path: string, init: RequestInit ): Promise<Record<string, unknown>> {
@@ -78,7 +86,7 @@ export async function createSquarePayment( payment: PaymentAttempt, booking: Boo
     method: "POST",
     body: JSON.stringify( {
       source_id: sourceId,
-      idempotency_key: payment.idempotencyKey,
+      idempotency_key: squareIdempotencyKey( payment.idempotencyKey || payment.id ),
       amount_money: { amount: payment.amountCents, currency: "USD" },
       location_id: await required( "SQUARE_LOCATION_ID" ),
       autocomplete: true,
@@ -166,7 +174,7 @@ export async function refundProviderPayment( payment: PaymentAttempt ): Promise<
   }
   if ( payment.provider === "square" ) {
     if ( !payment.transactionReference ) throw new Error( "Square payment ID is missing" );
-    const data = await squareRequest( "/v2/refunds", { method: "POST", body: JSON.stringify( { idempotency_key: `${ payment.idempotencyKey || payment.id }:refund`, payment_id: payment.transactionReference, amount_money: { amount: payment.amountCents, currency: "USD" }, reason: `Refund ${ payment.bookingReference }` } ) } );
+  const data = await squareRequest( "/v2/refunds", { method: "POST", body: JSON.stringify( { idempotency_key: squareIdempotencyKey( `${ payment.idempotencyKey || payment.id }:refund` ), payment_id: payment.transactionReference, amount_money: { amount: payment.amountCents, currency: "USD" }, reason: `Refund ${ payment.bookingReference }` } ) } );
     return String( ( data.refund as Record<string, unknown> ).id );
   }
   if ( payment.provider === "paypal" ) {

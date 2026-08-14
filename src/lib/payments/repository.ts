@@ -10,11 +10,13 @@ import { paymentTokenHash } from "./tokens";
 import type { PaymentAttempt, PaymentMethod, PaymentProvider, PaymentStatus } from "./types";
 import { cancelPaymentReminder } from "./hold-expiry";
 import { createPocketBasePaymentStatusUpdate } from "@/lib/pocketbase/notifications";
+import { compactPaymentDetails, type StoredPaymentDetails } from "./details";
 
 export { cancelPaymentReminder, expirePaymentHolds } from "./hold-expiry";
 
 const pb = () => getPocketBaseClient();
 const text = ( value: unknown ) => value ? String( value ) : null;
+const positiveNumber = ( value: unknown ) => Number( value ) > 0 ? Number( value ) : null;
 
 function mapPayment( row: RecordModel ): PaymentAttempt {
   return {
@@ -33,6 +35,13 @@ function mapPayment( row: RecordModel ): PaymentAttempt {
     verificationExpiresAt: text( row.verificationExpiresAt ),
     failureCode: text( row.failureCode ),
     failureMessage: text( row.failureMessage ),
+    cardLast4: text( row.cardLast4 ),
+    cardBrand: text( row.cardBrand ),
+    cardExpiryMonth: positiveNumber( row.cardExpiryMonth ),
+    cardExpiryYear: positiveNumber( row.cardExpiryYear ),
+    walletType: text( row.walletType ),
+    receiptUrl: text( row.receiptUrl ),
+    providerMetadata: row.providerMetadata ?? null,
     paidAt: text( row.paidAt ),
     refundedAt: text( row.refundedAt ),
   };
@@ -52,6 +61,19 @@ export async function paymentForId( id: number ): Promise<PaymentAttempt | undef
 export async function paymentForExternalId( provider: PaymentProvider, externalId: string ): Promise<PaymentAttempt | undefined> {
   const row = await first( pocketBaseCollections.payments, "provider = {:provider} && externalId = {:externalId}", { provider, externalId } );
   return row ? mapPayment( row ) : undefined;
+}
+
+export async function latestPaymentForBooking( bookingReference: string ): Promise<PaymentAttempt | undefined> {
+  const completed = await pb().collection( pocketBaseCollections.payments ).getList( 1, 1, {
+    filter: pb().filter( "bookingReference = {:bookingReference} && (status = 'paid' || status = 'refunded')", { bookingReference } ),
+    sort: "-created",
+  } );
+  if ( completed.items[ 0 ] ) return mapPayment( completed.items[ 0 ] );
+  const rows = await pb().collection( pocketBaseCollections.payments ).getList( 1, 1, {
+    filter: pb().filter( "bookingReference = {:bookingReference}", { bookingReference } ),
+    sort: "-created",
+  } );
+  return rows.items[ 0 ] ? mapPayment( rows.items[ 0 ] ) : undefined;
 }
 
 export async function createPaymentAttempt( input: { booking: BookingRecord; method: PaymentMethod; provider: PaymentProvider } ): Promise<PaymentAttempt> {
@@ -88,7 +110,7 @@ async function notifyPaymentStatus( id: number, booking?: BookingRecord ): Promi
   }
 }
 
-export async function markPaymentPaid( payment: PaymentAttempt, transactionReference?: string, metadata?: unknown ): Promise<{ booking?: BookingRecord; late: boolean }> {
+export async function markPaymentPaid( payment: PaymentAttempt, transactionReference?: string, metadata?: unknown, details: StoredPaymentDetails = {} ): Promise<{ booking?: BookingRecord; late: boolean }> {
   if ( payment.status === "paid" ) return { booking: await getBookingByReference( payment.bookingReference ), late: false };
   const booking = await getBookingByReference( payment.bookingReference );
   if ( !booking ) throw new Error( "Booking not found" );
@@ -98,7 +120,7 @@ export async function markPaymentPaid( payment: PaymentAttempt, transactionRefer
   if ( terminal || clash ) return { booking, late: true };
 
   const now = new Date().toISOString();
-  await updatePaymentAttempt( payment.id, { status: "paid", transactionReference: transactionReference || payment.transactionReference || "", paidAt: now, providerMetadata: metadata || {} } );
+  await updatePaymentAttempt( payment.id, { status: "paid", transactionReference: transactionReference || payment.transactionReference || "", paidAt: now, providerMetadata: metadata || {}, ...compactPaymentDetails( details ) } );
   const row = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: booking.reference } );
   if ( row ) await pb().collection( pocketBaseCollections.bookings ).update( row.id, { status: "confirmed", paymentConfirmedAt: now } );
   await cancelPaymentReminder( booking.reference );
@@ -128,7 +150,12 @@ export async function submitZelleClaim( booking: BookingRecord, senderName: stri
 
 export async function markPaymentRefunded( payment: PaymentAttempt, refundReference: string ): Promise<BookingRecord | undefined> {
   const now = new Date().toISOString();
-  await updatePaymentAttempt( payment.id, { status: "refunded", refundedAt: now, providerMetadata: { refundReference } } );
+  const current = await paymentForId( payment.id );
+  const metadata = current?.providerMetadata;
+  const providerMetadata = metadata && typeof metadata === "object" && !Array.isArray( metadata )
+    ? { ...metadata as Record<string, unknown>, refundReference }
+    : { transaction: metadata ?? null, refundReference };
+  await updatePaymentAttempt( payment.id, { status: "refunded", refundedAt: now, providerMetadata } );
   const row = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: payment.bookingReference } );
   if ( row ) await pb().collection( pocketBaseCollections.bookings ).update( row.id, { status: "cancelled" } );
   await cancelPaymentReminder( payment.bookingReference );
