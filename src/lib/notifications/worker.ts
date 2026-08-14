@@ -105,15 +105,28 @@ export class NotificationWorker {
     this.onEvent?.( event );
   }
 
+  async initialize(): Promise<void> {
+    if ( !this.emailTransport ) this.emailTransport = await createEmailTransport();
+    if ( !this.smsTransport ) this.smsTransport = await createSmsTransport();
+  }
+
+  async verifyEmail(): Promise<void> {
+    if ( !this.emailTransport ) this.emailTransport = await createEmailTransport();
+    await this.emailTransport!.verify();
+  }
+
+  async verifySms(): Promise<void> {
+    if ( !this.smsTransport ) this.smsTransport = await createSmsTransport();
+    await this.smsTransport!.verify();
+  }
+
   async verify(): Promise<void> {
-    this.emailTransport = await createEmailTransport();
-    await this.emailTransport.verify();
-    this.smsTransport = await createSmsTransport();
-    await this.smsTransport.verify();
+    await this.initialize();
+    await this.verifyEmail();
+    await this.verifySms();
   }
 
   async runOnce( limit = 20, concurrency = 5 ): Promise<{ claimed: number; delivered: number; failed: number }> {
-    if ( !this.emailTransport ) await this.verify();
     await processPushReceipts( undefined );
     await expirePaymentHolds();
     const deliveries = await this.queue.claim( limit );
@@ -170,6 +183,7 @@ export class NotificationWorker {
       metadata?: Record<string, unknown>;
     };
     if ( delivery.channel === "email" ) {
+      if ( !this.emailTransport ) this.emailTransport = await createEmailTransport();
       if ( typeof delivery.recipient !== "string" || !delivery.recipient.trim() ) {
         throw new Error( "Email delivery has no recipient address" );
       }

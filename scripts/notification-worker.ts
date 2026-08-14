@@ -29,6 +29,8 @@ function positiveInteger( value: string | undefined, fallback: number ): number 
 const pollMs = positiveInteger( process.env.NOTIFICATION_POLL_MS, 500 );
 const batchSize = positiveInteger( process.env.NOTIFICATION_BATCH_SIZE, 20 );
 const concurrency = positiveInteger( process.env.NOTIFICATION_CONCURRENCY, 5 );
+const providerVerifyTimeoutMs = positiveInteger( process.env.NOTIFICATION_PROVIDER_VERIFY_TIMEOUT_MS, 10_000 );
+const realtimeSubscribeTimeoutMs = positiveInteger( process.env.NOTIFICATION_REALTIME_SUBSCRIBE_TIMEOUT_MS, 10_000 );
 const readinessFile = process.env.NOTIFICATION_READY_FILE;
 let stopping = false;
 let wakePending = false;
@@ -52,6 +54,27 @@ function log( level: LogLevel, event: string, details: Record<string, unknown> =
   if ( level === "error" ) console.error( entry );
   else if ( level === "warn" ) console.warn( entry );
   else console.log( entry );
+}
+
+async function withTimeout( operation: Promise<void>, timeoutMs: number, name: string ): Promise<void> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race( [
+      operation,
+      new Promise<never>( ( _resolve, reject ) => {
+        timeout = setTimeout( () => reject( new Error( `${ name } verification timed out after ${ timeoutMs }ms` ) ), timeoutMs );
+      } ),
+    ] );
+  } finally {
+    if ( timeout ) clearTimeout( timeout );
+  }
+}
+
+function verifyInBackground( name: string, operation: () => Promise<void> ): void {
+  log( "info", "worker.provider_verification_started", { provider: name, timeoutMs: providerVerifyTimeoutMs } );
+  void withTimeout( operation(), providerVerifyTimeoutMs, name )
+    .then( () => log( "info", "worker.provider_verification_succeeded", { provider: name } ) )
+    .catch( error => log( "warn", "worker.provider_verification_failed", { provider: name, ...errorDetails( error ) } ) );
 }
 
 for ( const signal of [ "SIGINT", "SIGTERM" ] as const ) {
@@ -92,25 +115,34 @@ async function main() {
   let unsubscribe: ( () => Promise<void> ) | undefined;
   try {
     log( "info", "worker.starting", { pollMs, batchSize, concurrency, realtimeWakeUpEnabled: true, inboundEmailEnabled: true } );
-    await worker.verify();
-    await inboundEmail.verify();
-    try {
-      unsubscribe = await getPocketBaseClient().collection( pocketBaseCollections.deliveries ).subscribe( "*", event => {
-        const record = event.record as { status?: unknown; nextAttemptAt?: unknown; leaseExpiresAt?: unknown };
-        const now = Date.now();
-        const nextAttemptAt = Date.parse( String( record.nextAttemptAt || "" ) );
-        const leaseExpiresAt = record.leaseExpiresAt ? Date.parse( String( record.leaseExpiresAt ) ) : 0;
-        if ( record.status === "pending" && nextAttemptAt <= now && ( !leaseExpiresAt || leaseExpiresAt <= now ) ) {
-          log( "info", "worker.wake_requested", { source: "delivery_realtime" } );
-          requestWake();
-        }
-      } );
-      log( "info", "worker.realtime_subscribed", { collection: pocketBaseCollections.deliveries } );
-    } catch ( error ) {
-      log( "warn", "worker.realtime_subscription_failed", { fallback: "polling", ...errorDetails( error ) } );
-    }
     if ( readinessFile ) fs.writeFileSync( readinessFile, String( process.pid ) );
     log( "info", "worker.ready", { readinessFile: readinessFile || null } );
+    void withTimeout(
+      Promise.resolve().then( async () => {
+        const stopSubscription = await getPocketBaseClient().collection( pocketBaseCollections.deliveries ).subscribe( "*", event => {
+          const record = event.record as { status?: unknown; nextAttemptAt?: unknown; leaseExpiresAt?: unknown };
+          const now = Date.now();
+          const nextAttemptAt = Date.parse( String( record.nextAttemptAt || "" ) );
+          const leaseExpiresAt = record.leaseExpiresAt ? Date.parse( String( record.leaseExpiresAt ) ) : 0;
+          if ( record.status === "pending" && nextAttemptAt <= now && ( !leaseExpiresAt || leaseExpiresAt <= now ) ) {
+            log( "info", "worker.wake_requested", { source: "delivery_realtime" } );
+            requestWake();
+          }
+        } );
+        if ( stopping ) await stopSubscription();
+        else {
+          unsubscribe = stopSubscription;
+          log( "info", "worker.realtime_subscribed", { collection: pocketBaseCollections.deliveries } );
+        }
+      } ),
+      realtimeSubscribeTimeoutMs,
+      "PocketBase realtime subscription"
+    ).catch( error => {
+      log( "warn", "worker.realtime_subscription_failed", { fallback: "polling", ...errorDetails( error ) } );
+    } );
+    verifyInBackground( "email", () => worker.verifyEmail() );
+    verifyInBackground( "sms", () => worker.verifySms() );
+    verifyInBackground( "inbound_email", () => inboundEmail.verify() );
     while ( !stopping ) {
       wakePending = false;
       if ( Date.now() - lastWebhookCleanupAt >= 3_600_000 ) {
@@ -132,8 +164,12 @@ async function main() {
         }
       } while ( !stopping && result.claimed === batchSize );
       const inboundStartedAt = Date.now();
-      const received = await inboundEmail.poll();
-      if ( received > 0 ) log( "info", "worker.inbound_email_cycle_completed", { received, durationMs: Date.now() - inboundStartedAt } );
+      try {
+        const received = await inboundEmail.poll();
+        if ( received > 0 ) log( "info", "worker.inbound_email_cycle_completed", { received, durationMs: Date.now() - inboundStartedAt } );
+      } catch ( error ) {
+        log( "warn", "worker.inbound_email_cycle_failed", { durationMs: Date.now() - inboundStartedAt, ...errorDetails( error ) } );
+      }
       await waitForWork();
     }
   } finally {
