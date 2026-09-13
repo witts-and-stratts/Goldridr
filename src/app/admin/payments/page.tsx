@@ -191,7 +191,7 @@ export default function PaymentsPage() {
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Payments</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Track customer charges against bookings.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">Review individual payment attempts and processor outcomes.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => {

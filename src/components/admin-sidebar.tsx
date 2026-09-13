@@ -8,7 +8,7 @@ import {
   LayoutDashboard, CalendarDays, Users, BookOpen,
   ShieldCheck, ChevronRight, LogOut, Mail, Settings,
   TestTube2, CreditCard, TicketPercent, ScanLine, Car,
-  ScrollText,
+  ScrollText, FileText, LayoutTemplate,
 } from "lucide-react"
 import {
   Collapsible,
@@ -45,6 +45,7 @@ const navSections = [
       { label: "Logs", icon: ScrollText, href: "/admin/logs", adminOnly: true },
       { label: "Settings", icon: Settings, href: "/admin/settings" },
       { label: "Testing", icon: TestTube2, href: "/admin/testing", adminOnly: true, developmentOnly: true },
+      { label: "Templates", icon: LayoutTemplate, href: "/admin/templates", adminOnly: true, developmentOnly: true },
     ],
   },
   {
@@ -55,6 +56,7 @@ const navSections = [
       { label: "Calendar", icon: CalendarDays, href: "/admin/calendar"  },
       { label: "Scan",     icon: ScanLine,     href: "/admin/scan"      },
       { label: "Payments", icon: CreditCard, href: "/admin/payments", adminOnly: true },
+      { label: "Invoices", icon: FileText, href: "/admin/invoices", adminOnly: true },
       { label: "Discounts", icon: TicketPercent, href: "/admin/discounts", adminOnly: true },
     ],
   },

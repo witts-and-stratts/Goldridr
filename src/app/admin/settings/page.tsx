@@ -1,36 +1,35 @@
-'use client';
+"use client";
 
-import { type ChangeEvent, useEffect, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { qk } from '@/lib/query-keys';
-import { Button } from '@/components/admin-ui/button';
-import { Separator } from '@/components/admin-ui/separator';
-import { Badge } from '@/components/admin-ui/badge';
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
+import { Button } from "@/components/admin-ui/button";
+import { Separator } from "@/components/admin-ui/separator";
+import { Badge } from "@/components/admin-ui/badge";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@/components/admin-ui/tabs';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { SuperField } from '@/components/ui/super-field';
-import { InputGroupButton } from '@/components/ui/input-group';
+} from "@/components/admin-ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { SuperField } from "@/components/ui/super-field";
+import { InputGroupButton } from "@/components/ui/input-group";
 import {
   CheckCircle2,
   CircleAlert,
   Eye,
   EyeOff,
   LoaderCircle,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   siPaypal,
-  siSquare,
   siStripe,
   siVenmo,
   siZelle,
   type SimpleIcon,
-} from 'simple-icons';
+} from "simple-icons";
 import type {
   Preference,
   AdminSettingsState,
@@ -39,34 +38,34 @@ import type {
   PaymentProviderConfiguration,
   PaymentProviderConfigurations,
   ProviderTab,
-} from './types';
+} from "./types";
 import {
   EMPTY_PAYMENT_CREDENTIALS,
   EMPTY_SETTINGS,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CHANNELS,
   PAYMENT_METHOD_OPTIONS,
-} from './constants';
-import { NativeNotificationSettings } from './components/native-notification-settings';
+} from "./constants";
+import { NativeNotificationSettings } from "./components/native-notification-settings";
 
 const TIMEZONE_LABEL_DATE = new Date();
 
 function timezoneOffsetLabel(timezone: string): string {
   const offset =
-    new Intl.DateTimeFormat('en-US', {
+    new Intl.DateTimeFormat("en-US", {
       timeZone: timezone,
-      timeZoneName: 'longOffset',
+      timeZoneName: "longOffset",
     })
       .formatToParts(TIMEZONE_LABEL_DATE)
-      .find((part) => part.type === 'timeZoneName')?.value || 'GMT';
+      .find((part) => part.type === "timeZoneName")?.value || "GMT";
   const normalized =
-    offset === 'GMT'
-      ? 'GMT +00:00'
-      : offset.replace(/^GMT([+-])(\d{2}):(\d{2})$/, 'GMT $1$2:$3');
+    offset === "GMT"
+      ? "GMT +00:00"
+      : offset.replace(/^GMT([+-])(\d{2}):(\d{2})$/, "GMT $1$2:$3");
   return `${timezone} (${normalized})`;
 }
 
-const AVAILABLE_TIMEZONES = ['UTC', ...Intl.supportedValuesOf('timeZone')].map(
+const AVAILABLE_TIMEZONES = ["UTC", ...Intl.supportedValuesOf("timeZone")].map(
   (timezone) => ({
     value: timezone,
     label: timezoneOffsetLabel(timezone),
@@ -81,24 +80,17 @@ const PAYMENT_PROVIDERS: Array<{
   icons: SimpleIcon[];
 }> = [
   {
-    key: 'stripe',
-    label: 'Stripe',
-    description: 'Hosted checkout and verified payment webhooks.',
-    methods: 'Card · Apple Pay · Cash App Pay',
+    key: "stripe",
+    label: "Stripe",
+    description: "Hosted checkout and verified payment webhooks.",
+    methods: "Card · Apple Pay · Cash App Pay",
     icons: [siStripe],
   },
   {
-    key: 'square',
-    label: 'Square',
-    description: 'Web Payments SDK with server-side payment capture.',
-    methods: 'Card · Apple Pay · Cash App Pay',
-    icons: [siSquare],
-  },
-  {
-    key: 'paypal',
-    label: 'PayPal / Venmo',
-    description: 'PayPal Orders API and Venmo checkout eligibility.',
-    methods: 'Venmo',
+    key: "paypal",
+    label: "PayPal / Venmo",
+    description: "PayPal Orders API and Venmo checkout eligibility.",
+    methods: "Venmo",
     icons: [siPaypal, siVenmo],
   },
 ];
@@ -110,27 +102,21 @@ const BOOKING_PROCESSORS: Array<{
   icons: SimpleIcon[];
 }> = [
   {
-    key: 'stripe',
-    label: 'Stripe',
-    description: 'Card and digital wallets',
+    key: "stripe",
+    label: "Stripe",
+    description: "Card and digital wallets",
     icons: [siStripe],
   },
   {
-    key: 'square',
-    label: 'Square',
-    description: 'Card and digital wallets',
-    icons: [siSquare],
-  },
-  {
-    key: 'paypal',
-    label: 'PayPal / Venmo',
-    description: 'Venmo checkout',
+    key: "paypal",
+    label: "PayPal / Venmo",
+    description: "Venmo checkout",
     icons: [siPaypal, siVenmo],
   },
   {
-    key: 'zelle',
-    label: 'Zelle',
-    description: 'Manual verification',
+    key: "zelle",
+    label: "Zelle",
+    description: "Manual verification",
     icons: [siZelle],
   },
 ];
@@ -140,34 +126,28 @@ const PROVIDER_CREDENTIAL_FIELDS: Record<
   Array<{ key: PaymentCredentialKey; label: string }>
 > = {
   stripe: [
-    { key: 'STRIPE_SECRET_KEY', label: 'Secret key' },
-    { key: 'STRIPE_WEBHOOK_SECRET', label: 'Webhook signing secret' },
-  ],
-  square: [
-    { key: 'SQUARE_ACCESS_TOKEN', label: 'Access token' },
-    { key: 'SQUARE_APP_ID', label: 'Application ID' },
-    { key: 'SQUARE_LOCATION_ID', label: 'Location ID' },
-    { key: 'SQUARE_WEBHOOK_SIGNATURE_KEY', label: 'Webhook signature key' },
+    { key: "STRIPE_SECRET_KEY", label: "Secret key" },
+    { key: "STRIPE_WEBHOOK_SECRET", label: "Webhook signing secret" },
   ],
   paypal: [
-    { key: 'PAYPAL_CLIENT_ID', label: 'Client ID' },
-    { key: 'PAYPAL_CLIENT_SECRET', label: 'Client secret' },
-    { key: 'PAYPAL_WEBHOOK_ID', label: 'Webhook ID' },
+    { key: "PAYPAL_CLIENT_ID", label: "Client ID" },
+    { key: "PAYPAL_CLIENT_SECRET", label: "Client secret" },
+    { key: "PAYPAL_WEBHOOK_ID", label: "Webhook ID" },
   ],
 };
 
 function ProviderMark({ icons }: { icons: SimpleIcon[] }) {
   return (
     <span
-      aria-hidden='true'
-      className='flex h-9 min-w-9 items-center justify-center gap-1 rounded-md border bg-background px-2 text-foreground'
+      aria-hidden="true"
+      className="flex h-9 min-w-9 items-center justify-center gap-1 rounded-md border bg-background px-2 text-foreground"
     >
       {icons.map((icon) => (
         <svg
           key={icon.slug}
-          viewBox='0 0 24 24'
-          className='size-4'
-          fill='currentColor'
+          viewBox="0 0 24 24"
+          className="size-4"
+          fill="currentColor"
         >
           <path d={icon.path} />
         </svg>
@@ -178,13 +158,13 @@ function ProviderMark({ icons }: { icons: SimpleIcon[] }) {
 
 function ProviderTabIcon({ icons }: { icons: SimpleIcon[] }) {
   return (
-    <span aria-hidden='true' className='flex items-center gap-1'>
+    <span aria-hidden="true" className="flex items-center gap-1">
       {icons.map((icon) => (
         <svg
           key={icon.slug}
-          viewBox='0 0 24 24'
-          className='size-3.5'
-          fill='currentColor'
+          viewBox="0 0 24 24"
+          className="size-3.5"
+          fill="currentColor"
         >
           <path d={icon.path} />
         </svg>
@@ -202,18 +182,18 @@ function PaymentMethodToggle({
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) {
-  const id = `payment-method-${label.toLowerCase().replaceAll(' ', '-')}`;
+  const id = `payment-method-${label.toLowerCase().replaceAll(" ", "-")}`;
   return (
     <Field
-      orientation='horizontal'
-      className='min-h-11 rounded-md border px-3 py-3'
+      orientation="horizontal"
+      className="min-h-11 rounded-md border px-3 py-3"
     >
       <Checkbox
         id={id}
         checked={checked}
         onCheckedChange={(value) => onCheckedChange(value === true)}
       />
-      <FieldLabel htmlFor={id} className='font-normal'>
+      <FieldLabel htmlFor={id} className="font-normal">
         {label}
       </FieldLabel>
     </Field>
@@ -234,38 +214,32 @@ function BookingProcessorToggle({
   const id = `booking-processor-${processor.key}`;
   return (
     <Field
-      orientation='horizontal'
+      orientation="horizontal"
       data-disabled={disabled || undefined}
-      className='min-h-14 rounded-md border px-3 py-3'
+      className="min-h-14 rounded-md border px-3 py-3"
     >
       <Checkbox
         id={id}
-        name='enabledProcessors'
+        name="enabledProcessors"
         checked={checked}
         disabled={disabled}
         onCheckedChange={(value) => onCheckedChange(value === true)}
       />
-      <ProviderTabIcon icons={processor.icons} />
-      <FieldLabel htmlFor={id} className='min-w-0 flex-1 font-normal'>
-        <span className='block font-medium'>{processor.label}</span>
-        <span className='mt-0.5 block text-xs text-muted-foreground'>
-          {processor.description}
-        </span>
+      <FieldLabel htmlFor={id} className="min-w-0 flex-1 font-normal">
+        {`Enable ${processor.label}`}
       </FieldLabel>
     </Field>
   );
 }
 
 function hasAvailablePaymentMethod(
-  settings: Pick<AdminSettingsState, 'enabledMethods' | 'enabledProcessors'>,
+  settings: Pick<AdminSettingsState, "enabledMethods" | "enabledProcessors">,
 ): boolean {
-  const hasOnlineProcessor =
-    settings.enabledProcessors.includes('stripe') ||
-    settings.enabledProcessors.includes('square');
+  const hasOnlineProcessor = settings.enabledProcessors.includes("stripe");
   return settings.enabledMethods.some((method) => {
-    if (method === 'venmo')
-      return settings.enabledProcessors.includes('paypal');
-    if (method === 'zelle') return settings.enabledProcessors.includes('zelle');
+    if (method === "venmo")
+      return settings.enabledProcessors.includes("paypal");
+    if (method === "zelle") return settings.enabledProcessors.includes("zelle");
     return hasOnlineProcessor;
   });
 }
@@ -286,11 +260,11 @@ function CredentialField({
   const [editing, setEditing] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const displayValue = editing ? value : configured ? '************' : value;
+  const [error, setError] = useState("");
+  const displayValue = editing ? value : configured ? "************" : value;
 
   const toggleVisibility = async () => {
-    setError('');
+    setError("");
     if (editing && value) {
       setRevealed((current) => !current);
       return;
@@ -301,14 +275,14 @@ function CredentialField({
     try {
       const response = await fetch(
         `/api/admin/settings/credential?key=${encodeURIComponent(name)}`,
-        { cache: 'no-store' },
+        { cache: "no-store" },
       );
       const result = (await response.json().catch(() => ({}))) as {
         value?: string;
         error?: string;
       };
       if (!response.ok || !result.value) {
-        throw new Error(result.error || 'Unable to reveal this credential');
+        throw new Error(result.error || "Unable to reveal this credential");
       }
       onChange(result.value);
       setEditing(true);
@@ -317,7 +291,7 @@ function CredentialField({
       setError(
         revealError instanceof Error
           ? revealError.message
-          : 'Unable to reveal this credential',
+          : "Unable to reveal this credential",
       );
     } finally {
       setLoading(false);
@@ -326,15 +300,15 @@ function CredentialField({
 
   return (
     <SuperField
-      type={!editing || revealed ? 'text' : 'password'}
+      type={!editing || revealed ? "text" : "password"}
       id={name.toLowerCase()}
       label={label}
       headerExtra={
-        <span className='break-all font-mono text-[9px] text-muted-foreground'>
+        <span className="break-all font-mono text-[9px] text-muted-foreground">
           {name}
         </span>
       }
-      autoComplete='new-password'
+      autoComplete="new-password"
       value={displayValue}
       disabled={loading}
       error={error}
@@ -342,36 +316,36 @@ function CredentialField({
         if (configured && !editing) {
           setEditing(true);
           setRevealed(false);
-          onChange('');
+          onChange("");
         }
       }}
       onChange={(event: ChangeEvent<HTMLInputElement>) => {
         setEditing(true);
-        setError('');
+        setError("");
         onChange(event.target.value);
       }}
       suffix={
         <InputGroupButton
-          type='button'
-          size='icon-xs'
+          type="button"
+          size="icon-xs"
           aria-label={revealed ? `Hide ${label}` : `Show ${label}`}
           title={revealed ? `Hide ${label}` : `Show ${label}`}
           disabled={loading || (!configured && !value)}
           onClick={() => void toggleVisibility()}
         >
           {loading ? (
-            <LoaderCircle className='animate-spin' aria-hidden='true' />
+            <LoaderCircle className="animate-spin" aria-hidden="true" />
           ) : revealed ? (
-            <EyeOff aria-hidden='true' />
+            <EyeOff aria-hidden="true" />
           ) : (
-            <Eye aria-hidden='true' />
+            <Eye aria-hidden="true" />
           )}
         </InputGroupButton>
       }
       placeholder={
         configured
-          ? 'Configured — enter a new value to replace'
-          : 'Not configured'
+          ? "Configured — enter a new value to replace"
+          : "Not configured"
       }
     />
   );
@@ -390,62 +364,62 @@ function ProviderConfiguration({
     .filter(([, ready]) => !ready)
     .map(([name]) => name);
   const ready = missing.length === 0;
-  const webhookUrl = `${appUrl.replace(/\/$/, '')}${configuration.webhookPath}`;
+  const webhookUrl = `${appUrl.replace(/\/$/, "")}${configuration.webhookPath}`;
   return (
-    <div className='px-5 py-5'>
-      <div className='flex flex-wrap items-start justify-between gap-4'>
-        <div className='flex min-w-0 gap-3'>
+    <div className="px-5 py-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 gap-3">
           <ProviderMark icons={provider.icons} />
-          <div className='min-w-0'>
-            <h3 className='text-sm font-medium'>{provider.label} connection</h3>
-            <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+          <div className="min-w-0">
+            <h3 className="text-sm font-medium">{provider.label} connection</h3>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {provider.description}
             </p>
           </div>
         </div>
-        <Badge variant={ready ? 'outline' : 'destructive'} className='gap-1.5'>
+        <Badge variant={ready ? "outline" : "destructive"} className="gap-1.5">
           {ready ? (
-            <CheckCircle2 className='size-3' />
+            <CheckCircle2 className="size-3" />
           ) : (
-            <CircleAlert className='size-3' />
+            <CircleAlert className="size-3" />
           )}
-          {ready ? 'Ready' : `${missing.length} missing`}
+          {ready ? "Ready" : `${missing.length} missing`}
         </Badge>
       </div>
-      <dl className='mt-4 grid gap-4 text-xs sm:grid-cols-3'>
+      <dl className="mt-4 grid gap-4 text-xs sm:grid-cols-3">
         <div>
-          <dt className='text-muted-foreground'>Environment</dt>
-          <dd className='mt-1 font-medium capitalize'>
+          <dt className="text-muted-foreground">Environment</dt>
+          <dd className="mt-1 font-medium capitalize">
             {configuration.environment}
           </dd>
         </div>
         <div>
-          <dt className='text-muted-foreground'>Customer methods</dt>
-          <dd className='mt-1 font-medium'>{provider.methods}</dd>
+          <dt className="text-muted-foreground">Customer methods</dt>
+          <dd className="mt-1 font-medium">{provider.methods}</dd>
         </div>
-        <div className='min-w-0'>
-          <dt className='text-muted-foreground'>Webhook endpoint</dt>
+        <div className="min-w-0">
+          <dt className="text-muted-foreground">Webhook endpoint</dt>
           <dd
-            className='mt-1 truncate font-mono text-foreground'
+            className="mt-1 truncate font-mono text-foreground"
             title={webhookUrl}
           >
             {webhookUrl}
           </dd>
         </div>
       </dl>
-      <div className='mt-4 rounded-md bg-muted/40 px-3 py-3'>
-        <p className='text-xs font-medium'>Resolved credentials</p>
-        <div className='mt-2 flex flex-wrap gap-x-4 gap-y-2'>
+      <div className="mt-4 rounded-md bg-muted/40 px-3 py-3">
+        <p className="text-xs font-medium">Resolved credentials</p>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
           {Object.entries(configuration.credentials).map(
             ([name, configured]) => (
               <span
                 key={name}
-                className='inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground'
+                className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground"
               >
                 {configured ? (
-                  <CheckCircle2 className='size-3 text-foreground' />
+                  <CheckCircle2 className="size-3 text-foreground" />
                 ) : (
-                  <CircleAlert className='size-3 text-destructive' />
+                  <CircleAlert className="size-3 text-destructive" />
                 )}
                 {name}
               </span>
@@ -462,10 +436,11 @@ export default function SettingsPage() {
   const [preferences, setPreferences] = useState<Preference[]>([]);
   const [settings, setSettings] = useState<AdminSettingsState>(EMPTY_SETTINGS);
   const [settingsStatus, setSettingsStatus] = useState<
-    'idle' | 'saving' | 'saved' | 'error'
-  >('idle');
-  const [settingsMessage, setSettingsMessage] = useState('');
-  const [providerTab, setProviderTab] = useState<ProviderTab>('stripe');
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [settingsMessage, setSettingsMessage] = useState("");
+  const [providerTab, setProviderTab] = useState<ProviderTab>("stripe");
+  const providerTabInitialized = useRef(false);
   const [credentialDraft, setCredentialDraft] =
     useState<PaymentCredentialDraft>({ ...EMPTY_PAYMENT_CREDENTIALS });
   const [credentialRevision, setCredentialRevision] = useState(0);
@@ -473,10 +448,10 @@ export default function SettingsPage() {
   const { data: settingsData } = useQuery({
     queryKey: qk.settings(),
     queryFn: async () => {
-      const res = await fetch('/api/admin/settings');
+      const res = await fetch("/api/admin/settings");
       const data = await res.json();
       if (!data.success)
-        throw new Error(data.error ?? 'Failed to load settings');
+        throw new Error(data.error ?? "Failed to load settings");
       return data.settings;
     },
   });
@@ -484,10 +459,10 @@ export default function SettingsPage() {
   const { data: preferencesData } = useQuery({
     queryKey: qk.notificationPreferences(),
     queryFn: async () => {
-      const res = await fetch('/api/admin/notifications/preferences');
+      const res = await fetch("/api/admin/notifications/preferences");
       const data = await res.json();
       if (!data.success)
-        throw new Error(data.error ?? 'Failed to load preferences');
+        throw new Error(data.error ?? "Failed to load preferences");
       return data.preferences as Preference[];
     },
   });
@@ -508,7 +483,7 @@ export default function SettingsPage() {
       emailFromName: settingsData.emailFromName || EMPTY_SETTINGS.emailFromName,
       emailFromAddress:
         settingsData.emailFromAddress || EMPTY_SETTINGS.emailFromAddress,
-      emailReplyTo: settingsData.emailReplyTo || '',
+      emailReplyTo: settingsData.emailReplyTo || "",
       priceByMileAirport: String(
         settingsData.priceByMileAirport ?? EMPTY_SETTINGS.priceByMileAirport,
       ),
@@ -526,7 +501,7 @@ export default function SettingsPage() {
         settingsData.enabledProcessors || EMPTY_SETTINGS.enabledProcessors,
       enabledMethods:
         settingsData.enabledMethods || EMPTY_SETTINGS.enabledMethods,
-      zelleRecipient: settingsData.zelleRecipient || '',
+      zelleRecipient: settingsData.zelleRecipient || "",
       zelleInstructions:
         settingsData.zelleInstructions || EMPTY_SETTINGS.zelleInstructions,
       holdMinutes: String(
@@ -537,20 +512,22 @@ export default function SettingsPage() {
           EMPTY_SETTINGS.zelleVerificationHours,
       ),
       hourlyRate: String(settingsData.hourlyRate ?? EMPTY_SETTINGS.hourlyRate),
-      squareEnvironment:
-        settingsData.squareEnvironment || EMPTY_SETTINGS.squareEnvironment,
       paypalEnvironment:
         settingsData.paypalEnvironment || EMPTY_SETTINGS.paypalEnvironment,
     });
-    const enabledProcessors = (settingsData.enabledProcessors ||
-      EMPTY_SETTINGS.enabledProcessors) as ProviderTab[];
-    const preferredTab = settingsData.activeProcessor as
-      ProviderTab | undefined;
-    setProviderTab(
-      preferredTab && enabledProcessors.includes(preferredTab)
-        ? preferredTab
-        : enabledProcessors[0],
-    );
+    if (!providerTabInitialized.current) {
+      const enabledProcessors = (settingsData.enabledProcessors ||
+        EMPTY_SETTINGS.enabledProcessors) as ProviderTab[];
+      const preferredTab = settingsData.activeProcessor as
+        | ProviderTab
+        | undefined;
+      setProviderTab(
+        preferredTab && enabledProcessors.includes(preferredTab)
+          ? preferredTab
+          : enabledProcessors[0],
+      );
+      providerTabInitialized.current = true;
+    }
   }, [settingsData]);
 
   useEffect(() => {
@@ -569,7 +546,7 @@ export default function SettingsPage() {
 
   const updatePreference = async (
     category: string,
-    channel: 'inApp' | 'email' | 'sms',
+    channel: "inApp" | "email" | "sms",
     checked: boolean,
   ) => {
     const current = preferenceFor(category);
@@ -578,9 +555,9 @@ export default function SettingsPage() {
       ...values.filter((value) => value.category !== category),
       next,
     ]);
-    await fetch('/api/admin/notifications/preferences', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+    await fetch("/api/admin/notifications/preferences", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         category,
         inApp: Boolean(next.inApp),
@@ -623,19 +600,19 @@ export default function SettingsPage() {
       settings.enabledProcessors.length === 0 ||
       !hasAvailablePaymentMethod(settings)
     ) {
-      setSettingsStatus('error');
+      setSettingsStatus("error");
       setSettingsMessage(
-        'Review the required runtime values and select at least one available payment method.',
+        "Review the required runtime values and select at least one available payment method.",
       );
       return;
     }
 
-    setSettingsStatus('saving');
-    setSettingsMessage('');
+    setSettingsStatus("saving");
+    setSettingsMessage("");
     try {
-      const response = await fetch('/api/admin/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingBufferMinutes: minutes,
           notificationTimezone: settings.notificationTimezone.trim(),
@@ -655,7 +632,6 @@ export default function SettingsPage() {
           holdMinutes,
           zelleVerificationHours,
           hourlyRate,
-          squareEnvironment: settings.squareEnvironment,
           paypalEnvironment: settings.paypalEnvironment,
           providerCredentials: Object.fromEntries(
             Object.entries(credentialDraft).filter(([, value]) => value.trim()),
@@ -667,23 +643,24 @@ export default function SettingsPage() {
         details?: string;
       };
       if (response.ok) {
-        setSettingsStatus('saved');
-        setSettingsMessage('Settings saved.');
+        setSettingsStatus("saved");
+        setSettingsMessage("Settings saved.");
         setCredentialDraft({ ...EMPTY_PAYMENT_CREDENTIALS });
         setCredentialRevision((current) => current + 1);
         queryClient.invalidateQueries({ queryKey: qk.settings() });
       } else {
-        setSettingsStatus('error');
+        setSettingsStatus("error");
         setSettingsMessage(
-          result.error === 'Validation failed' && result.details
+          result.error === "Validation failed" && result.details
             ? result.details
-            : result.error || `Settings could not be saved (${response.status}).`,
+            : result.error ||
+                `Settings could not be saved (${response.status}).`,
         );
       }
     } catch {
-      setSettingsStatus('error');
+      setSettingsStatus("error");
       setSettingsMessage(
-        'The settings service could not be reached. Check your connection and try again.',
+        "The settings service could not be reached. Check your connection and try again.",
       );
     }
   };
@@ -695,8 +672,8 @@ export default function SettingsPage() {
         ? [...new Set([...current.enabledMethods, method])]
         : current.enabledMethods.filter((value) => value !== method),
     }));
-    if (settingsStatus !== 'idle') setSettingsStatus('idle');
-    if (settingsMessage) setSettingsMessage('');
+    if (settingsStatus !== "idle") setSettingsStatus("idle");
+    if (settingsMessage) setSettingsMessage("");
   };
 
   const toggleBookingProcessor = (processor: ProviderTab, enabled: boolean) => {
@@ -706,8 +683,8 @@ export default function SettingsPage() {
     if (enabledProcessors.length === 0) return;
 
     const nextOnlineProcessor = enabledProcessors.find(
-      (value) => value === 'stripe' || value === 'square',
-    ) as 'stripe' | 'square' | undefined;
+      (value) => value === "stripe",
+    ) as "stripe" | undefined;
     setSettings((current) => ({
       ...current,
       enabledProcessors,
@@ -717,176 +694,177 @@ export default function SettingsPage() {
           ? current.activeProcessor
           : nextOnlineProcessor,
     }));
-    if (!enabledProcessors.includes(providerTab))
-      setProviderTab(enabledProcessors[0]);
-    if (settingsStatus !== 'idle') setSettingsStatus('idle');
-    if (settingsMessage) setSettingsMessage('');
+    if (settingsStatus !== "idle") setSettingsStatus("idle");
+    if (settingsMessage) setSettingsMessage("");
   };
 
-  const selectProcessor = (processor: 'stripe' | 'square') => {
+  const selectProcessor = (processor: "stripe") => {
     setSettings((current) => ({ ...current, activeProcessor: processor }));
-    if (settingsStatus !== 'idle') setSettingsStatus('idle');
-    if (settingsMessage) setSettingsMessage('');
+    if (settingsStatus !== "idle") setSettingsStatus("idle");
+    if (settingsMessage) setSettingsMessage("");
   };
 
   const updateCredential = (key: PaymentCredentialKey, value: string) => {
     setCredentialDraft((current) => ({ ...current, [key]: value }));
-    if (settingsStatus !== 'idle') setSettingsStatus('idle');
-    if (settingsMessage) setSettingsMessage('');
+    if (settingsStatus !== "idle") setSettingsStatus("idle");
+    if (settingsMessage) setSettingsMessage("");
   };
 
   const updateField = (key: keyof AdminSettingsState, value: string) => {
     setSettings((current) => ({ ...current, [key]: value }));
-    if (settingsStatus !== 'idle') setSettingsStatus('idle');
-    if (settingsMessage) setSettingsMessage('');
+    if (settingsStatus !== "idle") setSettingsStatus("idle");
+    if (settingsMessage) setSettingsMessage("");
   };
 
   return (
-    <div className='mx-auto max-w-5xl p-6'>
-      <header className='mb-8'>
-        <h1 className='text-xl font-semibold tracking-tight'>Settings</h1>
-        <p className='mt-1 text-sm text-muted-foreground'>
+    <div className="mx-auto max-w-5xl p-6">
+      <header className="mb-8">
+        <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Configure dispatch behavior and securely managed provider credentials.
         </p>
       </header>
 
-      <div className='grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]'>
+      <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside>
-          <p className='text-sm font-medium'>Workspace</p>
-          <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+          <p className="text-sm font-medium">Workspace</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
             Operational values that used to sit in environment files.
           </p>
         </aside>
 
-        <div className='grid gap-4'>
+        <div className="grid gap-4">
           <NativeNotificationSettings />
-          <section className='overflow-hidden rounded-lg border'>
-            <div className='bg-muted/30 px-5 py-4'>
-              <h2 className='text-sm font-semibold'>Runtime configuration</h2>
-              <p className='mt-1 text-xs text-muted-foreground'>
+          <section className="overflow-hidden rounded-lg border">
+            <div className="bg-muted/30 px-5 py-4">
+              <h2 className="text-sm font-semibold">Runtime configuration</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
                 Changes take effect immediately for new requests and
                 notifications.
               </p>
             </div>
             <Separator />
-            <div className='grid gap-4 px-5 py-5 md:grid-cols-2'>
+            <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
               <SuperField
-                type='number'
-                label='Booking buffer minutes'
+                type="number"
+                label="Booking buffer minutes"
                 min={0}
                 max={240}
                 step={5}
                 value={settings.bookingBufferMinutes}
                 onChange={(event) =>
-                  updateField('bookingBufferMinutes', event.target.value)
+                  updateField("bookingBufferMinutes", event.target.value)
                 }
               />
               <SuperField
-                type='searchable-select'
-                label='Timezone'
+                type="searchable-select"
+                label="Timezone"
                 value={settings.notificationTimezone}
                 onValueChange={(value) =>
-                  value && updateField('notificationTimezone', value)
+                  value && updateField("notificationTimezone", value)
                 }
                 options={AVAILABLE_TIMEZONES}
-                placeholder='Search timezones'
+                placeholder="Search timezones"
               />
               <SuperField
-                type='url'
-                label='App URL'
+                type="url"
+                label="App URL"
                 value={settings.appUrl}
-                onChange={(event) => updateField('appUrl', event.target.value)}
-                placeholder='https://goldridr.com'
-                description='Use the public HTTPS URL; email QR links and read tracking pixels are generated from this address.'
-                className='md:col-span-2'
+                onChange={(event) => updateField("appUrl", event.target.value)}
+                placeholder="https://goldridr.com"
+                description="Use the public HTTPS URL; email QR links and read tracking pixels are generated from this address."
+                className="md:col-span-2"
               />
               <SuperField
-                type='text'
-                label='Email from name'
+                type="text"
+                label="Email from name"
                 value={settings.emailFromName}
                 onChange={(event) =>
-                  updateField('emailFromName', event.target.value)
+                  updateField("emailFromName", event.target.value)
                 }
-                placeholder='Goldridr'
+                placeholder="Goldridr"
               />
               <SuperField
-                type='email'
-                label='Email from address'
+                type="email"
+                label="Email from address"
                 value={settings.emailFromAddress}
                 onChange={(event) =>
-                  updateField('emailFromAddress', event.target.value)
+                  updateField("emailFromAddress", event.target.value)
                 }
-                placeholder='notifications@example.com'
+                placeholder="notifications@example.com"
               />
               <SuperField
-                type='email'
-                label='Reply-to address'
+                type="email"
+                label="Reply-to address"
                 value={settings.emailReplyTo}
                 onChange={(event) =>
-                  updateField('emailReplyTo', event.target.value)
+                  updateField("emailReplyTo", event.target.value)
                 }
-                placeholder='support@example.com'
-                description='Use the mailbox Resend Receiving or webmail IMAP monitors for passenger replies.'
-                className='md:col-span-2'
+                placeholder="support@example.com"
+                description="Use the mailbox Resend Receiving or webmail IMAP monitors for passenger replies."
+                className="md:col-span-2"
               />
               <SuperField
-                type='number'
-                label='Airport price per mile'
+                type="number"
+                label="Airport price per mile"
                 min={0}
-                step='0.01'
+                step="0.01"
                 value={settings.priceByMileAirport}
                 onChange={(event) =>
-                  updateField('priceByMileAirport', event.target.value)
+                  updateField("priceByMileAirport", event.target.value)
                 }
               />
               <SuperField
-                type='number'
-                label='City price per mile'
+                type="number"
+                label="City price per mile"
                 min={0}
-                step='0.01'
+                step="0.01"
                 value={settings.priceByMileCity}
                 onChange={(event) =>
-                  updateField('priceByMileCity', event.target.value)
+                  updateField("priceByMileCity", event.target.value)
                 }
               />
               <SuperField
-                type='number'
-                label='Hourly price per mile'
+                type="number"
+                label="Hourly price per mile"
                 min={0}
-                step='0.01'
+                step="0.01"
                 value={settings.priceByMileHourly}
                 onChange={(event) =>
-                  updateField('priceByMileHourly', event.target.value)
+                  updateField("priceByMileHourly", event.target.value)
                 }
               />
               <SuperField
-                type='tel'
-                label='Twilio from number'
+                type="tel"
+                label="Twilio from number"
                 value={settings.twilioFromNumber}
                 onChange={(event) =>
-                  updateField('twilioFromNumber', event.target.value)
+                  updateField("twilioFromNumber", event.target.value)
                 }
-                placeholder='+17135550000'
+                placeholder="+17135550000"
               />
             </div>
             <Separator />
-            <div className='flex flex-wrap items-center gap-3 px-5 py-5'>
+            <div className="flex flex-wrap items-center gap-3 px-5 py-5">
               <Button
-                size='sm'
+                size="sm"
                 onClick={saveSettings}
-                disabled={settingsStatus === 'saving'}
+                disabled={settingsStatus === "saving"}
               >
-                {settingsStatus === 'saving' ? 'Saving…' : 'Save settings'}
+                {settingsStatus === "saving" ? "Saving…" : "Save settings"}
               </Button>
-              {settingsStatus === 'saved' && (
-                <span className='text-xs text-muted-foreground' aria-live='polite'>
+              {settingsStatus === "saved" && (
+                <span
+                  className="text-xs text-muted-foreground"
+                  aria-live="polite"
+                >
                   {settingsMessage}
                 </span>
               )}
-              {settingsStatus === 'error' && (
+              {settingsStatus === "error" && (
                 <span
-                  className='max-w-2xl whitespace-pre-line text-xs text-destructive'
-                  role='alert'
+                  className="max-w-2xl whitespace-pre-line text-xs text-destructive"
+                  role="alert"
                 >
                   {settingsMessage}
                 </span>
@@ -896,116 +874,79 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className='mt-10 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]'>
+      <div className="mt-10 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside>
-          <p className='text-sm font-medium'>Payments</p>
-          <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+          <p className="text-sm font-medium">Payments</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
             Control checkout and encrypted provider credentials. Environment
             variables remain fallbacks.
           </p>
         </aside>
-        <section className='overflow-hidden rounded-lg border'>
-          <div className='bg-muted/30 px-5 py-4'>
-            <h2 className='text-sm font-semibold'>Checkout configuration</h2>
-            <p className='mt-1 text-xs text-muted-foreground'>
+        <section className="overflow-hidden rounded-lg border">
+          <div className="bg-muted/30 px-5 py-4">
+            <h2 className="text-sm font-semibold">Checkout configuration</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
               Choose a provider tab to update its checkout behavior and
               connection settings.
             </p>
           </div>
           <Separator />
-          <div className='grid gap-5 px-5 py-5 sm:grid-cols-2'>
+          <div className="grid gap-5 px-5 py-5 sm:grid-cols-2">
             <SuperField
-              type='number'
-              label='Hourly fare'
+              type="number"
+              label="Hourly fare"
               min={0}
-              step='0.01'
+              step="0.01"
               value={settings.hourlyRate}
               onChange={(event) =>
-                updateField('hourlyRate', event.target.value)
+                updateField("hourlyRate", event.target.value)
               }
             />
             <SuperField
-              type='number'
-              label='Payment hold minutes'
+              type="number"
+              label="Payment hold minutes"
               min={30}
               max={1440}
               value={settings.holdMinutes}
               onChange={(event) =>
-                updateField('holdMinutes', event.target.value)
+                updateField("holdMinutes", event.target.value)
               }
             />
-          </div>
-          <Separator />
-          <div className='px-5 py-5'>
-            <h3 className='text-sm font-semibold'>Booking Processors</h3>
-            <p className='mt-1 text-xs leading-5 text-muted-foreground'>
-              Select the processors available for booking payments. Only
-              selected processors appear in the tabs and customer checkout.
-            </p>
-            <div
-              data-slot='checkbox-group'
-              className='mt-4 grid gap-3 sm:grid-cols-2'
-            >
-              {BOOKING_PROCESSORS.map((processor) => {
-                const checked = settings.enabledProcessors.includes(
-                  processor.key,
-                );
-                return (
-                  <BookingProcessorToggle
-                    key={processor.key}
-                    processor={processor}
-                    checked={checked}
-                    disabled={
-                      checked && settings.enabledProcessors.length === 1
-                    }
-                    onCheckedChange={(enabled) =>
-                      toggleBookingProcessor(processor.key, enabled)
-                    }
-                  />
-                );
-              })}
-            </div>
           </div>
           <Separator />
           <Tabs
             value={providerTab}
             onValueChange={(value) => setProviderTab(value as ProviderTab)}
           >
-            <div className='overflow-x-auto border-b px-5'>
+            <div className="overflow-x-auto border-b px-5">
               <TabsList
-                aria-label='Payment providers'
-                className='h-auto min-w-max justify-start rounded-none bg-transparent p-0'
+                aria-label="Payment providers"
+                className="h-auto min-w-max justify-start rounded-none bg-transparent p-0"
               >
-                {PAYMENT_PROVIDERS.filter((provider) =>
-                  settings.enabledProcessors.includes(provider.key),
-                ).map((provider) => (
+                {PAYMENT_PROVIDERS.map((provider) => (
                   <TabsTrigger
                     key={provider.key}
                     value={provider.key}
-                    className='gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none'
+                    className="gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                   >
                     <ProviderTabIcon icons={provider.icons} />
                     {provider.label}
                   </TabsTrigger>
                 ))}
-                {settings.enabledProcessors.includes('zelle') ? (
-                  <TabsTrigger
-                    value='zelle'
-                    className='gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none'
-                  >
-                    <ProviderTabIcon icons={[siZelle]} />
-                    Zelle
-                  </TabsTrigger>
-                ) : null}
+                <TabsTrigger
+                  value="zelle"
+                  className="gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                >
+                  <ProviderTabIcon icons={[siZelle]} />
+                  Zelle
+                </TabsTrigger>
               </TabsList>
             </div>
 
             {PAYMENT_PROVIDERS.filter(
-              (provider) =>
-                settings.enabledProcessors.includes(provider.key) &&
-                (provider.key === 'stripe' || provider.key === 'square'),
+              (provider) => provider.key === "stripe",
             ).map((provider) => {
-              const processor = provider.key as 'stripe' | 'square';
+              const processor = provider.key as "stripe";
               const active = settings.activeProcessor === processor;
               const configuration = settingsData?.paymentProviders
                 ? (
@@ -1016,79 +957,170 @@ export default function SettingsPage() {
                 <TabsContent
                   key={provider.key}
                   value={provider.key}
-                  className='mt-0'
+                  className="mt-0"
                 >
-                  <div className='px-5 py-5'>
-                    <div className='flex flex-wrap items-start justify-between gap-4'>
+                  <div className="border-b px-5 py-4">
+                    <BookingProcessorToggle
+                      processor={BOOKING_PROCESSORS[0]}
+                      checked={settings.enabledProcessors.includes(processor)}
+                      disabled={
+                        settings.enabledProcessors.includes(processor) &&
+                        settings.enabledProcessors.length === 1
+                      }
+                      onCheckedChange={(enabled) =>
+                        toggleBookingProcessor(processor, enabled)
+                      }
+                    />
+                  </div>
+                  {settings.enabledProcessors.includes(processor) ? (
+                    <>
+                      <div className="px-5 py-5">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div>
+                            <h3 className="text-sm font-semibold">
+                              {provider.label} checkout
+                            </h3>
+                            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                              Configure the customer methods handled by{" "}
+                              {provider.label}.
+                            </p>
+                          </div>
+                          {active ? (
+                            <Badge variant="secondary" className="gap-1.5">
+                              <CheckCircle2 className="size-3" />
+                              Active processor
+                            </Badge>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => selectProcessor(processor)}
+                            >
+                              Use {provider.label}
+                            </Button>
+                          )}
+                        </div>
+                        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                          {PAYMENT_METHOD_OPTIONS.filter(
+                            (method) =>
+                              method.value === "card" ||
+                              method.value === "apple_pay" ||
+                              method.value === "cash_app",
+                          ).map((method) => (
+                            <PaymentMethodToggle
+                              key={method.value}
+                              label={method.label}
+                              checked={settings.enabledMethods.includes(
+                                method.value,
+                              )}
+                              onCheckedChange={(checked) =>
+                                togglePaymentMethod(method.value, checked)
+                              }
+                            />
+                          ))}
+                        </div>
+                        <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                          {PROVIDER_CREDENTIAL_FIELDS[provider.key].map(
+                            (field) => (
+                              <CredentialField
+                                key={`${field.key}:${credentialRevision}`}
+                                name={field.key}
+                                label={field.label}
+                                value={credentialDraft[field.key]}
+                                configured={Boolean(
+                                  configuration?.credentials[field.key],
+                                )}
+                                onChange={(value) =>
+                                  updateCredential(field.key, value)
+                                }
+                              />
+                            ),
+                          )}
+                        </div>
+                      </div>
+                      {configuration ? (
+                        <>
+                          <Separator />
+                          <ProviderConfiguration
+                            provider={provider}
+                            configuration={configuration}
+                            appUrl={settings.appUrl}
+                          />
+                        </>
+                      ) : null}
+                    </>
+                  ) : null}
+                </TabsContent>
+              );
+            })}
+
+            <TabsContent value="paypal" className="mt-0">
+              <div className="border-b px-5 py-4">
+                <BookingProcessorToggle
+                  processor={BOOKING_PROCESSORS[1]}
+                  checked={settings.enabledProcessors.includes("paypal")}
+                  disabled={
+                    settings.enabledProcessors.includes("paypal") &&
+                    settings.enabledProcessors.length === 1
+                  }
+                  onCheckedChange={(enabled) =>
+                    toggleBookingProcessor("paypal", enabled)
+                  }
+                />
+              </div>
+              {settings.enabledProcessors.includes("paypal") ? (
+                <>
+                  <div className="px-5 py-5">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <h3 className='text-sm font-semibold'>
-                          {provider.label} checkout
+                        <h3 className="text-sm font-semibold">
+                          PayPal / Venmo checkout
                         </h3>
-                        <p className='mt-1 text-xs leading-5 text-muted-foreground'>
-                          Configure the customer methods handled by{' '}
-                          {provider.label}.
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          Venmo appears only when PayPal reports that the
+                          customer and device are eligible.
                         </p>
                       </div>
-                      {active ? (
-                        <Badge variant='secondary' className='gap-1.5'>
-                          <CheckCircle2 className='size-3' />
-                          Active processor
-                        </Badge>
-                      ) : (
-                        <Button
-                          type='button'
-                          size='sm'
-                          variant='outline'
-                          onClick={() => selectProcessor(processor)}
-                        >
-                          Use {provider.label}
-                        </Button>
-                      )}
+                      {settings.enabledMethods.includes("venmo") ? (
+                        <Badge variant="secondary">Venmo enabled</Badge>
+                      ) : null}
                     </div>
-                    <div className='mt-5 grid gap-3 sm:grid-cols-3'>
-                      {PAYMENT_METHOD_OPTIONS.filter(
-                        (method) =>
-                          method.value === 'card' ||
-                          method.value === 'apple_pay' ||
-                          method.value === 'cash_app',
-                      ).map((method) => (
-                        <PaymentMethodToggle
-                          key={method.value}
-                          label={method.label}
-                          checked={settings.enabledMethods.includes(
-                            method.value,
-                          )}
-                          onCheckedChange={(checked) =>
-                            togglePaymentMethod(method.value, checked)
-                          }
-                        />
-                      ))}
-                    </div>
-                    {provider.key === 'square' ? (
-                      <SuperField
-                        type='select'
-                        size='md'
-                        label='Environment'
-                        value={settings.squareEnvironment}
-                        onValueChange={(value) =>
-                          value && updateField('squareEnvironment', value)
+                    <div className="mt-5 max-w-sm">
+                      <PaymentMethodToggle
+                        label="Venmo"
+                        checked={settings.enabledMethods.includes("venmo")}
+                        onCheckedChange={(checked) =>
+                          togglePaymentMethod("venmo", checked)
                         }
-                        options={[
-                          { value: 'sandbox', label: 'Sandbox' },
-                          { value: 'production', label: 'Production' },
-                        ]}
-                        className='mt-5 max-w-sm'
                       />
-                    ) : null}
-                    <div className='mt-6 grid gap-5 sm:grid-cols-2'>
-                      {PROVIDER_CREDENTIAL_FIELDS[provider.key].map((field) => (
+                    </div>
+                    <SuperField
+                      type="select"
+                      size="md"
+                      label="Environment"
+                      value={settings.paypalEnvironment}
+                      onValueChange={(value) =>
+                        value && updateField("paypalEnvironment", value)
+                      }
+                      options={[
+                        { value: "sandbox", label: "Sandbox" },
+                        { value: "production", label: "Production" },
+                      ]}
+                      className="mt-5 max-w-sm"
+                    />
+                    <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                      {PROVIDER_CREDENTIAL_FIELDS.paypal.map((field) => (
                         <CredentialField
                           key={`${field.key}:${credentialRevision}`}
                           name={field.key}
                           label={field.label}
                           value={credentialDraft[field.key]}
                           configured={Boolean(
-                            configuration?.credentials[field.key],
+                            (
+                              settingsData?.paymentProviders as
+                                PaymentProviderConfigurations | undefined
+                            )?.paypal.credentials[field.key],
                           )}
                           onChange={(value) =>
                             updateCredential(field.key, value)
@@ -1097,175 +1129,120 @@ export default function SettingsPage() {
                       ))}
                     </div>
                   </div>
-                  {configuration ? (
+                  {settingsData?.paymentProviders ? (
                     <>
                       <Separator />
                       <ProviderConfiguration
-                        provider={provider}
-                        configuration={configuration}
+                        provider={PAYMENT_PROVIDERS[1]}
+                        configuration={
+                          (
+                            settingsData.paymentProviders as PaymentProviderConfigurations
+                          ).paypal
+                        }
                         appUrl={settings.appUrl}
                       />
                     </>
                   ) : null}
-                </TabsContent>
-              );
-            })}
+                </>
+              ) : null}
+            </TabsContent>
 
-            {settings.enabledProcessors.includes('paypal') ? (
-              <TabsContent value='paypal' className='mt-0'>
-                <div className='px-5 py-5'>
-                  <div className='flex flex-wrap items-start justify-between gap-4'>
+            <TabsContent value="zelle" className="mt-0">
+              <div className="border-b px-5 py-4">
+                <BookingProcessorToggle
+                  processor={BOOKING_PROCESSORS[2]}
+                  checked={settings.enabledProcessors.includes("zelle")}
+                  disabled={
+                    settings.enabledProcessors.includes("zelle") &&
+                    settings.enabledProcessors.length === 1
+                  }
+                  onCheckedChange={(enabled) =>
+                    toggleBookingProcessor("zelle", enabled)
+                  }
+                />
+              </div>
+              {settings.enabledProcessors.includes("zelle") ? (
+                <div className="px-5 py-5">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <h3 className='text-sm font-semibold'>
-                        PayPal / Venmo checkout
-                      </h3>
-                      <p className='mt-1 text-xs leading-5 text-muted-foreground'>
-                        Venmo appears only when PayPal reports that the customer
-                        and device are eligible.
-                      </p>
-                    </div>
-                    {settings.enabledMethods.includes('venmo') ? (
-                      <Badge variant='secondary'>Venmo enabled</Badge>
-                    ) : null}
-                  </div>
-                  <div className='mt-5 max-w-sm'>
-                    <PaymentMethodToggle
-                      label='Venmo'
-                      checked={settings.enabledMethods.includes('venmo')}
-                      onCheckedChange={(checked) =>
-                        togglePaymentMethod('venmo', checked)
-                      }
-                    />
-                  </div>
-                  <SuperField
-                    type='select'
-                    size='md'
-                    label='Environment'
-                    value={settings.paypalEnvironment}
-                    onValueChange={(value) =>
-                      value && updateField('paypalEnvironment', value)
-                    }
-                    options={[
-                      { value: 'sandbox', label: 'Sandbox' },
-                      { value: 'production', label: 'Production' },
-                    ]}
-                    className='mt-5 max-w-sm'
-                  />
-                  <div className='mt-6 grid gap-5 sm:grid-cols-2'>
-                    {PROVIDER_CREDENTIAL_FIELDS.paypal.map((field) => (
-                      <CredentialField
-                        key={`${field.key}:${credentialRevision}`}
-                        name={field.key}
-                        label={field.label}
-                        value={credentialDraft[field.key]}
-                        configured={Boolean(
-                          (
-                            settingsData?.paymentProviders as
-                              PaymentProviderConfigurations | undefined
-                          )?.paypal.credentials[field.key],
-                        )}
-                        onChange={(value) => updateCredential(field.key, value)}
-                      />
-                    ))}
-                  </div>
-                </div>
-                {settingsData?.paymentProviders ? (
-                  <>
-                    <Separator />
-                    <ProviderConfiguration
-                      provider={PAYMENT_PROVIDERS[2]}
-                      configuration={
-                        (
-                          settingsData.paymentProviders as PaymentProviderConfigurations
-                        ).paypal
-                      }
-                      appUrl={settings.appUrl}
-                    />
-                  </>
-                ) : null}
-              </TabsContent>
-            ) : null}
-
-            {settings.enabledProcessors.includes('zelle') ? (
-              <TabsContent value='zelle' className='mt-0'>
-                <div className='px-5 py-5'>
-                  <div className='flex flex-wrap items-start justify-between gap-4'>
-                    <div>
-                      <h3 className='text-sm font-semibold'>
+                      <h3 className="text-sm font-semibold">
                         Zelle manual verification
                       </h3>
-                      <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
                         Customers submit their transfer reference for staff
                         approval.
                       </p>
                     </div>
-                    <Badge variant='outline'>Manual provider</Badge>
+                    <Badge variant="outline">Manual provider</Badge>
                   </div>
-                  <div className='mt-5 max-w-sm'>
+                  <div className="mt-5 max-w-sm">
                     <PaymentMethodToggle
-                      label='Offer Zelle at checkout'
-                      checked={settings.enabledMethods.includes('zelle')}
+                      label="Offer Zelle at checkout"
+                      checked={settings.enabledMethods.includes("zelle")}
                       onCheckedChange={(checked) =>
-                        togglePaymentMethod('zelle', checked)
+                        togglePaymentMethod("zelle", checked)
                       }
                     />
                   </div>
-                  <div className='mt-5 grid gap-5 sm:grid-cols-2'>
+                  <div className="mt-5 grid gap-5 sm:grid-cols-2">
                     <SuperField
-                      type='text'
-                      label='Zelle recipient'
+                      type="text"
+                      label="Zelle recipient"
                       value={settings.zelleRecipient}
                       onChange={(event) =>
-                        updateField('zelleRecipient', event.target.value)
+                        updateField("zelleRecipient", event.target.value)
                       }
-                      placeholder='Business email or mobile number'
+                      placeholder="Business email or mobile number"
                     />
                     <SuperField
-                      type='number'
-                      label='Verification hold hours'
+                      type="number"
+                      label="Verification hold hours"
                       min={1}
                       max={168}
                       value={settings.zelleVerificationHours}
                       onChange={(event) =>
                         updateField(
-                          'zelleVerificationHours',
+                          "zelleVerificationHours",
                           event.target.value,
                         )
                       }
                     />
                     <SuperField
-                      type='textarea'
-                      label='Customer instructions'
+                      type="textarea"
+                      label="Customer instructions"
                       value={settings.zelleInstructions}
                       onChange={(event) =>
-                        updateField('zelleInstructions', event.target.value)
+                        updateField("zelleInstructions", event.target.value)
                       }
                       rows={3}
-                      className='sm:col-span-2'
+                      className="sm:col-span-2"
                     />
                   </div>
                 </div>
-              </TabsContent>
-            ) : null}
+              ) : null}
+            </TabsContent>
           </Tabs>
           <Separator />
-          <div className='flex flex-wrap items-center gap-3 px-5 py-5'>
+          <div className="flex flex-wrap items-center gap-3 px-5 py-5">
             <Button
-              size='sm'
+              size="sm"
               onClick={saveSettings}
-              disabled={settingsStatus === 'saving'}
+              disabled={settingsStatus === "saving"}
             >
-              {settingsStatus === 'saving' ? 'Saving…' : 'Save settings'}
+              {settingsStatus === "saving" ? "Saving…" : "Save settings"}
             </Button>
-            {settingsStatus === 'saved' && (
-              <span className='text-xs text-muted-foreground' aria-live='polite'>
+            {settingsStatus === "saved" && (
+              <span
+                className="text-xs text-muted-foreground"
+                aria-live="polite"
+              >
                 {settingsMessage}
               </span>
             )}
-            {settingsStatus === 'error' && (
+            {settingsStatus === "error" && (
               <span
-                className='max-w-2xl whitespace-pre-line text-xs text-destructive'
-                role='alert'
+                className="max-w-2xl whitespace-pre-line text-xs text-destructive"
+                role="alert"
               >
                 {settingsMessage}
               </span>
@@ -1274,26 +1251,26 @@ export default function SettingsPage() {
         </section>
       </div>
 
-      <div className='mt-10 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]'>
+      <div className="mt-10 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside>
-          <p className='text-sm font-medium'>Notifications</p>
-          <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+          <p className="text-sm font-medium">Notifications</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
             Choose where each kind of update should reach you.
           </p>
         </aside>
 
-        <section className='overflow-hidden rounded-lg border'>
-          <div className='grid grid-cols-[minmax(0,1fr)_repeat(3,72px)] items-end gap-3 bg-muted/30 px-5 py-4'>
+        <section className="overflow-hidden rounded-lg border">
+          <div className="grid grid-cols-[minmax(0,1fr)_repeat(3,72px)] items-end gap-3 bg-muted/30 px-5 py-4">
             <div>
-              <h2 className='text-sm font-semibold'>Channel preferences</h2>
-              <p className='mt-1 text-xs text-muted-foreground'>
+              <h2 className="text-sm font-semibold">Channel preferences</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
                 Choose where each kind of update should reach you.
               </p>
             </div>
             {NOTIFICATION_CHANNELS.map((channel) => (
-              <div key={channel.value} className='text-center'>
-                <channel.icon className='mx-auto mb-1 size-3.5 text-muted-foreground' />
-                <span className='text-xs font-medium text-muted-foreground'>
+              <div key={channel.value} className="text-center">
+                <channel.icon className="mx-auto mb-1 size-3.5 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">
                   {channel.label}
                 </span>
               </div>
@@ -1305,16 +1282,16 @@ export default function SettingsPage() {
             return (
               <div
                 key={category.value}
-                className='grid grid-cols-[minmax(0,1fr)_repeat(3,72px)] items-center gap-3 border-b px-5 py-5 last:border-b-0'
+                className="grid grid-cols-[minmax(0,1fr)_repeat(3,72px)] items-center gap-3 border-b px-5 py-5 last:border-b-0"
               >
-                <div className='pr-6'>
-                  <p className='text-sm font-medium'>{category.label}</p>
-                  <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+                <div className="pr-6">
+                  <p className="text-sm font-medium">{category.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
                     {category.description}
                   </p>
                 </div>
                 {NOTIFICATION_CHANNELS.map((channel) => (
-                  <div key={channel.value} className='flex justify-center'>
+                  <div key={channel.value} className="flex justify-center">
                     <Checkbox
                       aria-label={`${category.label} via ${channel.label}`}
                       checked={Boolean(preference[channel.value])}

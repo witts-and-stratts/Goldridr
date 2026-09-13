@@ -24,7 +24,7 @@
   }
 
   .site-copy {
-    @apply max-w-2xl font-sans text-sm md:text-base font-light leading-relaxed text-gray-300 mb-4;
+    @apply max-w-2xl font-sans text-sm md:text-base font-light leading-relaxed text-gray-300 mb-4 antialiased;
   }
 
   .site-copy--dark {

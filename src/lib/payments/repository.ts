@@ -11,6 +11,7 @@ import type { PaymentAttempt, PaymentMethod, PaymentProvider, PaymentStatus } fr
 import { cancelPaymentReminder } from "./hold-expiry";
 import { createPocketBasePaymentStatusUpdate } from "@/lib/pocketbase/notifications";
 import { compactPaymentDetails, type StoredPaymentDetails } from "./details";
+import { extendedPaymentHoldExpiry } from "./hold-window";
 
 export { cancelPaymentReminder, expirePaymentHolds } from "./hold-expiry";
 
@@ -74,6 +75,27 @@ export async function latestPaymentForBooking( bookingReference: string ): Promi
     sort: "-created",
   } );
   return rows.items[ 0 ] ? mapPayment( rows.items[ 0 ] ) : undefined;
+}
+
+export async function extendPaymentHold( bookingReference: string, extensionMinutes: number ): Promise<{ kind: "extended"; holdExpiresAt: string } | { kind: "not_found" | "invalid_status" }> {
+  const booking = await getBookingByReference( bookingReference );
+  if ( !booking ) return { kind: "not_found" };
+  if ( ![ "pending_payment", "payment_review" ].includes( booking.status ) ) return { kind: "invalid_status" };
+
+  const holdExpiresAt = extendedPaymentHoldExpiry( booking.holdExpiresAt ?? null, extensionMinutes );
+  const bookingRow = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: bookingReference } );
+  if ( !bookingRow ) return { kind: "not_found" };
+  await pb().collection( pocketBaseCollections.bookings ).update( bookingRow.id, { holdExpiresAt } );
+
+  if ( booking.status === "payment_review" ) {
+    const attempts = await pb().collection( pocketBaseCollections.payments ).getFullList( {
+      filter: pb().filter( "bookingReference = {:bookingReference} && status = 'awaiting_verification'", { bookingReference } ),
+      fields: "id",
+    } );
+    await Promise.all( attempts.map( attempt => pb().collection( pocketBaseCollections.payments ).update( attempt.id, { verificationExpiresAt: holdExpiresAt, sourceUpdatedAt: new Date().toISOString() } ) ) );
+  }
+
+  return { kind: "extended", holdExpiresAt };
 }
 
 export async function createPaymentAttempt( input: { booking: BookingRecord; method: PaymentMethod; provider: PaymentProvider } ): Promise<PaymentAttempt> {

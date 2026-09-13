@@ -1,6 +1,6 @@
 export const PAYMENT_METHODS = [ "card", "apple_pay", "cash_app", "venmo", "zelle" ] as const;
 export type PaymentMethod = typeof PAYMENT_METHODS[number];
-export type PaymentProvider = "stripe" | "square" | "paypal" | "manual";
+export type PaymentProvider = "stripe" | "paypal" | "manual";
 export type PaymentStatus = "pending" | "awaiting_verification" | "paid" | "failed" | "refunded" | "expired";
 
 export interface PaymentAttempt {

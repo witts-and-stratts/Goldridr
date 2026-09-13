@@ -525,6 +525,31 @@ function GoldridrEmail( { content }: { content: EmailContent } ) {
   );
 }
 
+export async function renderEmailPreview(
+  template: string,
+  payload: Record<string, unknown>
+): Promise<{ subject: string; preview: string; html: string; text: string }> {
+  const baseContent = await contentFor( template, payload );
+  const reference = stringValue( payload.bookingReference );
+  const passengerEmail = stringValue( payload.passengerEmail ) || "passenger@example.com";
+  const content = RIDER_TRIP_EMAIL_TEMPLATES.has( template ) && reference && passengerEmail
+    ? {
+        ...baseContent,
+        riderQr: {
+          reference,
+          imageUrl: getBookingQrImageUrl( baseContent.appUrl, reference, passengerEmail ),
+          verifyUrl: getBookingVerifyUrl( baseContent.appUrl, reference, passengerEmail ),
+        },
+      }
+    : baseContent;
+  const element = <GoldridrEmail content={ content } />;
+  const [ html, text ] = await Promise.all( [
+    render( element ),
+    render( element, { plainText: true } ),
+  ] );
+  return { subject: content.subject, preview: content.preview, html, text };
+}
+
 export async function renderNotificationEmail(
   template: string,
   recipient: string,

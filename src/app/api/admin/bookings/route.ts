@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import z from "zod/v4";
 import { isAdmin } from "@/lib/auth";
 import { getRequestSession } from "@/lib/driver-auth";
 import { PastBookingTimeError } from "@/lib/booking-time";
 import {
+  DiscountCodeError,
   deleteBooking,
   getAllBookings,
   getBookingByReference,
@@ -12,6 +14,82 @@ import {
   updateBookingStatus,
 } from "@/lib/pocketbase/repository";
 import { createPocketBaseBookingStatusUpdate } from "@/lib/pocketbase/notifications";
+import { bookingRecordToBookingData } from "@/lib/booking-data";
+import { BookingRequestSchema, createBookingRequest } from "@/lib/booking-create";
+import { BookingPricingSchema, type BookingPricingOverride } from "@/lib/booking-pricing";
+
+export async function POST( req: Request ) {
+  try {
+    const session = await getRequestSession( req );
+    if ( !session ) {
+      return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
+    }
+    if ( !isAdmin( session ) ) {
+      return NextResponse.json( { success: false, error: "Forbidden" }, { status: 403 } );
+    }
+
+    const body = await req.json();
+    const parsed = BookingRequestSchema.safeParse( body );
+    if ( !parsed.success ) {
+      return NextResponse.json(
+        { success: false, error: "Validation failed", details: z.prettifyError( parsed.error ) },
+        { status: 400 }
+      );
+    }
+
+    let pricing: BookingPricingOverride | undefined;
+    if ( body?.pricing !== undefined ) {
+      const pricingParsed = BookingPricingSchema.safeParse( body.pricing );
+      if ( !pricingParsed.success ) {
+        return NextResponse.json(
+          { success: false, error: "Invalid pricing", details: z.prettifyError( pricingParsed.error ) },
+          { status: 400 }
+        );
+      }
+      pricing = pricingParsed.data;
+    }
+
+    const outcome = await createBookingRequest( req, parsed.data, { pricing } );
+
+    if ( outcome.status === "clash" ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "clash",
+          message: "All of our chauffeurs are already reserved at that time.",
+          alternativeSlots: outcome.alternativeSlots,
+        },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        booking: await bookingRecordToBookingData( outcome.booking ),
+        bookingId: outcome.booking.id,
+        message: outcome.message,
+      },
+      { status: 201 }
+    );
+  } catch ( error: unknown ) {
+    if ( error instanceof DiscountCodeError ) {
+      return NextResponse.json(
+        { success: false, error: "discount_code", message: error.message },
+        { status: 400 }
+      );
+    }
+    if ( error instanceof PastBookingTimeError ) {
+      return NextResponse.json(
+        { success: false, error: "past_time", message: error.message },
+        { status: 400 }
+      );
+    }
+    console.error( "Error creating admin booking:", error );
+    const message = error instanceof Error ? error.message : "Failed to create booking";
+    return NextResponse.json( { success: false, error: message }, { status: 500 } );
+  }
+}
 
 export async function GET( req: Request ) {
   try {

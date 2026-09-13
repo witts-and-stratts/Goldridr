@@ -22,6 +22,10 @@ export type HeroSlide = {
   title: string;
   description: string;
   cta: string;
+  secondaryCta?: string;
+  ctaAction?: "booking" | "availability";
+  secondaryCtaAction?: "booking" | "availability";
+  supportingCopy?: string;
   alt?: string;
 };
 
@@ -49,6 +53,7 @@ const HERO_SLIDES: HeroSlide[] = [
     title: "ARRIVE BETTER",
     description: "Experience premium chauffeured services, in Houston and beyond",
     cta: "CHECK AVAILABILITY",
+    ctaAction: "availability",
   }
 ];
 
@@ -59,7 +64,7 @@ type HeroProps = {
 
 export function Hero( { slides = HERO_SLIDES, ariaLabel = "GoldRidrhighlights" }: HeroProps ) {
   const sliderRef = useRef<HTMLDivElement>( null );
-  const { setIsOpen } = useBookingOverlay();
+  const { setIsOpen, setAvailabilityOpen } = useBookingOverlay();
 
   useEffect( () => {
     if ( !sliderRef.current ) return;
@@ -137,15 +142,30 @@ export function Hero( { slides = HERO_SLIDES, ariaLabel = "GoldRidrhighlights" }
                     <p className={ `text-base mt-3 tracking-wide text-gray-200 text-balance md:mt-2 max-w-200 ${ styles.description }` }>
                       { slide.description }
                     </p>
-                    <div className={ `mt-6 ${ styles.cta }` }>
+                    { slide.supportingCopy && (
+                      <p className={ `mt-3 max-w-[60ch] text-sm leading-6 text-gray-300 md:text-base ${ styles.description }` }>
+                        { slide.supportingCopy }
+                      </p>
+                    ) }
+                    <div className={ `mt-6 flex flex-wrap justify-center gap-3 ${ styles.cta }` }>
                       <Button
                         variant="outline"
                         size="lg"
                         className="bg-black/20"
-                        onClick={ () => setIsOpen( true ) }
+                        onClick={ () => ( slide.ctaAction === "availability" ? setAvailabilityOpen( true ) : setIsOpen( true ) ) }
                       >
                         { slide.cta }
                       </Button>
+                      { slide.secondaryCta && (
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="bg-black/20"
+                          onClick={ () => ( slide.secondaryCtaAction === "availability" ? setAvailabilityOpen( true ) : setIsOpen( true ) ) }
+                        >
+                          { slide.secondaryCta }
+                        </Button>
+                      ) }
                     </div>
                     <p className={ `mt-4 font-sans text-xs font-light tracking-wide text-gray-300 md:text-sm ${ styles.assurance }` }>
                       Clear pricing. Confirmed scheduling. Professional handling.

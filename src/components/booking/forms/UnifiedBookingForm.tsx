@@ -13,6 +13,7 @@ import { BookingFlowActions } from './booking-flow/BookingFlowActions';
 import { BookingFlowFrame } from './booking-flow/BookingFlowFrame';
 import { BookingReviewStep } from './booking-flow/BookingReviewStep';
 import { ContactDetailsStep } from './booking-flow/ContactDetailsStep';
+import { AdminPricingPanel } from './booking-flow/AdminPricingPanel';
 import { HOURLY_RATE } from './booking-flow/constants';
 import { toApiDate } from './booking-flow/date';
 import { TripDetailsStep } from './booking-flow/TripDetailsStep';
@@ -23,12 +24,15 @@ import {
 } from './booking-flow/use-booking-forms';
 import { useFlightDetails } from './booking-flow/use-flight-details';
 import { useRouteEstimate } from './booking-flow/use-route-estimate';
+import type { BookingPricingOverride } from '@/lib/booking-pricing';
 
 interface UnifiedBookingFormProps {
   service?: BookingServiceType;
   onServiceChange?: (service: BookingServiceType) => void;
   onClose?: () => void;
   onSuccess: () => void;
+  endpoint?: string;
+  showPricingOverrides?: boolean;
 }
 
 export function UnifiedBookingForm({
@@ -36,6 +40,8 @@ export function UnifiedBookingForm({
   onServiceChange,
   onClose,
   onSuccess,
+  endpoint = '/api/booking',
+  showPricingOverrides = false,
 }: UnifiedBookingFormProps) {
   const instanceId = useId();
   const tripFormId = `trip-form-${instanceId}`;
@@ -43,6 +49,7 @@ export function UnifiedBookingForm({
 
   const [step, setStep] = useState<BookingStep>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pricing, setPricing] = useState<BookingPricingOverride | null>(null);
 
   const form = useTripForm({
     service,
@@ -110,7 +117,7 @@ export function UnifiedBookingForm({
     toast.loading('Processing your booking...');
 
     try {
-      const response = await fetch('/api/booking', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -160,6 +167,7 @@ export function UnifiedBookingForm({
             estimatedDuration: distanceData?.duration_text,
             estimatedDurationMinutes: distanceData?.duration_minutes,
           },
+          ...(showPricingOverrides && pricing ? { pricing } : {}),
         }),
       });
 
@@ -167,9 +175,14 @@ export function UnifiedBookingForm({
       toast.dismiss();
 
       if (data.success) {
-        toast.success('Booking request received', {
-          description: `Your reference is ${data.booking?.reference || ''}. Check your email or text messages to pay and confirm.`,
-        });
+        toast.success(
+          showPricingOverrides ? 'Booking created' : 'Booking request received',
+          {
+            description: showPricingOverrides
+              ? `Reference ${data.booking?.reference || ''}. The passenger has been emailed a secure payment link.`
+              : `Your reference is ${data.booking?.reference || ''}. Check your email or text messages to pay and confirm.`,
+          },
+        );
         onSuccess();
       } else {
         showBookingErrorToast(data, (slot) => {
@@ -261,6 +274,14 @@ export function UnifiedBookingForm({
           flightDetails={flightDetails}
           isDistanceLoading={isDistanceLoading}
         />
+        {showPricingOverrides && (
+          <AdminPricingPanel
+            serviceType={serviceType}
+            distanceData={distanceData}
+            hourlyData={hourlyData}
+            onChange={setPricing}
+          />
+        )}
       </Activity>
     </BookingFlowFrame>
   );

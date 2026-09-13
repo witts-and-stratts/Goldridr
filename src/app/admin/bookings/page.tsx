@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { qk } from "@/lib/query-keys";
 import {
   Search, Clock, CalendarIcon,
   Plane, Navigation, Loader2, RefreshCw,
-  MoreHorizontal, CheckCircle2, XCircle, Trash2, UserX,
+  MoreHorizontal, CheckCircle2, XCircle, Trash2, UserX, Plus, FileText,
 } from "lucide-react";
 import { Button } from "@/components/admin-ui/button";
 import { Input } from "@/components/admin-ui/input";
@@ -33,9 +33,11 @@ import { cn } from "@/lib/utils";
 import type { Booking } from "./types";
 import { formatPrice, chauffeurInitials, chauffeurColor } from "./utils";
 import { StatusBadge } from "./components/status-badge";
+import { AdminBookingOverlay } from "@/components/booking/AdminBookingOverlay";
 import { formatBookingStatus } from "@/lib/booking-status-label";
 
 export default function BookingsPage() {
+  const router = useRouter();
   const params = useParams<{ chauffeurId?: string }>();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -70,6 +72,7 @@ export default function BookingsPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [selected, setSelected] = useState<Booking | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [newBookingOpen, setNewBookingOpen] = useState(false);
 
   useEffect(() => {
     if (currentRole.type !== "admin") return;
@@ -184,6 +187,12 @@ export default function BookingsPage() {
                 ))}
               </SelectContent>
             </Select>
+          )}
+          {currentRole.type === "admin" && (
+            <Button size="sm" onClick={() => setNewBookingOpen(true)}>
+              <Plus className="size-3.5" />
+              New booking
+            </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => {
             queryClient.invalidateQueries( { queryKey: qk.bookings() } );
@@ -353,6 +362,9 @@ export default function BookingsPage() {
                           <DropdownMenuItem onClick={() => { setSelected(b); setDetailOpen(true); }}>
                             View details
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => router.push(`/api/admin/invoices/${encodeURIComponent(b.reference)}/pdf`)}>
+                            <FileText className="size-4" /> Download invoice
+                          </DropdownMenuItem>
                           {b.status === "pending" && currentRole.type === "admin" && (
                             <>
                               <DropdownMenuItem onClick={() => handleUpdateStatus(b.reference, "confirmed")} className="text-green-600">
@@ -418,6 +430,15 @@ export default function BookingsPage() {
             toast.error("Failed", { description: err instanceof Error ? err.message : "Unknown error" });
             return false;
           }
+        }}
+      />
+
+      <AdminBookingOverlay
+        isOpen={newBookingOpen}
+        onClose={() => setNewBookingOpen(false)}
+        onSuccess={() => {
+          setNewBookingOpen(false);
+          queryClient.invalidateQueries( { queryKey: qk.bookings() } );
         }}
       />
 

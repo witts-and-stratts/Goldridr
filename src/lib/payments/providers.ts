@@ -1,5 +1,4 @@
 import "server-only";
-import { createHash, createHmac, timingSafeEqual } from "crypto";
 import Stripe from "stripe";
 import { getPaymentCredential, getPaymentSettings, type PaymentCredentialKey } from "@/lib/admin-settings";
 import type { BookingRecord } from "@/lib/pocketbase/repository";
@@ -47,63 +46,6 @@ export async function constructStripeEvent( rawBody: string, signature: string )
 
 export async function retrieveStripeCheckout( sessionId: string ): Promise<Stripe.Checkout.Session> {
   return ( await stripeClient() ).checkout.sessions.retrieve( sessionId, { expand: [ "payment_intent.latest_charge" ] } );
-}
-
-async function squareBaseUrl(): Promise<string> {
-  return ( await getPaymentSettings() ).squareEnvironment === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com";
-}
-
-function squareIdempotencyKey( value: string | number ): string {
-  return `sq_${ createHash( "sha256" ).update( String( value ) ).digest( "hex" ).slice( 0, 40 ) }`;
-}
-
-async function squareRequest( path: string, init: RequestInit ): Promise<Record<string, unknown>> {
-  const response = await fetch( `${ await squareBaseUrl() }${ path }`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${ await required( "SQUARE_ACCESS_TOKEN" ) }`,
-      "Content-Type": "application/json",
-      "Square-Version": "2026-07-15",
-      ...( init.headers || {} ),
-    },
-  } );
-  const data = await response.json() as Record<string, unknown>;
-  if ( !response.ok ) throw new Error( `Square request failed: ${ JSON.stringify( data.errors || data ) }` );
-  return data;
-}
-
-export async function squareBrowserConfig() {
-  const settings = await getPaymentSettings();
-  return {
-    applicationId: await required( "SQUARE_APP_ID" ),
-    locationId: await required( "SQUARE_LOCATION_ID" ),
-    environment: settings.squareEnvironment,
-  };
-}
-
-export async function createSquarePayment( payment: PaymentAttempt, booking: BookingRecord, sourceId: string ) {
-  const data = await squareRequest( "/v2/payments", {
-    method: "POST",
-    body: JSON.stringify( {
-      source_id: sourceId,
-      idempotency_key: squareIdempotencyKey( payment.idempotencyKey || payment.id ),
-      amount_money: { amount: payment.amountCents, currency: "USD" },
-      location_id: await required( "SQUARE_LOCATION_ID" ),
-      autocomplete: true,
-      reference_id: booking.reference,
-      buyer_email_address: booking.email,
-      note: `Goldridr booking ${ booking.reference }`,
-    } ),
-  } );
-  const result = data.payment as Record<string, unknown>;
-  return { externalId: String( result.id ), status: String( result.status || "") };
-}
-
-export async function verifySquareWebhook( rawBody: string, signature: string, notificationUrl: string ): Promise<boolean> {
-  const expected = createHmac( "sha256", await required( "SQUARE_WEBHOOK_SIGNATURE_KEY" ) ).update( `${ notificationUrl }${ rawBody }` ).digest( "base64" );
-  const left = Buffer.from( expected );
-  const right = Buffer.from( signature );
-  return left.length === right.length && timingSafeEqual( left, right );
 }
 
 async function paypalBaseUrl(): Promise<string> {
@@ -171,11 +113,6 @@ export async function refundProviderPayment( payment: PaymentAttempt ): Promise<
     if ( !payment.transactionReference ) throw new Error( "Stripe PaymentIntent is missing" );
     const refund = await ( await stripeClient() ).refunds.create( { payment_intent: payment.transactionReference, reason: "requested_by_customer", metadata: { paymentId: String( payment.id ), bookingReference: payment.bookingReference } }, { idempotencyKey: `${ payment.idempotencyKey || payment.id }:refund` } );
     return refund.id;
-  }
-  if ( payment.provider === "square" ) {
-    if ( !payment.transactionReference ) throw new Error( "Square payment ID is missing" );
-  const data = await squareRequest( "/v2/refunds", { method: "POST", body: JSON.stringify( { idempotency_key: squareIdempotencyKey( `${ payment.idempotencyKey || payment.id }:refund` ), payment_id: payment.transactionReference, amount_money: { amount: payment.amountCents, currency: "USD" }, reason: `Refund ${ payment.bookingReference }` } ) } );
-    return String( ( data.refund as Record<string, unknown> ).id );
   }
   if ( payment.provider === "paypal" ) {
     if ( !payment.transactionReference ) throw new Error( "PayPal capture ID is missing" );

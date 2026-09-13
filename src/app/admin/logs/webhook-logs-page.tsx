@@ -32,7 +32,6 @@ const providerLinks: Array<{ value: LogProvider | "all"; label: string; href: st
   { value: "resend", label: "Resend", href: "/admin/logs/resend" },
   { value: "ses", label: "SES", href: "/admin/logs/ses" },
   { value: "stripe", label: "Stripe", href: "/admin/logs/stripe" },
-  { value: "square", label: "Square", href: "/admin/logs/square" },
   { value: "paypal", label: "PayPal", href: "/admin/logs/paypal" },
 ];
 

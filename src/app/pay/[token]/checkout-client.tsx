@@ -25,7 +25,7 @@ type Checkout = {
   currency: string;
   holdExpiresAt: string | null;
   enabledMethods: Method[];
-  activeProcessor: "stripe" | "square";
+  activeProcessor: "stripe";
   zelleRecipient: string;
   zelleInstructions: string;
   billingContact: {
@@ -35,19 +35,13 @@ type Checkout = {
     phone: string;
     countryCode: string;
   };
-  square: { applicationId: string; locationId: string; environment: "production" | "sandbox" } | null;
   paypal: { clientId: string; environment: "production" | "sandbox" } | null;
-  credentialHealth: { stripe: boolean; square: boolean; paypal: boolean };
+  credentialHealth: { stripe: boolean; paypal: boolean };
 };
-
-type SquareTokenResult = { status: string; token?: string; errors?: Array<{ message?: string }> };
-type SquarePaymentMethod = { attach?: ( target: string ) => Promise<void>; tokenize?: ( details?: unknown ) => Promise<SquareTokenResult>; addEventListener?: ( name: string, listener: ( event: { detail: { tokenResult: SquareTokenResult; error?: unknown } } ) => void ) => void };
-type SquarePayments = { paymentRequest: ( options: unknown ) => unknown; card: () => Promise<SquarePaymentMethod>; applePay: ( request: unknown ) => Promise<SquarePaymentMethod>; cashAppPay: ( request: unknown, options: unknown ) => Promise<SquarePaymentMethod> };
 type PayPalButtons = { isEligible: () => boolean; render: ( target: string ) => Promise<void> };
 
 declare global {
   interface Window {
-    Square?: { payments: ( appId: string, locationId: string ) => SquarePayments };
     paypal?: { FUNDING: { VENMO: string }; Buttons: ( options: Record<string, unknown> ) => PayPalButtons };
   }
 }
@@ -111,7 +105,6 @@ export function CheckoutClient( { token }: { token: string } ) {
   const [ senderName, setSenderName ] = useState( "" );
   const [ confirmationReference, setConfirmationReference ] = useState( "" );
   const [ zelleOpen, setZelleOpen ] = useState( false );
-  const squareMethod = useRef<SquarePaymentMethod | null>( null );
   const paypalRendered = useRef( false );
 
   const loadCheckout = useCallback( async () => {
@@ -137,41 +130,6 @@ export function CheckoutClient( { token }: { token: string } ) {
     const timer = window.setInterval( update, 1000 );
     return () => window.clearInterval( timer );
   }, [ checkout?.holdExpiresAt ] );
-
-  const processSquareSource = useCallback( async ( method: Method, sourceId: string ) => {
-    const response = await fetch( `/api/payments/checkout/${ encodeURIComponent( token ) }/square`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify( { method, sourceId } ) } );
-    const data = await response.json().catch( () => ( {} ) );
-    if ( !response.ok ) throw new Error( data.error || "Square could not complete the payment" );
-    router.push( `/pay/${ encodeURIComponent( token ) }/confirmation` );
-  }, [ router, token ] );
-
-  useEffect( () => {
-    squareMethod.current = null;
-    if ( !checkout || checkout.activeProcessor !== "square" || !checkout.square || !selected || ![ "card", "apple_pay", "cash_app" ].includes( selected ) ) return;
-    let cancelled = false;
-    const initialize = async () => {
-      setError( "" );
-      const scriptUrl = checkout.square!.environment === "production" ? "https://web.squarecdn.com/v1/square.js" : "https://sandbox.web.squarecdn.com/v1/square.js";
-      await loadScript( "square-web-payments", scriptUrl );
-      const payments = window.Square!.payments( checkout.square!.applicationId, checkout.square!.locationId );
-      const request = payments.paymentRequest( { countryCode: "US", currencyCode: "USD", total: { amount: ( checkout.totalCents / 100 ).toFixed( 2 ), label: `Booking ${ checkout.reference }` } } );
-      const method = selected === "card" ? await payments.card() : selected === "apple_pay" ? await payments.applePay( request ) : await payments.cashAppPay( request, { redirectURL: window.location.href, referenceId: checkout.reference } );
-      if ( cancelled ) return;
-      squareMethod.current = method;
-      if ( selected === "card" && method.attach ) await method.attach( "#square-card" );
-      if ( selected === "cash_app" && method.attach ) {
-        method.addEventListener?.( "ontokenization", event => {
-          const result = event.detail.tokenResult;
-          if ( result.status !== "OK" || !result.token ) { setError( result.errors?.[ 0 ]?.message || "Cash App authorization failed" ); return; }
-          setSubmitting( true );
-          processSquareSource( "cash_app", result.token ).catch( cause => setError( cause instanceof Error ? cause.message : "Cash App payment failed" ) ).finally( () => setSubmitting( false ) );
-        } );
-        await method.attach( "#square-cash-app" );
-      }
-    };
-    initialize().catch( cause => setError( cause instanceof Error ? cause.message : "Square is unavailable" ) );
-    return () => { cancelled = true; };
-  }, [ checkout, processSquareSource, selected ] );
 
   useEffect( () => {
     if ( selected !== "venmo" || !checkout?.paypal || paypalRendered.current ) return;
@@ -205,13 +163,6 @@ export function CheckoutClient( { token }: { token: string } ) {
     setSubmitting( true );
     setError( "" );
     try {
-      if ( checkout.activeProcessor === "square" ) {
-        if ( !squareMethod.current?.tokenize ) throw new Error( "The payment control is still loading" );
-        const tokenResult = await squareMethod.current.tokenize( selected === "card" ? { amount: ( checkout.totalCents / 100 ).toFixed( 2 ), billingContact: checkout.billingContact, currencyCode: "USD", intent: "CHARGE", customerInitiated: true, sellerKeyedIn: false } : undefined );
-        if ( tokenResult.status !== "OK" || !tokenResult.token ) throw new Error( tokenResult.errors?.[ 0 ]?.message || "Payment authorization failed" );
-        await processSquareSource( selected, tokenResult.token );
-        return;
-      }
       const sessionResponse = await fetch( `/api/payments/checkout/${ encodeURIComponent( token ) }/session`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify( { method: selected } ) } );
       const session = await sessionResponse.json();
       if ( !sessionResponse.ok ) throw new Error( session.error || "Unable to start payment" );
@@ -298,8 +249,6 @@ export function CheckoutClient( { token }: { token: string } ) {
             { error && !zelleOpen ? <div role="alert" className="mt-6 flex gap-3 border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300"><XCircle className="mt-0.5 size-4 shrink-0" />{ error }</div> : null }
 
             { selected && selected !== "zelle" && selected !== "venmo" ? <div className="mt-7">
-              { checkout.activeProcessor === "square" && selected === "card" ? <div id="square-card" className="mb-5 min-h-20" /> : null }
-              { checkout.activeProcessor === "square" && selected === "cash_app" ? <div id="square-cash-app" className="mb-5 min-h-12" /> : null }
               { selected !== "cash_app" ? <ActionButton loading={ submitting } onClick={ onlinePay }>Pay { money( checkout.totalCents, checkout.currency ) }</ActionButton> : submitting ? <p className="mt-3 text-sm text-white/55">Waiting for verified confirmation…</p> : null }
             </div> : null }
 

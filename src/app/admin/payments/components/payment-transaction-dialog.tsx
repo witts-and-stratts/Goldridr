@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Banknote, CreditCard, ExternalLink, Landmark, Loader2, RotateCcw, WalletCards } from "lucide-react";
-import { siAmericanexpress, siApplepay, siCashapp, siDiscover, siMastercard, siPaypal, siSquare, siStripe, siVenmo, siVisa, siZelle, type SimpleIcon } from "simple-icons";
+import { Banknote, CreditCard, Download, ExternalLink, Landmark, Loader2, RotateCcw, WalletCards } from "lucide-react";
+import { siAmericanexpress, siApplepay, siCashapp, siDiscover, siMastercard, siPaypal, siStripe, siVenmo, siVisa, siZelle, type SimpleIcon } from "simple-icons";
 import { Button } from "@/components/admin-ui/button";
 import {
   Dialog,
@@ -35,7 +35,6 @@ function processorResponse( value: unknown ) {
 
 const PROCESSOR_MARKS: Record<Payment["provider"], { label: string; icon: SimpleIcon | null }> = {
   stripe: { label: "Stripe", icon: siStripe },
-  square: { label: "Square", icon: siSquare },
   paypal: { label: "PayPal", icon: siPaypal },
   manual: { label: "Manual", icon: null },
 };
@@ -139,6 +138,7 @@ export function PaymentTransactionDialog( { payment, onClose, onRefund }: Paymen
           </div>
 
           <DialogFooter className="gap-2 border-t px-6 py-4">
+            <Button asChild variant="outline" disabled={ refunding }><a href={`/api/admin/payments/${payment.id}/pdf`}><Download />Download PDF</a></Button>
             <Button variant="outline" onClick={ onClose } disabled={ refunding }>Close</Button>
             { payment.status === "paid" ? <Button variant="destructive" onClick={ refund } disabled={ refunding }>{ refunding ? <Loader2 className="animate-spin" /> : <RotateCcw /> }Refund payment</Button> : null }
           </DialogFooter>

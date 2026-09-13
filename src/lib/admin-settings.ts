@@ -15,14 +15,10 @@ export const DEFAULT_PRICE_BY_MILE_HOURLY = 4;
 export const DEFAULT_HOURLY_RATE = 75;
 export const DEFAULT_TWILIO_FROM_NUMBER = "+10000000000";
 export const DEFAULT_PAYMENT_METHODS = [ "card", "apple_pay", "cash_app", "venmo", "zelle" ] as const;
-export const DEFAULT_PAYMENT_PROCESSORS = [ "stripe", "square", "paypal", "zelle" ] as const;
+export const DEFAULT_PAYMENT_PROCESSORS = [ "stripe", "paypal", "zelle" ] as const;
 export const PAYMENT_CREDENTIAL_KEYS = [
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
-  "SQUARE_ACCESS_TOKEN",
-  "SQUARE_APP_ID",
-  "SQUARE_LOCATION_ID",
-  "SQUARE_WEBHOOK_SIGNATURE_KEY",
   "PAYPAL_CLIENT_ID",
   "PAYPAL_CLIENT_SECRET",
   "PAYPAL_WEBHOOK_ID",
@@ -120,14 +116,13 @@ export async function getPaymentSettings() {
     .split( "," )
     .map( value => value.trim() )
     .filter( value => DEFAULT_PAYMENT_METHODS.includes( value as typeof DEFAULT_PAYMENT_METHODS[number] ) );
-  const configuredActiveProcessor = ( await readTextSetting( "activePaymentProcessor", "ACTIVE_PAYMENT_PROCESSOR", "stripe" ) ) === "square" ? "square" as const : "stripe" as const;
+  const configuredActiveProcessor = "stripe" as const;
   const activeProcessor = processors.includes( configuredActiveProcessor )
     ? configuredActiveProcessor
     : processors.includes( "stripe" ) ? "stripe" as const
-    : processors.includes( "square" ) ? "square" as const
     : configuredActiveProcessor;
   const configuredMethods = methods.length ? methods : [ ...DEFAULT_PAYMENT_METHODS ];
-  const hasOnlineProcessor = processors.includes( "stripe" ) || processors.includes( "square" );
+  const hasOnlineProcessor = processors.includes( "stripe" );
   const availableMethods = configuredMethods.filter( method => {
     if ( method === "venmo" ) return processors.includes( "paypal" );
     if ( method === "zelle" ) return processors.includes( "zelle" );
@@ -142,7 +137,6 @@ export async function getPaymentSettings() {
     holdMinutes: await readNumberSetting( "paymentHoldMinutes", "PAYMENT_HOLD_MINUTES", 120 ),
     zelleVerificationHours: await readNumberSetting( "zelleVerificationHours", "ZELLE_VERIFICATION_HOURS", 24 ),
     hourlyRate: await readNumberSetting( "hourlyRate", "HOURLY_RATE", DEFAULT_HOURLY_RATE ),
-    squareEnvironment: ( await readTextSetting( "squareEnvironment", "SQUARE_ENVIRONMENT", "sandbox" ) ) === "production" ? "production" as const : "sandbox" as const,
     paypalEnvironment: ( await readTextSetting( "paypalEnvironment", "PAYPAL_ENVIRONMENT", "sandbox" ) ) === "production" ? "production" as const : "sandbox" as const,
   };
 }
@@ -151,7 +145,6 @@ export async function getPaymentCredentialHealth() {
   const credentials = Object.fromEntries( await Promise.all( PAYMENT_CREDENTIAL_KEYS.map( async key => [ key, Boolean( await getPaymentCredential( key ) ) ] ) ) ) as Record<PaymentCredentialKey, boolean>;
   return {
     stripe: credentials.STRIPE_SECRET_KEY && credentials.STRIPE_WEBHOOK_SECRET,
-    square: credentials.SQUARE_ACCESS_TOKEN && credentials.SQUARE_APP_ID && credentials.SQUARE_LOCATION_ID && credentials.SQUARE_WEBHOOK_SIGNATURE_KEY,
     paypal: credentials.PAYPAL_CLIENT_ID && credentials.PAYPAL_CLIENT_SECRET && credentials.PAYPAL_WEBHOOK_ID,
   };
 }
@@ -167,16 +160,6 @@ export async function getPaymentProviderConfiguration() {
       credentials: {
         STRIPE_SECRET_KEY: values.STRIPE_SECRET_KEY,
         STRIPE_WEBHOOK_SECRET: values.STRIPE_WEBHOOK_SECRET,
-      },
-    },
-    square: {
-      environment: payment.squareEnvironment,
-      webhookPath: "/api/webhooks/square",
-      credentials: {
-        SQUARE_ACCESS_TOKEN: values.SQUARE_ACCESS_TOKEN,
-        SQUARE_APP_ID: values.SQUARE_APP_ID,
-        SQUARE_LOCATION_ID: values.SQUARE_LOCATION_ID,
-        SQUARE_WEBHOOK_SIGNATURE_KEY: values.SQUARE_WEBHOOK_SIGNATURE_KEY,
       },
     },
     paypal: {
@@ -221,7 +204,7 @@ export async function saveAdminSettings( settings: {
   priceByMileCity: number;
   priceByMileHourly: number;
   twilioFromNumber: string;
-  activeProcessor: "stripe" | "square";
+  activeProcessor: "stripe";
   enabledProcessors: PaymentProcessor[];
   enabledMethods: string[];
   zelleRecipient: string;
@@ -229,7 +212,6 @@ export async function saveAdminSettings( settings: {
   holdMinutes: number;
   zelleVerificationHours: number;
   hourlyRate: number;
-  squareEnvironment: "sandbox" | "production";
   paypalEnvironment: "sandbox" | "production";
   providerCredentials?: Partial<Record<PaymentCredentialKey, string>>;
 } ): Promise<void> {
@@ -251,7 +233,6 @@ export async function saveAdminSettings( settings: {
   await writeSetting( "paymentHoldMinutes", settings.holdMinutes );
   await writeSetting( "zelleVerificationHours", settings.zelleVerificationHours );
   await writeSetting( "hourlyRate", settings.hourlyRate );
-  await writeSetting( "squareEnvironment", settings.squareEnvironment );
   await writeSetting( "paypalEnvironment", settings.paypalEnvironment );
   await Promise.all( Object.entries( settings.providerCredentials || {} ).map( ( [ key, value ] ) => savePaymentCredential( key as PaymentCredentialKey, value || "" ) ) );
 }
