@@ -79,7 +79,9 @@ export default function RootLayout( {
 }> ) {
   return (
     <html lang="en" className={ inter.variable }>
+      {/* Browser extensions such as Grammarly add attributes to <body> before hydration. */}
       <body
+        suppressHydrationWarning
         className={ `${ epilogue.variable } ${ engry.variable } ${ engravers.variable } antialiased font-sans` }
       >
         <BookingOverlayWrapper>
