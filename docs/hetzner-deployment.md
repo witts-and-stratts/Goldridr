@@ -37,6 +37,36 @@ Create `/root/goldridr/.env` directly on the server. Start from `.env.example`, 
 
 The Next.js cache is under `/root/goldridr/.next-cache` and PocketBase data is under `/root/goldridr/pocketbase-data`. The containers communicate through `http://pocketbase:8090`. PocketBase is available to host-side administration tools at `127.0.0.1:8091` but is not publicly exposed. The worker runs `npm run notifications:worker`, uses the same `.env`, restarts automatically, and receives 30 seconds to stop cleanly during releases.
 
+Setting `POCKETBASE_SUPERUSER_EMAIL` and `POCKETBASE_SUPERUSER_PASSWORD` configures application authentication; it does not create a PocketBase account. Provision a superuser in the mounted database and set these variables to that account's credentials.
+
+## PocketBase deployment failures
+
+An unhealthy notification worker with `Failed to authenticate` (HTTP 400) means superuser authentication failed. Check the server's `.env` credentials against the superuser in the mounted production database. Also check any configured superuser IP restrictions. `Missing collection context` (HTTP 404) means a requested collection could not be resolved; the log alone does not identify which collection. Check the database mount and the migrations bundled in the selected PocketBase image.
+
+The deployment starts PocketBase and runs `pocketbase:verify` before rolling out the new web and notification worker containers. Verification authenticates, checks the required notification collections, and exercises persistence and realtime. A failure reports the authentication step or collection name without printing credentials.
+
+On the server, diagnose the currently selected release with:
+
+```bash
+cd /root/goldridr
+docker compose -f compose.production.yaml ps
+docker inspect "$(docker compose -f compose.production.yaml ps -q pocketbase)" --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}'
+docker compose -f compose.production.yaml exec pocketbase ls /pb/pb_migrations
+docker compose -f compose.production.yaml run --rm --no-deps notifications-worker npm run pocketbase:verify
+```
+
+The data mount must point from `/root/goldridr/pocketbase-data` to `/pb/pb_data`. If it points to a fresh or incorrect directory, restore the intended mount. For missing migrations, deploy an image containing the repository's migration files. PocketBase applies unapplied migrations automatically on startup. If the correct files are present, take a database backup, then apply any pending migrations explicitly:
+
+```bash
+docker compose -f compose.production.yaml exec pocketbase pocketbase migrate up --dir=/pb/pb_data --migrationsDir=/pb/pb_migrations
+```
+
+Do not delete the production data directory or reset migration history to address this error. If migrations are marked applied but collections are missing, investigate schema drift and restore or repair the affected schema.
+
+After repairing credentials or schema, rerun verification before retrying the pipeline. A rolled-back release uses its previous images, so verification against that release does not establish that the failed candidate is ready. The next pipeline run checks the candidate worker image against the selected PocketBase image.
+
+Upload the updated `scripts/deploy.sh` to the server before using the new startup order; the GitHub workflow does not sync it. The verification script is bundled into the rebuilt worker image.
+
 The Compose Nginx service listens publicly on `${HTTP_PORT:-80}` and proxies to `web:3000`. The Next.js port is only exposed to the internal Compose network. Allow TCP port 80 through the Hetzner firewall; set `HTTP_PORT` in `/root/goldridr/.env` only if another host port is required.
 
 ## GitHub production environment

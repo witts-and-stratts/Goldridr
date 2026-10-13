@@ -31,6 +31,7 @@ const SettingsSchema = z.object( {
   priceByMileAirport: z.number().min( 0 ).max( 100 ),
   priceByMileCity: z.number().min( 0 ).max( 100 ),
   priceByMileHourly: z.number().min( 0 ).max( 100 ),
+  roundTripDiscountPercent: z.number().min( 0 ).max( 100 ).optional(),
   twilioFromNumber: z.string().trim().min( 1 ),
   activeProcessor: z.literal( "stripe" ),
   enabledProcessors: z.array( z.enum( [ "stripe", "paypal", "zelle" ] ) ).min( 1 ),

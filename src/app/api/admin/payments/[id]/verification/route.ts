@@ -3,6 +3,7 @@ import z from "zod/v4";
 import { getRequestSession } from "@/lib/driver-auth";
 import { createPocketBaseBookingStatusUpdate } from "@/lib/pocketbase/notifications";
 import { getBookingByReference, updateBookingStatus } from "@/lib/pocketbase/repository";
+import { syncReturnLeg } from "@/lib/round-trip";
 import { expirePaymentHolds, markPaymentFailed, markPaymentPaid, paymentForId } from "@/lib/payments/repository";
 
 const Schema = z.object( { action: z.enum( [ "approve", "reject" ] ), reason: z.string().trim().max( 500 ).optional() } );
@@ -25,6 +26,7 @@ export async function POST( request: Request, { params }: { params: Promise<{ id
   } else {
     await markPaymentFailed( payment, "zelle_rejected", parsed.data.reason || "Zelle payment could not be verified" );
     await updateBookingStatus( payment.bookingReference, "payment_expired" );
+    await syncReturnLeg( payment.bookingReference, { status: "payment_expired" } );
     const booking = await getBookingByReference( payment.bookingReference );
     if ( booking ) await createPocketBaseBookingStatusUpdate( booking );
   }

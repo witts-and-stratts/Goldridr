@@ -11,6 +11,10 @@ interface BookingSummaryData {
   terminal?: string;
   pickupLocation?: string;
   dropoffLocation?: string;
+  roundTrip?: boolean;
+  returnDate?: Date | string;
+  returnTime?: string;
+  returnFlightNumber?: string;
 }
 
 interface BookingSummaryProps {
@@ -21,6 +25,7 @@ interface BookingSummaryProps {
     duration_text: string;
     total_price: number;
     price_per_mile: number;
+    round_trip_discount_percent?: number;
   } | null;
   hourlyData?: {
     hours: number;
@@ -53,6 +58,11 @@ export function BookingSummary( {
   flightDetails,
   isDistanceLoading,
 }: BookingSummaryProps ) {
+  const isRoundTrip = Boolean( bookingData.roundTrip ) && bookingType !== "hourly";
+  const roundTripDiscountPercent = distanceData?.round_trip_discount_percent ?? 0;
+  const roundTripFare = distanceData ? distanceData.total_price * 2 : 0;
+  const roundTripDiscount = Math.round( roundTripFare * roundTripDiscountPercent ) / 100;
+
   return (
     <motion.div className="overflow-hidden rounded-md bg-black/60 text-white text-sm shadow-lg border border-border/20 m-4 mr-2 h-[calc(100%-2rem)]">
       {/* Flight Details Section (Airport Only) */ }
@@ -96,6 +106,21 @@ export function BookingSummary( {
           </div>
         </div>
 
+        { isRoundTrip && (
+          <div className="flex justify-between">
+            <div>
+              <span className="block text-xs text-gray-500">Return Date</span>
+              <span className="font-bold font-wide text-2xl">
+                { bookingData.returnDate ? new Date( bookingData.returnDate ).toLocaleDateString( undefined, { day: 'numeric', month: 'short' } ) : '-' }
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="block text-xs text-gray-500">Return Time</span>
+              <span className="font-bold text-2xl font-wide">{ bookingData.returnTime || '-' }</span>
+            </div>
+          </div>
+        ) }
+
         { bookingType === "hourly" ? (
           <div className="flex justify-between">
             <div>
@@ -119,6 +144,12 @@ export function BookingSummary( {
                 <span className="font-bold text-lg font-wide">{ flightDetails?.flightNumber || bookingData.flightNumber }</span>
               </div>
             ) }
+          </div>
+        ) }
+        { isRoundTrip && bookingType === "airport" && bookingData.returnFlightNumber && (
+          <div>
+            <span className="block text-xs text-gray-500">Return Flight</span>
+            <span className="font-bold text-lg font-wide">{ bookingData.returnFlightNumber }</span>
           </div>
         ) }
         { bookingType === "airport" && bookingData.terminal && (
@@ -196,11 +227,17 @@ export function BookingSummary( {
                 </div>
                 <div className="border-t border-gray-800 pt-3 mt-3">
                   <div className="flex justify-between text-sm text-gray-400 mb-1">
-                    <span>{ distanceData.total_miles } miles × ${ distanceData.price_per_mile.toFixed( 2 ) }/mi</span>
+                    <span>{ distanceData.total_miles } miles × ${ distanceData.price_per_mile.toFixed( 2 ) }/mi{ isRoundTrip ? " × 2 legs" : "" }</span>
                   </div>
+                  { isRoundTrip && roundTripDiscount > 0 && (
+                    <div className="flex justify-between text-sm text-gray-400 mb-1">
+                      <span>Round trip discount ({ roundTripDiscountPercent }%)</span>
+                      <span>−${ roundTripDiscount.toFixed( 2 ) }</span>
+                    </div>
+                  ) }
                   <div className="flex justify-between items-end">
-                    <span className="text-xs text-gray-500">Estimated Total</span>
-                    <span className="text-3xl font-bold text-gold font-wide">${ distanceData.total_price.toFixed( 2 ) }</span>
+                    <span className="text-xs text-gray-500">{ isRoundTrip ? "Estimated Round Trip Total" : "Estimated Total" }</span>
+                    <span className="text-3xl font-bold text-gold font-wide">${ ( isRoundTrip ? roundTripFare - roundTripDiscount : distanceData.total_price ).toFixed( 2 ) }</span>
                   </div>
                 </div>
               </motion.div>

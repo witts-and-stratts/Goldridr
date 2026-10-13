@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Loader2, Plane } from 'lucide-react';
+import { Car, Loader2, Plane } from 'lucide-react';
 import {
   AnimatePresence,
   motion,
@@ -39,6 +39,19 @@ interface RoutePreviewProps {
   flightDetails?: FlightDetails | null;
   terminal?: string;
   isLoading?: boolean;
+  returnTrip?: ReturnTrip | null;
+}
+
+export interface ReturnTrip {
+  date: Date;
+  time: string;
+  flightNumber?: string;
+  fare?: number | null;
+  discountPercent?: number;
+}
+
+function shortPlace(location: string): string {
+  return location.split(',')[0].trim();
 }
 
 // The flight API returns "-" when a terminal is not published yet; appending that to
@@ -176,7 +189,7 @@ function FlightCard({
       initial='hidden'
       animate='visible'
       exit='exit'
-      className='pointer-events-none absolute inset-x-6 top-6 z-10 border border-dashed border-white/15 bg-black/80 text-sm text-white shadow-2xl backdrop-blur-md'
+      className='border border-dashed border-white/15 bg-black/80 text-sm text-white shadow-2xl backdrop-blur-md'
     >
       <motion.div variants={v.group} className='p-5'>
         <motion.div
@@ -249,6 +262,102 @@ function FlightCard({
   );
 }
 
+function ReturnTripCard({
+  trip,
+  from,
+  to,
+}: {
+  trip: ReturnTrip;
+  from: string;
+  to: string;
+}) {
+  const reduced = useReducedMotion();
+  const v = useMemo(() => buildVariants(!!reduced), [reduced]);
+
+  const stats = [
+    {
+      label: 'Date',
+      value: Number.isNaN(trip.date.getTime())
+        ? '—'
+        : trip.date.toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+          }),
+    },
+    { label: 'Time', value: trip.time || '—' },
+    ...(trip.flightNumber ? [{ label: 'Flight', value: trip.flightNumber }] : []),
+    ...(trip.fare
+      ? [{ label: 'Round trip', value: `$${trip.fare.toFixed(2)}` }]
+      : []),
+  ];
+
+  return (
+    <motion.div
+      variants={v.card}
+      initial='hidden'
+      animate='visible'
+      exit='exit'
+      className='border border-dashed border-white/15 bg-black/80 text-sm text-white shadow-2xl backdrop-blur-md'
+    >
+      <motion.div variants={v.group} className='p-5'>
+        <motion.div
+          variants={v.rise}
+          className='mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40'
+        >
+          <span>Return journey</span>
+          {!!trip.discountPercent && (
+            <span className='text-gold'>Save {trip.discountPercent}%</span>
+          )}
+        </motion.div>
+
+        <motion.div variants={v.group} className='flex items-center gap-4'>
+          <motion.span
+            variants={v.fromLeft}
+            className='min-w-0 max-w-[40%] truncate font-wide text-lg uppercase text-white'
+          >
+            {from}
+          </motion.span>
+          <div className='flex flex-1 items-center justify-center'>
+            <motion.div
+              variants={v.line}
+              className='relative h-px w-full bg-white/20'
+            >
+              <motion.span
+                variants={v.plane}
+                className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 px-1'
+              >
+                <Car className='size-4 text-gold' />
+              </motion.span>
+            </motion.div>
+          </div>
+          <motion.span
+            variants={v.fromRight}
+            className='min-w-0 max-w-[40%] truncate text-right font-wide text-lg uppercase text-white'
+          >
+            {to}
+          </motion.span>
+        </motion.div>
+      </motion.div>
+
+      <motion.div
+        variants={v.line}
+        className='mx-5 origin-left border-t border-dashed border-white/15'
+      />
+
+      <motion.div variants={v.group} className='flex justify-between gap-4 p-5'>
+        {stats.map((stat) => (
+          <motion.div key={stat.label} variants={v.rise} className='min-w-0'>
+            <span className='block text-[10px] uppercase tracking-[0.2em] text-white/40'>
+              {stat.label}
+            </span>
+            <span className='block truncate text-base'>{stat.value}</span>
+          </motion.div>
+        ))}
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function Stat({
   label,
   value,
@@ -289,6 +398,7 @@ export function RoutePreview({
   flightDetails,
   terminal,
   isLoading,
+  returnTrip,
 }: RoutePreviewProps) {
   const isHourly = serviceType === 'hourly';
   const hasPickup = pickupLocation.trim().length > 0;
@@ -308,11 +418,25 @@ export function RoutePreview({
 
   return (
     <div className='relative isolate hidden min-h-[520px] overflow-hidden lg:flex lg:flex-col m-8 rounded-lg'>
-      <AnimatePresence>
-        {flightDetails && (
-          <FlightCard flight={flightDetails} terminal={terminal} />
-        )}
-      </AnimatePresence>
+      <div className='pointer-events-none absolute inset-x-6 top-6 z-10 flex flex-col gap-3'>
+        <AnimatePresence>
+          {flightDetails && (
+            <FlightCard
+              key='flight'
+              flight={flightDetails}
+              terminal={terminal}
+            />
+          )}
+          {returnTrip && !isHourly && hasPickup && hasDropoff && (
+            <ReturnTripCard
+              key='return'
+              trip={returnTrip}
+              from={shortPlace(dropoffLocation)}
+              to={shortPlace(pickupLocation)}
+            />
+          )}
+        </AnimatePresence>
+      </div>
 
       <InteractiveRouteMap
         pickupLocation={pickupLocation}

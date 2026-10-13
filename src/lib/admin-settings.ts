@@ -13,6 +13,7 @@ export const DEFAULT_PRICE_BY_MILE_AIRPORT = 5;
 export const DEFAULT_PRICE_BY_MILE_CITY = 3;
 export const DEFAULT_PRICE_BY_MILE_HOURLY = 4;
 export const DEFAULT_HOURLY_RATE = 75;
+export const DEFAULT_ROUND_TRIP_DISCOUNT_PERCENT = 10;
 export const DEFAULT_TWILIO_FROM_NUMBER = "+10000000000";
 export const DEFAULT_PAYMENT_METHODS = [ "card", "apple_pay", "cash_app", "venmo", "zelle" ] as const;
 export const DEFAULT_PAYMENT_PROCESSORS = [ "stripe", "paypal", "zelle" ] as const;
@@ -102,6 +103,11 @@ export async function getPriceByMileHourly(): Promise<number> {
   return await readNumberSetting( "priceByMileHourly", "PRICE_BY_MILE_HOURLY", DEFAULT_PRICE_BY_MILE_HOURLY );
 }
 
+export async function getRoundTripDiscountPercent(): Promise<number> {
+  const value = await readNumberSetting( "roundTripDiscountPercent", "ROUND_TRIP_DISCOUNT_PERCENT", DEFAULT_ROUND_TRIP_DISCOUNT_PERCENT );
+  return Math.min( 100, Math.max( 0, value ) );
+}
+
 export async function getTwilioFromNumber(): Promise<string> {
   return await readTextSetting( "twilioFromNumber", "TWILIO_FROM_NUMBER", DEFAULT_TWILIO_FROM_NUMBER );
 }
@@ -186,6 +192,7 @@ export async function getAdminSettings() {
     priceByMileAirport: await getPriceByMileAirport(),
     priceByMileCity: await getPriceByMileCity(),
     priceByMileHourly: await getPriceByMileHourly(),
+    roundTripDiscountPercent: await getRoundTripDiscountPercent(),
     twilioFromNumber: await getTwilioFromNumber(),
     ...payment,
     paymentCredentialHealth: await getPaymentCredentialHealth(),
@@ -203,6 +210,7 @@ export async function saveAdminSettings( settings: {
   priceByMileAirport: number;
   priceByMileCity: number;
   priceByMileHourly: number;
+  roundTripDiscountPercent?: number;
   twilioFromNumber: string;
   activeProcessor: "stripe";
   enabledProcessors: PaymentProcessor[];
@@ -224,6 +232,7 @@ export async function saveAdminSettings( settings: {
   await writeSetting( "priceByMileAirport", settings.priceByMileAirport );
   await writeSetting( "priceByMileCity", settings.priceByMileCity );
   await writeSetting( "priceByMileHourly", settings.priceByMileHourly );
+  if ( settings.roundTripDiscountPercent !== undefined ) await writeSetting( "roundTripDiscountPercent", settings.roundTripDiscountPercent );
   await writeSetting( "twilioFromNumber", settings.twilioFromNumber );
   await writeSetting( "activePaymentProcessor", settings.activeProcessor );
   await writeSetting( "enabledPaymentProcessors", settings.enabledProcessors.join( "," ) );

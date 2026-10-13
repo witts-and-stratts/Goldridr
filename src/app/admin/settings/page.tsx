@@ -512,6 +512,10 @@ export default function SettingsPage() {
           EMPTY_SETTINGS.zelleVerificationHours,
       ),
       hourlyRate: String(settingsData.hourlyRate ?? EMPTY_SETTINGS.hourlyRate),
+      roundTripDiscountPercent: String(
+        settingsData.roundTripDiscountPercent ??
+          EMPTY_SETTINGS.roundTripDiscountPercent,
+      ),
       paypalEnvironment:
         settingsData.paypalEnvironment || EMPTY_SETTINGS.paypalEnvironment,
     });
@@ -574,6 +578,7 @@ export default function SettingsPage() {
     const city = Number(settings.priceByMileCity);
     const hourly = Number(settings.priceByMileHourly);
     const hourlyRate = Number(settings.hourlyRate);
+    const roundTripDiscountPercent = Number(settings.roundTripDiscountPercent);
     const holdMinutes = Number(settings.holdMinutes);
     const zelleVerificationHours = Number(settings.zelleVerificationHours);
     if (
@@ -593,6 +598,9 @@ export default function SettingsPage() {
       !settings.twilioFromNumber.trim() ||
       !Number.isFinite(hourlyRate) ||
       hourlyRate < 0 ||
+      !Number.isFinite(roundTripDiscountPercent) ||
+      roundTripDiscountPercent < 0 ||
+      roundTripDiscountPercent > 100 ||
       !Number.isInteger(holdMinutes) ||
       holdMinutes < 30 ||
       !Number.isInteger(zelleVerificationHours) ||
@@ -632,6 +640,7 @@ export default function SettingsPage() {
           holdMinutes,
           zelleVerificationHours,
           hourlyRate,
+          roundTripDiscountPercent,
           paypalEnvironment: settings.paypalEnvironment,
           providerCredentials: Object.fromEntries(
             Object.entries(credentialDraft).filter(([, value]) => value.trim()),
@@ -900,6 +909,17 @@ export default function SettingsPage() {
               value={settings.hourlyRate}
               onChange={(event) =>
                 updateField("hourlyRate", event.target.value)
+              }
+            />
+            <SuperField
+              type="number"
+              label="Round trip discount (%)"
+              min={0}
+              max={100}
+              step="0.5"
+              value={settings.roundTripDiscountPercent}
+              onChange={(event) =>
+                updateField("roundTripDiscountPercent", event.target.value)
               }
             />
             <SuperField

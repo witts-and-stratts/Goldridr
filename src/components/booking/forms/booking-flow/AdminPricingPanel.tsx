@@ -13,6 +13,7 @@ type AdminPricingPanelProps = {
   serviceType: BookingServiceType;
   distanceData: DistanceData | null;
   hourlyData?: HourlyData;
+  roundTrip?: boolean;
   onChange: ( pricing: BookingPricingOverride ) => void;
 };
 
@@ -24,16 +25,21 @@ export function AdminPricingPanel( {
   serviceType,
   distanceData,
   hourlyData,
+  roundTrip = false,
   onChange,
 }: AdminPricingPanelProps ) {
   const isHourly = serviceType === 'hourly';
+  // The total is what the passenger is charged, so a round trip covers both legs less the discount.
+  const totalFactor = roundTrip && !isHourly
+    ? 2 * ( 1 - ( distanceData?.round_trip_discount_percent ?? 0 ) / 100 )
+    : 1;
 
   const autoTotal = isHourly
     ? hourlyData
       ? hourlyData.totalPrice.toFixed( 2 )
       : ''
     : distanceData
-      ? distanceData.total_price.toFixed( 2 )
+      ? ( distanceData.total_price * totalFactor ).toFixed( 2 )
       : '';
   const autoDistance = distanceData ? String( distanceData.total_miles ) : '';
   const autoDuration = isHourly
@@ -105,7 +111,7 @@ export function AdminPricingPanel( {
         const rate = Number( key === 'rate' ? value : next.rate );
         const basis = isHourly ? Number( next.duration ) / 60 : Number( next.distance );
         if ( Number.isFinite( rate ) && Number.isFinite( basis ) && rate > 0 && basis > 0 ) {
-          next.total = ( rate * basis ).toFixed( 2 );
+          next.total = ( rate * basis * totalFactor ).toFixed( 2 );
           dirty.current.total = true;
         }
       }
@@ -159,7 +165,9 @@ export function AdminPricingPanel( {
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor='admin-pricing-total'>Total price ($)</FieldLabel>
+          <FieldLabel htmlFor='admin-pricing-total'>
+            {roundTrip && !isHourly ? 'Round trip total ($)' : 'Total price ($)'}
+          </FieldLabel>
           <Input
             id='admin-pricing-total'
             type='number'

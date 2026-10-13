@@ -36,6 +36,10 @@ test( "booking forms reject a past pickup", () => {
     flightNumber: "",
     terminal: "",
     duration: "",
+    roundTrip: false,
+    returnDate: new Date( 2020, 0, 1 ),
+    returnTime: "",
+    returnFlightNumber: "",
   } );
 
   assert.equal( result.success, false );

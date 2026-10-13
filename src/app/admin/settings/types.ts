@@ -24,6 +24,7 @@ export interface AdminSettingsState {
   holdMinutes: string;
   zelleVerificationHours: string;
   hourlyRate: string;
+  roundTripDiscountPercent: string;
   paypalEnvironment: "sandbox" | "production";
 }
 

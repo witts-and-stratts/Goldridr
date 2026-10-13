@@ -22,15 +22,19 @@ export const TerminalSchema = z.string().trim().max( 80, "Terminal is too long" 
 
 export const DurationSchema = z.string().min( 1, "Duration is required" );
 
+function toDateKey( date: Date ): string {
+  const year = date.getFullYear();
+  const month = String( date.getMonth() + 1 ).padStart( 2, "0" );
+  const day = String( date.getDate() ).padStart( 2, "0" );
+  return `${ year }-${ month }-${ day }`;
+}
+
 function hasFuturePickup( data: { date: Date; time: string } ): boolean {
   if ( Number.isNaN( data.date.getTime() ) || !TimeSchema.safeParse( data.time ).success ) {
     return true;
   }
 
-  const year = data.date.getFullYear();
-  const month = String( data.date.getMonth() + 1 ).padStart( 2, "0" );
-  const day = String( data.date.getDate() ).padStart( 2, "0" );
-  return isBookingTimeInFuture( `${ year }-${ month }-${ day }`, data.time );
+  return isBookingTimeInFuture( toDateKey( data.date ), data.time );
 }
 
 const FuturePickupValidation = {
@@ -102,6 +106,10 @@ export const UnifiedBookingSchema = z.object( {
   flightNumber: FlightNumberSchema,
   terminal: TerminalSchema,
   duration: z.string(),
+  roundTrip: z.boolean(),
+  returnDate: z.date(),
+  returnTime: z.string(),
+  returnFlightNumber: FlightNumberSchema,
 } ).superRefine( ( data, ctx ) => {
   const requireWith = ( schema: z.ZodType, value: unknown, path: string ) => {
     const result = schema.safeParse( value );
@@ -120,6 +128,19 @@ export const UnifiedBookingSchema = z.object( {
 
   if ( !hasFuturePickup( data ) ) {
     ctx.addIssue( { code: "custom", path: [ "time" ], message: FuturePickupValidation.message } );
+  }
+
+  if ( data.roundTrip && data.serviceType !== "hourly" ) {
+    if ( !TimeSchema.safeParse( data.returnTime ).success ) {
+      ctx.addIssue( { code: "custom", path: [ "returnTime" ], message: "Return time is required" } );
+    } else if ( !Number.isNaN( data.returnDate.getTime() ) && TimeSchema.safeParse( data.time ).success ) {
+      // Zero-padded "YYYY-MM-DD HH:MM" strings compare in chronological order.
+      const outbound = `${ toDateKey( data.date ) } ${ data.time }`;
+      const inbound = `${ toDateKey( data.returnDate ) } ${ data.returnTime }`;
+      if ( inbound <= outbound ) {
+        ctx.addIssue( { code: "custom", path: [ "returnTime" ], message: "Return must be after the outbound pickup" } );
+      }
+    }
   }
 } );
 

@@ -15,7 +15,33 @@ const superuserPassword = requiredEnv("POCKETBASE_SUPERUSER_PASSWORD");
 
 async function main() {
   const pb = new PocketBase(url);
-  await pb.collection("_superusers").authWithPassword(superuserEmail, superuserPassword);
+  try {
+    await pb.collection("_superusers").authWithPassword(superuserEmail, superuserPassword);
+  } catch (error) {
+    const status = error instanceof Error && "status" in error ? error.status : "unknown";
+    throw new Error(`PocketBase superuser authentication failed (HTTP ${status}). Check POCKETBASE_SUPERUSER_EMAIL and POCKETBASE_SUPERUSER_PASSWORD against the account in the mounted production database. Environment variables do not create a superuser.`);
+  }
+
+  for (const collection of [
+    "app_settings",
+    "app_users",
+    "notifications",
+    "notification_recipients",
+    "notification_deliveries",
+    "notification_preferences",
+    "notification_provider_events",
+    "push_tokens",
+    "web_push_subscriptions",
+    "webhook_logs",
+    "calendar_feed_tokens",
+  ]) {
+    try {
+      await pb.collection(collection).getList(1, 1, { fields: "id" });
+    } catch (error) {
+      const status = error instanceof Error && "status" in error ? error.status : "unknown";
+      throw new Error(`PocketBase collection "${collection}" verification failed (HTTP ${status}). Check the mounted pocketbase-data directory and migrations in the deployed PocketBase image.`);
+    }
+  }
 
   const suffix = `${Date.now()}`;
   const legacyId = Number(suffix);
@@ -27,7 +53,6 @@ async function main() {
 
   try {
   await pb.health.check();
-  await pb.collection("calendar_feed_tokens").getList(1, 1, { fields: "id" });
   const setting = await pb.collection("app_settings").create({
     key: `deploymentVerification:${suffix}`,
     value: "ok",
@@ -90,6 +115,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error(error instanceof Error ? error.message : "PocketBase verification failed");
   process.exitCode = 1;
 });

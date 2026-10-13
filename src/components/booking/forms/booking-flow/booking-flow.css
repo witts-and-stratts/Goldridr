@@ -89,6 +89,35 @@
   @apply grid grid-cols-2 gap-2;
 }
 
+.booking-flow__trip-type {
+  @apply space-y-2;
+}
+
+.booking-flow__trip-tabs {
+  @apply w-full;
+}
+
+.booking-flow__return-panel {
+  @apply space-y-5 rounded-md border border-dashed border-white/15 bg-white/[0.02] p-4 sm:p-5;
+  @apply animate-in fade-in-0 slide-in-from-top-1 duration-300;
+}
+
+.booking-flow__return-header {
+  @apply flex items-start gap-3;
+}
+
+.booking-flow__return-icon {
+  @apply mt-0.5 size-5 shrink-0 text-gold;
+}
+
+.booking-flow__return-title {
+  @apply font-wide text-xs uppercase tracking-[0.2em] text-white;
+}
+
+.booking-flow__return-route {
+  @apply mt-1 truncate text-sm text-white/50;
+}
+
 .booking-flow__direction-button {
   @apply max-md:px-2 max-md:text-xs;
 }

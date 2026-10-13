@@ -11,6 +11,7 @@ export interface AlternativeSlot {
 interface BookingErrorPayload {
   error?: string;
   message?: string;
+  leg?: "outbound" | "return";
   alternativeSlots?: AlternativeSlot[];
 }
 
@@ -48,7 +49,9 @@ export function showBookingErrorToast(
         <p>{ data.message || "All of our chauffeurs are already reserved at that time." }</p>
         { slots.length > 0 && onPickSlot ? (
           <>
-            <p className="font-medium">Closest available pickups — tap one to use it:</p>
+            <p className="font-medium">
+              { data.leg === "return" ? "Closest available return pickups" : "Closest available pickups" } — tap one to use it:
+            </p>
             <div className="flex flex-wrap gap-1.5">
               { slots.map( ( slot ) => (
                 <button
@@ -58,7 +61,7 @@ export function showBookingErrorToast(
                   onClick={ () => {
                     toast.dismiss( toastId );
                     onPickSlot( slot );
-                    toast.success( "Pickup time updated", {
+                    toast.success( data.leg === "return" ? "Return time updated" : "Pickup time updated", {
                       description: `Now set to ${ formatSlotLabel( slot ) }. Review your details and confirm again.`,
                     } );
                   } }

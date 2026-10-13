@@ -7,6 +7,7 @@ import { createWithLegacyId, first } from "@/lib/pocketbase/core";
 import { checkBookingClash, getBookingByReference, type BookingRecord } from "@/lib/pocketbase/repository";
 import { getPaymentSettings } from "@/lib/admin-settings";
 import { paymentTokenHash } from "./tokens";
+import { syncReturnLeg } from "@/lib/round-trip";
 import type { PaymentAttempt, PaymentMethod, PaymentProvider, PaymentStatus } from "./types";
 import { cancelPaymentReminder } from "./hold-expiry";
 import { createPocketBasePaymentStatusUpdate } from "@/lib/pocketbase/notifications";
@@ -86,6 +87,7 @@ export async function extendPaymentHold( bookingReference: string, extensionMinu
   const bookingRow = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: bookingReference } );
   if ( !bookingRow ) return { kind: "not_found" };
   await pb().collection( pocketBaseCollections.bookings ).update( bookingRow.id, { holdExpiresAt } );
+  await syncReturnLeg( bookingReference, { holdExpiresAt } );
 
   if ( booking.status === "payment_review" ) {
     const attempts = await pb().collection( pocketBaseCollections.payments ).getFullList( {
@@ -147,6 +149,7 @@ export async function markPaymentPaid( payment: PaymentAttempt, transactionRefer
   if ( row ) await pb().collection( pocketBaseCollections.bookings ).update( row.id, { status: "confirmed", paymentConfirmedAt: now } );
   await cancelPaymentReminder( booking.reference );
   const updatedBooking = await getBookingByReference( booking.reference );
+  await syncReturnLeg( booking.reference, { status: "confirmed" } );
   await notifyPaymentStatus( payment.id, updatedBooking );
   return { booking: updatedBooking, late: false };
 }
@@ -164,6 +167,7 @@ export async function submitZelleClaim( booking: BookingRecord, senderName: stri
   await updatePaymentAttempt( payment.id, { status: "awaiting_verification", senderName, confirmationReference, verificationExpiresAt } );
   const row = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: booking.reference } );
   if ( row ) await pb().collection( pocketBaseCollections.bookings ).update( row.id, { status: "payment_review", holdExpiresAt: verificationExpiresAt } );
+  await syncReturnLeg( booking.reference, { status: "payment_review", holdExpiresAt: verificationExpiresAt } );
   await cancelPaymentReminder( booking.reference );
   const updated = ( await paymentForId( payment.id ) )!;
   await notifyPaymentStatus( payment.id, booking );
@@ -180,6 +184,7 @@ export async function markPaymentRefunded( payment: PaymentAttempt, refundRefere
   await updatePaymentAttempt( payment.id, { status: "refunded", refundedAt: now, providerMetadata } );
   const row = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: payment.bookingReference } );
   if ( row ) await pb().collection( pocketBaseCollections.bookings ).update( row.id, { status: "cancelled" } );
+  await syncReturnLeg( payment.bookingReference, { status: "cancelled" }, { force: true } );
   await cancelPaymentReminder( payment.bookingReference );
   const booking = await getBookingByReference( payment.bookingReference );
   await notifyPaymentStatus( payment.id, booking );
