@@ -50,6 +50,65 @@ interface BookingSummaryProps {
   isDistanceLoading?: boolean;
 }
 
+const formatShortDate = ( value?: Date | string ) =>
+  value ? new Date( value ).toLocaleDateString( undefined, { day: 'numeric', month: 'short' } ) : '-';
+
+interface LegCardProps {
+  label: string;
+  date?: Date | string;
+  time?: string;
+  flightNumber?: string;
+  terminal?: string;
+  pickup?: string;
+  dropoff?: string;
+  price?: number;
+}
+
+function LegCard( { label, date, time, flightNumber, terminal, pickup, dropoff, price }: LegCardProps ) {
+  return (
+    <section aria-label={ `${ label } leg` } className="space-y-3">
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-gold">{ label }</span>
+        { price !== undefined && <span className="font-wide text-sm text-gray-300">${ price.toFixed( 2 ) }</span> }
+      </div>
+      <div className="flex justify-between">
+        <div>
+          <span className="block text-xs text-gray-500">Date</span>
+          <span className="font-bold font-wide text-2xl">{ formatShortDate( date ) }</span>
+        </div>
+        <div className="text-right">
+          <span className="block text-xs text-gray-500">Time</span>
+          <span className="font-bold text-2xl font-wide">{ time || '-' }</span>
+        </div>
+      </div>
+      { ( flightNumber || terminal ) && (
+        <div className="flex justify-between">
+          <div>
+            <span className="block text-xs text-gray-500">Flight</span>
+            <span className="font-bold text-lg font-wide">{ flightNumber || '-' }</span>
+          </div>
+          { terminal && (
+            <div className="text-right">
+              <span className="block text-xs text-gray-500">Terminal</span>
+              <span className="font-bold text-lg font-wide">{ terminal }</span>
+            </div>
+          ) }
+        </div>
+      ) }
+      <div className="space-y-1">
+        <div>
+          <span className="block text-xs text-gray-500">Pickup</span>
+          <span className="font-normal text-white leading-tight">{ pickup || '-' }</span>
+        </div>
+        <div>
+          <span className="block text-xs text-gray-500">Dropoff</span>
+          <span className="font-normal text-white leading-tight">{ dropoff || '-' }</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function BookingSummary( {
   bookingType,
   bookingData,
@@ -64,122 +123,134 @@ export function BookingSummary( {
   const roundTripDiscount = Math.round( roundTripFare * roundTripDiscountPercent ) / 100;
 
   return (
-    <motion.div className="overflow-hidden rounded-md bg-black/60 text-white text-sm shadow-lg border border-border/20 m-4 mr-2 h-[calc(100%-2rem)]">
+    <motion.div className="overflow-hidden rounded-md bg-black/60 text-white text-sm shadow-lg border border-border/20 m-4 mr-2 min-h-[calc(100%-2rem)]">
       {/* Flight Details Section (Airport Only) */ }
       { bookingType === "airport" && flightDetails && (
         <>
-          <div className="p-5 pb-4">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span>From</span>
-              <span>To</span>
-            </div>
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-3xl font-bold font-wide text-white">{ flightDetails.departure }</span>
-              <div className="flex-1 flex items-center justify-center px-4">
-                <div className="h-px w-full bg-gray-300 relative">
-                  <Plane className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-4 w-4 text-[#D4AF37] rotate-90" />
-                </div>
+            <div className="p-5 pb-4">
+              <div className="flex justify-between text-xs text-gray-500 mb-1">
+                <span>From</span>
+                <span>To</span>
               </div>
-              <span className="text-3xl font-bold font-wide text-white">{ flightDetails.arrival }</span>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-3xl font-bold font-wide text-white">{ flightDetails.departure }</span>
+                <div className="flex-1 flex items-center justify-center px-4">
+                  <div className="h-px w-full bg-gray-300 relative">
+                    <Plane className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-4 w-4 text-[#D4AF37] rotate-90" />
+                  </div>
+                </div>
+                <span className="text-3xl font-bold font-wide text-white">{ flightDetails.arrival }</span>
+              </div>
+              <div className="flex justify-between text-lg text-gray-500 font-wide">
+                <span>{ flightDetails.origin }</span>
+                <span>{ flightDetails.destination }</span>
+              </div>
             </div>
-            <div className="flex justify-between text-lg text-gray-500 font-wide">
-              <span>{ flightDetails.origin }</span>
-              <span>{ flightDetails.destination }</span>
-            </div>
-          </div>
-          <div className="border-t border-dashed border-gray-800 mx-5"></div>
+            <div className="border-t border-dashed border-gray-800 mx-5"></div>
         </>
       ) }
 
-      {/* Common Trip Details */ }
-      <div className="p-5 pt-4 space-y-4">
-        <div className="flex justify-between">
+      { isRoundTrip ? (
+        <div className="p-5 pt-4 space-y-4">
+          <LegCard
+            label="Outbound"
+            date={ bookingData.date }
+            time={ bookingData.time }
+            flightNumber={ bookingType === "airport" ? flightDetails?.flightNumber || bookingData.flightNumber : undefined }
+            terminal={ bookingType === "airport" ? bookingData.terminal : undefined }
+            pickup={ bookingData.pickupLocation }
+            dropoff={ bookingData.dropoffLocation }
+            price={ distanceData?.total_price }
+          />
+          <div className="border-t border-dashed border-gray-800"></div>
+          {/* The return leg runs the same route in reverse. */ }
+          <LegCard
+            label="Return"
+            date={ bookingData.returnDate }
+            time={ bookingData.returnTime }
+            flightNumber={ bookingType === "airport" ? bookingData.returnFlightNumber : undefined }
+            pickup={ bookingData.dropoffLocation }
+            dropoff={ bookingData.pickupLocation }
+            price={ distanceData?.total_price }
+          />
+          <div className="border-t border-dashed border-gray-800"></div>
           <div>
-            <span className="block text-xs text-gray-500">Date</span>
-            <span className="font-bold font-wide text-2xl">
-              { bookingData.date ? new Date( bookingData.date ).toLocaleDateString( undefined, { day: 'numeric', month: 'short' } ) : '-' }
-            </span>
-          </div>
-          <div className="text-right">
-            <span className="block text-xs text-gray-500">Time</span>
-            <span className="font-bold text-2xl font-wide">{ bookingData.time || '-' }</span>
+            <span className="block text-xs text-gray-500">Passengers</span>
+            <span className="font-bold text-lg font-wide">{ bookingData.passengers }</span>
           </div>
         </div>
-
-        { isRoundTrip && (
+      ) : (
+        <>
+        {/* Common Trip Details */ }
+        <div className="p-5 pt-4 space-y-4">
           <div className="flex justify-between">
             <div>
-              <span className="block text-xs text-gray-500">Return Date</span>
+              <span className="block text-xs text-gray-500">Date</span>
               <span className="font-bold font-wide text-2xl">
-                { bookingData.returnDate ? new Date( bookingData.returnDate ).toLocaleDateString( undefined, { day: 'numeric', month: 'short' } ) : '-' }
+                { bookingData.date ? new Date( bookingData.date ).toLocaleDateString( undefined, { day: 'numeric', month: 'short' } ) : '-' }
               </span>
             </div>
             <div className="text-right">
-              <span className="block text-xs text-gray-500">Return Time</span>
-              <span className="font-bold text-2xl font-wide">{ bookingData.returnTime || '-' }</span>
+              <span className="block text-xs text-gray-500">Time</span>
+              <span className="font-bold text-2xl font-wide">{ bookingData.time || '-' }</span>
             </div>
           </div>
-        ) }
 
-        { bookingType === "hourly" ? (
-          <div className="flex justify-between">
-            <div>
-              <span className="block text-xs text-gray-500">Duration</span>
-              <span className="font-bold text-2xl font-wide">{ hourlyData?.hours || 0 } Hours</span>
-            </div>
-            <div className="text-right">
-              <span className="block text-xs text-gray-500">Rate</span>
-              <span className="font-bold text-2xl font-wide">${ hourlyData?.rate || 0 }/hr</span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex justify-between">
-            <div>
-              <span className="block text-xs text-gray-500">Passengers</span>
-              <span className="font-bold text-lg font-wide">{ bookingData.passengers }</span>
-            </div>
-            { bookingType === "airport" && (
-              <div className="text-right">
-                <span className="block text-xs text-gray-500">Flight</span>
-                <span className="font-bold text-lg font-wide">{ flightDetails?.flightNumber || bookingData.flightNumber }</span>
-              </div>
-            ) }
-          </div>
-        ) }
-        { isRoundTrip && bookingType === "airport" && bookingData.returnFlightNumber && (
-          <div>
-            <span className="block text-xs text-gray-500">Return Flight</span>
-            <span className="font-bold text-lg font-wide">{ bookingData.returnFlightNumber }</span>
-          </div>
-        ) }
-        { bookingType === "airport" && bookingData.terminal && (
-          <div>
-            <span className="block text-xs text-gray-500">Airport Terminal</span>
-            <span className="font-bold text-lg font-wide">{ bookingData.terminal }</span>
-          </div>
-        ) }
-      </div>
-
-      <div className="border-t border-dashed border-gray-800 mx-5"></div>
-
-      {/* Location Section */ }
-      <div className="p-5 pt-4 space-y-3">
-        <div className="flex flex-col gap-2">
-          <div>
-            <span className="block text-xs text-gray-500">Pickup Location</span>
-            <span className="font-normal text-white text-lg leading-tight">{ bookingData.pickupLocation }</span>
-          </div>
-          { bookingType !== "hourly" && (
-            <>
-              <div className="border-t border-dashed border-gray-800 my-1"></div>
+          { bookingType === "hourly" ? (
+            <div className="flex justify-between">
               <div>
-                <span className="block text-xs text-gray-500">Dropoff Location</span>
-                <span className="font-normal text-white text-lg leading-tight">{ bookingData.dropoffLocation }</span>
+                <span className="block text-xs text-gray-500">Duration</span>
+                <span className="font-bold text-2xl font-wide">{ hourlyData?.hours || 0 } Hours</span>
               </div>
-            </>
+              <div className="text-right">
+                <span className="block text-xs text-gray-500">Rate</span>
+                <span className="font-bold text-2xl font-wide">${ hourlyData?.rate || 0 }/hr</span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-between">
+              <div>
+                <span className="block text-xs text-gray-500">Passengers</span>
+                <span className="font-bold text-lg font-wide">{ bookingData.passengers }</span>
+              </div>
+              { bookingType === "airport" && (
+                <div className="text-right">
+                  <span className="block text-xs text-gray-500">Flight</span>
+                  <span className="font-bold text-lg font-wide">{ flightDetails?.flightNumber || bookingData.flightNumber }</span>
+                </div>
+              ) }
+            </div>
+          ) }
+          { bookingType === "airport" && bookingData.terminal && (
+            <div>
+              <span className="block text-xs text-gray-500">Airport Terminal</span>
+              <span className="font-bold text-lg font-wide">{ bookingData.terminal }</span>
+            </div>
           ) }
         </div>
-      </div>
+
+        <div className="border-t border-dashed border-gray-800 mx-5"></div>
+
+        {/* Location Section */ }
+        <div className="p-5 pt-4 space-y-3">
+          <div className="flex flex-col gap-2">
+            <div>
+              <span className="block text-xs text-gray-500">Pickup Location</span>
+              <span className="font-normal text-white text-lg leading-tight">{ bookingData.pickupLocation }</span>
+            </div>
+            { bookingType !== "hourly" && (
+              <>
+                <div className="border-t border-dashed border-gray-800 my-1"></div>
+                <div>
+                  <span className="block text-xs text-gray-500">Dropoff Location</span>
+                  <span className="font-normal text-white text-lg leading-tight">{ bookingData.dropoffLocation }</span>
+                </div>
+              </>
+            ) }
+          </div>
+        </div>
+        </>
+      ) }
 
       <div className="border-t border-dashed border-gray-800 mx-5"></div>
 
@@ -217,18 +288,31 @@ export function BookingSummary( {
                 <div
                   className="flex justify-between">
                   <div>
-                    <span className="block text-xs text-gray-500">Distance</span>
+                    <span className="block text-xs text-gray-500">{ isRoundTrip ? "Distance (each way)" : "Distance" }</span>
                     <span className="font-bold text-lg font-wide">{ distanceData.total_miles } mi</span>
                   </div>
                   <div className="text-right">
-                    <span className="block text-xs text-gray-500">Est. Duration</span>
+                    <span className="block text-xs text-gray-500">{ isRoundTrip ? "Est. Duration (each way)" : "Est. Duration" }</span>
                     <span className="font-bold text-lg font-wide">{ distanceData.duration_text }</span>
                   </div>
                 </div>
                 <div className="border-t border-gray-800 pt-3 mt-3">
-                  <div className="flex justify-between text-sm text-gray-400 mb-1">
-                    <span>{ distanceData.total_miles } miles × ${ distanceData.price_per_mile.toFixed( 2 ) }/mi{ isRoundTrip ? " × 2 legs" : "" }</span>
-                  </div>
+                  { isRoundTrip ? (
+                    <>
+                      <div className="flex justify-between text-sm text-gray-400 mb-1">
+                        <span>Outbound · { distanceData.total_miles } mi × ${ distanceData.price_per_mile.toFixed( 2 ) }/mi</span>
+                        <span>${ distanceData.total_price.toFixed( 2 ) }</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-400 mb-1">
+                        <span>Return · { distanceData.total_miles } mi × ${ distanceData.price_per_mile.toFixed( 2 ) }/mi</span>
+                        <span>${ distanceData.total_price.toFixed( 2 ) }</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between text-sm text-gray-400 mb-1">
+                      <span>{ distanceData.total_miles } miles × ${ distanceData.price_per_mile.toFixed( 2 ) }/mi</span>
+                    </div>
+                  ) }
                   { isRoundTrip && roundTripDiscount > 0 && (
                     <div className="flex justify-between text-sm text-gray-400 mb-1">
                       <span>Round trip discount ({ roundTripDiscountPercent }%)</span>
