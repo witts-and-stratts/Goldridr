@@ -1,6 +1,5 @@
 import z from "zod/v4";
 import {
-  deleteBooking,
   findAvailableChauffeur,
   getBookingByReference,
   saveBooking,
@@ -18,7 +17,7 @@ import { assertFutureBookingTime } from "@/lib/booking-time";
 import { zonedDateTimeToDate } from "@/lib/notifications/time";
 import { getAlternativeSlots, type AlternativeSlot } from "@/lib/booking-availability";
 import type { BookingPricingOverride } from "@/lib/booking-pricing";
-import { syncReturnLeg } from "@/lib/round-trip";
+import { rideReference } from "@/lib/booking-legs";
 import type { FlightDirection } from "@/lib/flights/types";
 
 const AttendeeSchema = z.object( {
@@ -83,7 +82,7 @@ export const BookingRequestSchema = z.object( {
 export type BookingRequestInput = z.infer<typeof BookingRequestSchema>;
 
 export type CreateBookingOutcome =
-  | { status: "created"; booking: BookingRecord; returnBooking?: BookingRecord; message: string }
+  | { status: "created"; booking: BookingRecord; message: string }
   | { status: "clash"; leg: "outbound" | "return"; alternativeSlots: AlternativeSlot[] };
 
 export class ReturnTimeError extends Error {}
@@ -138,7 +137,6 @@ export async function createBookingRequest( req: Request, input: BookingRequestI
   const chargedCents = combinedCents - roundTripDiscountCents;
 
   const bookingReference = generateBookingReference();
-  const returnReference = returnLeg ? generateBookingReference() : null;
   const token = paymentToken();
   const paymentSettings = await getPaymentSettings();
   const holdExpiresAt = new Date( Date.now() + paymentSettings.holdMinutes * 60_000 ).toISOString();
@@ -163,19 +161,38 @@ export async function createBookingRequest( req: Request, input: BookingRequestI
       estimatedDuration: pricing?.durationMinutes !== undefined ? minutesToText( durationMinutes ) : quote.durationText,
       estimatedDurationMinutes: durationMinutes,
       pricePerMile: pricing?.pricePerMile ?? quote.pricePerMile,
-      ...( returnLeg && returnReference ? {
+      ...( returnLeg ? {
         roundTrip: {
           leg: "outbound",
-          pairedReference: returnReference,
+          pairedReference: rideReference( bookingReference, "return" ),
           returnDate: returnLeg.date,
           returnTime: returnLeg.time,
-          outboundCents: subtotalCents,
+          // Leg prices before discounts; an admin override replaces the combined total.
+          outboundCents: pricing?.totalCents === undefined ? subtotalCents : quote.subtotalCents,
           returnCents: returnLeg.subtotalCents,
           discountPercent: pricing?.totalCents === undefined ? returnLeg.discountPercent : 0,
           discountCents: roundTripDiscountCents,
         },
       } : {} ),
     } ),
+    returnLeg: returnLeg ? {
+      date: returnLeg.date,
+      time: returnLeg.time,
+      duration: returnLeg.durationMinutes,
+      chauffeurId: returnLeg.chauffeurId,
+      tripDetails: JSON.stringify( {
+        pickupLocation: tripDetails.dropoffLocation,
+        dropoffLocation: tripDetails.pickupLocation,
+        passengers: tripDetails.passengers,
+        luggage: tripDetails.luggage,
+        tripDirection: reverseDirection( tripDetails.tripDirection ),
+        flightNumber: input.roundTrip?.flightNumber || undefined,
+        estimatedDistance: returnLeg.totalMiles,
+        estimatedDuration: returnLeg.durationText,
+        estimatedDurationMinutes: returnLeg.durationMinutes,
+        pricePerMile: returnLeg.pricePerMile,
+      } ),
+    } : null,
     discountCode: input.discountCode || null,
     chauffeurId: assignedChauffeur.id,
     smsConsentVersion: smsConsented ? SMS_CONSENT_VERSION : null,
@@ -187,48 +204,6 @@ export async function createBookingRequest( req: Request, input: BookingRequestI
       currency: quote.currency,
     },
   } );
-
-  let savedReturn: BookingRecord | undefined;
-  if ( returnLeg && returnReference ) {
-    try {
-      savedReturn = await saveBooking( {
-        reference: returnReference,
-        tripType: input.tripType || "airport",
-        date: returnLeg.date,
-        time: returnLeg.time,
-        duration: returnLeg.durationMinutes,
-        name: input.attendee.name,
-        email: input.attendee.email,
-        phone: input.attendee.phone || "",
-        notes: input.notes || "",
-        status: "pending_payment",
-        tripDetails: JSON.stringify( {
-          pickupLocation: tripDetails.dropoffLocation,
-          dropoffLocation: tripDetails.pickupLocation,
-          passengers: tripDetails.passengers,
-          luggage: tripDetails.luggage,
-          tripDirection: reverseDirection( tripDetails.tripDirection ),
-          flightNumber: input.roundTrip?.flightNumber || undefined,
-          estimatedPrice: 0,
-          estimatedDistance: returnLeg.totalMiles,
-          estimatedDuration: returnLeg.durationText,
-          estimatedDurationMinutes: returnLeg.durationMinutes,
-          pricePerMile: returnLeg.pricePerMile,
-          roundTrip: { leg: "return", pairedReference: bookingReference },
-        } ),
-        chauffeurId: returnLeg.chauffeurId,
-        smsConsentVersion: smsConsented ? SMS_CONSENT_VERSION : null,
-        smsConsentedAt,
-        // Paid through the outbound leg's link; the hold keeps both legs expiring together.
-        paymentFlow: { tokenHash: "", holdExpiresAt, subtotalCents: 0, currency: quote.currency },
-      } );
-    } catch ( error ) {
-      await deleteBooking( savedBooking.reference ).catch( cleanupError => {
-        console.error( `Unable to remove outbound leg ${ savedBooking.reference } after return leg failed`, cleanupError );
-      } );
-      throw error;
-    }
-  }
 
   if ( smsConsented ) {
     const evidence = smsConsentEvidenceFromRequest( req, "transactional" );
@@ -254,11 +229,9 @@ export async function createBookingRequest( req: Request, input: BookingRequestI
     await updateBookingStatus( savedBooking.reference, "confirmed" );
     const confirmedBooking = await getBookingByReference( savedBooking.reference );
     if ( confirmedBooking ) await createPocketBaseBookingStatusUpdate( confirmedBooking );
-    const confirmedReturn = savedReturn ? await syncReturnLeg( savedBooking.reference, { status: "confirmed" } ) : undefined;
     return {
       status: "created",
       booking: confirmedBooking || savedBooking,
-      returnBooking: confirmedReturn || savedReturn,
       message: "Booking confirmed. Check your email or text messages for confirmation.",
     };
   }
@@ -269,7 +242,6 @@ export async function createBookingRequest( req: Request, input: BookingRequestI
   return {
     status: "created",
     booking: savedBooking,
-    returnBooking: savedReturn,
     message: "Booking request received. Check your email or text messages to pay and confirm.",
   };
 }

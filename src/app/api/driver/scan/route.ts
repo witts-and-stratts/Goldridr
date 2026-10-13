@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getBookingByReference } from "@/lib/pocketbase/repository";
+import { getBookingByReference, getRideByReference, type BookingRecord } from "@/lib/pocketbase/repository";
+import { isLegActive, parseRideReference, rideViews } from "@/lib/booking-legs";
 import { getAppSession, unauthorizedResponse } from "@/lib/driver-auth";
 import { bookingRecordToDriverRide } from "@/lib/driver-ride";
 
@@ -43,6 +44,21 @@ function parseScanPayload( raw: string ): ScanPayload | null {
   return null;
 }
 
+/**
+ * The rider's QR code names the booking, not a leg. Pick the leg this chauffeur
+ * should be looking at: still active, theirs (unless admin), soonest first.
+ */
+function scannedRide( booking: BookingRecord, chauffeurId: string | null ): BookingRecord {
+  const rides = rideViews( booking );
+  if ( rides.length === 1 ) return rides[ 0 ];
+  const now = new Date().toISOString().slice( 0, 10 );
+  const candidates = rides
+    .filter( ride => isLegActive( booking, ride.leg ?? "outbound" ) )
+    .filter( ride => !chauffeurId || ride.chauffeurId === chauffeurId );
+  const pool = candidates.length ? candidates : rides;
+  return pool.find( ride => ride.date >= now ) ?? pool[ pool.length - 1 ];
+}
+
 export async function POST( req: Request ) {
   try {
     const session = await getAppSession( req );
@@ -59,7 +75,11 @@ export async function POST( req: Request ) {
       );
     }
 
-    const booking = await getBookingByReference( scan.reference.trim().toUpperCase() );
+    const scanned = parseRideReference( scan.reference );
+    const whole = await getBookingByReference( scanned.bookingReference );
+    const booking = whole && ( scanned.leg === "return"
+      ? await getRideByReference( scan.reference )
+      : scannedRide( whole, session.role === "admin" ? null : session.chauffeurId ?? null ) );
     if ( !booking ) {
       return NextResponse.json(
         { success: false, error: "No booking found for this QR code" },

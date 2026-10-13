@@ -13,6 +13,8 @@ const ProviderCredentialsSchema = z.object( {
 
 const SettingsSchema = z.object( {
   bookingBufferMinutes: z.number().int().min( 0 ).max( 240 ),
+  airportPickupOffsetMinutes: z.number().int().min( 0 ).max( 720 ).optional(),
+  airportDropoffOffsetMinutes: z.number().int().min( 0 ).max( 720 ).optional(),
   notificationTimezone: z.string().trim().min( 1 ),
   appUrl: z.string().trim().min( 1 ).refine( value => {
     try {

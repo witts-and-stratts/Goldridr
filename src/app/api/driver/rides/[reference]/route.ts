@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getBookingByReference, updateBookingStatus } from "@/lib/pocketbase/repository";
+import { getRideByReference, updateBookingStatus } from "@/lib/pocketbase/repository";
 import { getAppSession, unauthorizedResponse } from "@/lib/driver-auth";
 import { bookingRecordToDriverRide } from "@/lib/driver-ride";
 
@@ -16,7 +16,7 @@ export async function GET( req: Request, context: RouteContext ) {
     if ( !session ) return unauthorizedResponse();
 
     const { reference } = await context.params;
-    const booking = await getBookingByReference( reference.trim().toUpperCase() );
+    const booking = await getRideByReference( reference.trim().toUpperCase() );
 
     if ( !booking || ( session.role !== "admin" && booking.chauffeurId !== session.chauffeurId ) ) {
       return NextResponse.json(
@@ -38,7 +38,7 @@ export async function PATCH( req: Request, context: RouteContext ) {
     if ( !session ) return unauthorizedResponse();
 
     const { reference } = await context.params;
-    const booking = await getBookingByReference( reference.trim().toUpperCase() );
+    const booking = await getRideByReference( reference.trim().toUpperCase() );
 
     if ( !booking || ( session.role !== "admin" && booking.chauffeurId !== session.chauffeurId ) ) {
       return NextResponse.json(
@@ -69,7 +69,7 @@ export async function PATCH( req: Request, context: RouteContext ) {
     }
 
     await updateBookingStatus( booking.reference, status );
-    const updated = ( await getBookingByReference( booking.reference ) )!;
+    const updated = ( await getRideByReference( booking.reference ) )!;
 
     return NextResponse.json( { success: true, ride: bookingRecordToDriverRide( updated ) } );
   } catch ( err: unknown ) {

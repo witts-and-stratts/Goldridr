@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { Banknote, CreditCard, Download, ExternalLink, Landmark, Loader2, RotateCcw, WalletCards } from "lucide-react";
+import { Banknote, CreditCard, Download, ExternalLink, Landmark, RotateCcw, WalletCards } from "lucide-react";
 import { siAmericanexpress, siApplepay, siCashapp, siDiscover, siMastercard, siPaypal, siStripe, siVenmo, siVisa, siZelle, type SimpleIcon } from "simple-icons";
 import { Button } from "@/components/admin-ui/button";
 import {
@@ -13,13 +12,13 @@ import {
   DialogTitle,
 } from "@/components/admin-ui/dialog";
 import type { Payment } from "../types";
-import { formatMethod, formatMoney } from "../utils";
+import { formatMethod, formatMoney, isRefundable } from "../utils";
 import { PaymentStatusBadge } from "./payment-status-badge";
 
 interface PaymentTransactionDialogProps {
   payment: Payment | null;
   onClose: () => void;
-  onRefund: ( payment: Payment ) => Promise<boolean>;
+  onRefund: ( payment: Payment ) => void;
 }
 
 function formatDate( value: string | null ) {
@@ -57,19 +56,10 @@ function PaymentMethodValue( { payment }: { payment: Payment } ) {
 }
 
 export function PaymentTransactionDialog( { payment, onClose, onRefund }: PaymentTransactionDialogProps ) {
-  const [ refunding, setRefunding ] = useState( false );
   const rawResponse = processorResponse( payment?.providerMetadata );
 
-  const refund = async () => {
-    if ( !payment ) return;
-    setRefunding( true );
-    const refunded = await onRefund( payment );
-    setRefunding( false );
-    if ( refunded ) onClose();
-  };
-
   return (
-    <Dialog open={ Boolean( payment ) } onOpenChange={ open => { if ( !open && !refunding ) onClose(); } }>
+    <Dialog open={ Boolean( payment ) } onOpenChange={ open => { if ( !open ) onClose(); } }>
       <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0">
         { payment ? <>
           <DialogHeader className="border-b px-6 py-5 pr-14">
@@ -97,6 +87,20 @@ export function PaymentTransactionDialog( { payment, onClose, onRefund }: Paymen
                 <Detail label="Paid" value={ formatDate( payment.paidAt ) } />
               </dl>
             </section>
+
+            { payment.legs?.length ? <section className="mt-6" aria-labelledby="legs-heading">
+              <h3 id="legs-heading" className="text-sm font-semibold">Round trip legs</h3>
+              <dl className="mt-3 grid border sm:grid-cols-2">
+                { payment.legs.map( leg => <Detail key={ leg.leg } label={ `${ leg.leg } leg${ leg.active ? "" : " · cancelled" }` } value={ formatMoney( leg.chargedCents, payment.currency ) } secondary={ [ leg.date, leg.time ].filter( Boolean ).join( " " ) } capitalize /> ) }
+              </dl>
+            </section> : null }
+
+            { payment.refunds?.length ? <section className="mt-6" aria-labelledby="refunds-heading">
+              <h3 id="refunds-heading" className="text-sm font-semibold">Refunds</h3>
+              <dl className="mt-3 divide-y border">
+                { payment.refunds.map( refund => <div key={ refund.reference } className="grid gap-1 px-4 py-3 sm:grid-cols-[11rem_1fr_auto] sm:gap-4"><dt className="text-xs text-muted-foreground">{ formatDate( refund.refundedAt ) }</dt><dd className="text-sm">{ refund.legs.length ? `Cancelled ${ refund.legs.join( " and " ) } leg` : "No rides cancelled" }<span className="block break-all font-mono text-xs text-muted-foreground">{ refund.reference }</span></dd><dd className="text-sm font-medium tabular-nums">−{ formatMoney( refund.amountCents, payment.currency ) }</dd></div> ) }
+              </dl>
+            </section> : null }
 
             <section className="mt-6" aria-labelledby="processor-identifiers-heading">
               <h3 id="processor-identifiers-heading" className="text-sm font-semibold">Processor identifiers</h3>
@@ -138,9 +142,9 @@ export function PaymentTransactionDialog( { payment, onClose, onRefund }: Paymen
           </div>
 
           <DialogFooter className="gap-2 border-t px-6 py-4">
-            <Button asChild variant="outline" disabled={ refunding }><a href={`/api/admin/payments/${payment.id}/pdf`}><Download />Download PDF</a></Button>
-            <Button variant="outline" onClick={ onClose } disabled={ refunding }>Close</Button>
-            { payment.status === "paid" ? <Button variant="destructive" onClick={ refund } disabled={ refunding }>{ refunding ? <Loader2 className="animate-spin" /> : <RotateCcw /> }Refund payment</Button> : null }
+            <Button asChild variant="outline"><a href={`/api/admin/payments/${payment.id}/pdf`}><Download />Download PDF</a></Button>
+            <Button variant="outline" onClick={ onClose }>Close</Button>
+            { isRefundable( payment ) ? <Button variant="destructive" onClick={ () => onRefund( payment ) }><RotateCcw />Refund…</Button> : null }
           </DialogFooter>
         </> : null }
       </DialogContent>

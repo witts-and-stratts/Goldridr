@@ -64,6 +64,45 @@ export function TripDetailsStep({
       ? `${shortPlace(dropoffLocation)} → ${shortPlace(pickupLocation)}`
       : 'Back from your drop-off to your pickup';
 
+  const dateTimeFields = (
+    <div className='booking-flow__two-column-grid'>
+      <form.Field name='date'>
+        {(field) => (
+          <SuperField
+            type='datepicker'
+            id={field.name}
+            label='Date'
+            minDate={getMinimumBookingDate()}
+            value={field.state.value}
+            onChange={(value) => onDateChange(value, field.state.value)}
+            onBlur={field.handleBlur}
+            error={getFieldErrorMessage(field.state.meta.errors)}
+            className='booking-flow__field--compact'
+            fieldClassName='booking-flow__date-field'
+          />
+        )}
+      </form.Field>
+
+      <form.Field name='time'>
+        {(field) => (
+          <SuperField
+            type='timepicker'
+            label='Time'
+            name={field.name}
+            value={field.state.value}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+              field.handleChange(event.target.value)
+            }
+            onBlur={field.handleBlur}
+            placeholder='HH:MM'
+            error={getFieldErrorMessage(field.state.meta.errors)}
+            className='booking-flow__field--compact'
+          />
+        )}
+      </form.Field>
+    </div>
+  );
+
   return (
     <form
       id={formId}
@@ -119,6 +158,8 @@ export function TripDetailsStep({
               </Button>
             </div>
           </fieldset>
+
+          {serviceType === 'airport' && dateTimeFields}
 
           <div className='booking-flow__flight-grid'>
             <form.Field name='flightNumber'>
@@ -226,8 +267,17 @@ export function TripDetailsStep({
       </Activity>
 
       <Activity mode={serviceType !== 'hourly' ? 'visible' : 'hidden'}>
-        <div className='booking-flow__trip-type'>
-          <span className='booking-flow__airport-legend'>Trip</span>
+        <div
+          role='group'
+          aria-labelledby={`${formId}-trip-label`}
+          className='booking-flow__trip-type'
+        >
+          <span
+            id={`${formId}-trip-label`}
+            className='booking-flow__airport-legend'
+          >
+            Trip
+          </span>
           <Tabs
             value={roundTrip ? 'round-trip' : 'one-way'}
             onValueChange={(value) => onRoundTripChange(value === 'round-trip')}
@@ -244,42 +294,7 @@ export function TripDetailsStep({
         </div>
       </Activity>
 
-      <div className='booking-flow__two-column-grid'>
-        <form.Field name='date'>
-          {(field) => (
-            <SuperField
-              type='datepicker'
-              id={field.name}
-              label='Date'
-              minDate={getMinimumBookingDate()}
-              value={field.state.value}
-              onChange={(value) => onDateChange(value, field.state.value)}
-              onBlur={field.handleBlur}
-              error={getFieldErrorMessage(field.state.meta.errors)}
-              className='booking-flow__field--compact'
-              fieldClassName='booking-flow__date-field'
-            />
-          )}
-        </form.Field>
-
-        <form.Field name='time'>
-          {(field) => (
-            <SuperField
-              type='timepicker'
-              label='Time'
-              name={field.name}
-              value={field.state.value}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                field.handleChange(event.target.value)
-              }
-              onBlur={field.handleBlur}
-              placeholder='HH:MM'
-              error={getFieldErrorMessage(field.state.meta.errors)}
-              className='booking-flow__field--compact'
-            />
-          )}
-        </form.Field>
-      </div>
+      {serviceType !== 'airport' && dateTimeFields}
 
       <Activity
         mode={serviceType !== 'hourly' && roundTrip ? 'visible' : 'hidden'}

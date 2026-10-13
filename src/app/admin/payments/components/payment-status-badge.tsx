@@ -14,6 +14,9 @@ export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
   if (status === "awaiting_verification") {
     return <Badge className="gap-1.5 border-amber-500/30 bg-amber-500/15 text-amber-600 hover:bg-amber-500/20"><Clock3 className="size-3" />Review</Badge>;
   }
+  if (status === "partially_refunded") {
+    return <Badge variant="outline" className="gap-1.5 border-amber-500/30 text-amber-600"><RotateCcw className="size-3" />Part refunded</Badge>;
+  }
   if (status === "refunded") {
     return <Badge variant="outline" className="gap-1.5"><RotateCcw className="size-3" />Refunded</Badge>;
   }

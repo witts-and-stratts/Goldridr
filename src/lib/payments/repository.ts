@@ -4,11 +4,11 @@ import type { RecordModel } from "pocketbase";
 import { getPocketBaseClient } from "@/lib/pocketbase/client";
 import { pocketBaseCollections } from "@/lib/pocketbase/collections";
 import { createWithLegacyId, first } from "@/lib/pocketbase/core";
-import { checkBookingClash, getBookingByReference, type BookingRecord } from "@/lib/pocketbase/repository";
+import { checkBookingClash, getBookingByReference, updateBookingStatus, type BookingRecord } from "@/lib/pocketbase/repository";
 import { getPaymentSettings } from "@/lib/admin-settings";
 import { paymentTokenHash } from "./tokens";
-import { syncReturnLeg } from "@/lib/round-trip";
-import type { PaymentAttempt, PaymentMethod, PaymentProvider, PaymentStatus } from "./types";
+import { isLegActive, rideReference, type BookingLeg } from "@/lib/booking-legs";
+import type { PaymentAttempt, PaymentMethod, PaymentProvider, PaymentRefund, PaymentStatus } from "./types";
 import { cancelPaymentReminder } from "./hold-expiry";
 import { createPocketBasePaymentStatusUpdate } from "@/lib/pocketbase/notifications";
 import { compactPaymentDetails, type StoredPaymentDetails } from "./details";
@@ -46,7 +46,14 @@ function mapPayment( row: RecordModel ): PaymentAttempt {
     providerMetadata: row.providerMetadata ?? null,
     paidAt: text( row.paidAt ),
     refundedAt: text( row.refundedAt ),
+    refundedCents: Number( row.refundedCents || 0 ),
+    refunds: Array.isArray( row.refunds ) ? row.refunds as PaymentRefund[] : [],
   };
+}
+
+/** Paid payments that still have money left to refund. */
+export function isRefundable( payment: Pick<PaymentAttempt, "status" | "amountCents" | "refundedCents"> ): boolean {
+  return [ "paid", "partially_refunded" ].includes( payment.status ) && payment.refundedCents < payment.amountCents;
 }
 
 export async function findBookingByPaymentToken( token: string ): Promise<BookingRecord | undefined> {
@@ -67,7 +74,7 @@ export async function paymentForExternalId( provider: PaymentProvider, externalI
 
 export async function latestPaymentForBooking( bookingReference: string ): Promise<PaymentAttempt | undefined> {
   const completed = await pb().collection( pocketBaseCollections.payments ).getList( 1, 1, {
-    filter: pb().filter( "bookingReference = {:bookingReference} && (status = 'paid' || status = 'refunded')", { bookingReference } ),
+    filter: pb().filter( "bookingReference = {:bookingReference} && (status = 'paid' || status = 'partially_refunded' || status = 'refunded')", { bookingReference } ),
     sort: "-created",
   } );
   if ( completed.items[ 0 ] ) return mapPayment( completed.items[ 0 ] );
@@ -87,7 +94,6 @@ export async function extendPaymentHold( bookingReference: string, extensionMinu
   const bookingRow = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: bookingReference } );
   if ( !bookingRow ) return { kind: "not_found" };
   await pb().collection( pocketBaseCollections.bookings ).update( bookingRow.id, { holdExpiresAt } );
-  await syncReturnLeg( bookingReference, { holdExpiresAt } );
 
   if ( booking.status === "payment_review" ) {
     const attempts = await pb().collection( pocketBaseCollections.payments ).getFullList( {
@@ -140,7 +146,10 @@ export async function markPaymentPaid( payment: PaymentAttempt, transactionRefer
   if ( !booking ) throw new Error( "Booking not found" );
   const terminal = [ "cancelled", "rejected" ].includes( booking.status );
   const expired = booking.status === "payment_expired" || Boolean( booking.holdExpiresAt && new Date( booking.holdExpiresAt ).getTime() <= Date.now() );
-  const clash = expired && booking.chauffeurId ? ( await checkBookingClash( booking.date, booking.time, booking.duration, booking.chauffeurId ) ).clash : false;
+  const outboundClash = expired && booking.chauffeurId ? ( await checkBookingClash( booking.date, booking.time, booking.duration, booking.chauffeurId ) ).clash : false;
+  const returnLeg = booking.returnLeg;
+  const returnClash = expired && returnLeg?.chauffeurId ? ( await checkBookingClash( returnLeg.date, returnLeg.time, returnLeg.duration, returnLeg.chauffeurId ) ).clash : false;
+  const clash = outboundClash || returnClash;
   if ( terminal || clash ) return { booking, late: true };
 
   const now = new Date().toISOString();
@@ -149,13 +158,12 @@ export async function markPaymentPaid( payment: PaymentAttempt, transactionRefer
   if ( row ) await pb().collection( pocketBaseCollections.bookings ).update( row.id, { status: "confirmed", paymentConfirmedAt: now } );
   await cancelPaymentReminder( booking.reference );
   const updatedBooking = await getBookingByReference( booking.reference );
-  await syncReturnLeg( booking.reference, { status: "confirmed" } );
   await notifyPaymentStatus( payment.id, updatedBooking );
   return { booking: updatedBooking, late: false };
 }
 
 export async function markPaymentFailed( payment: PaymentAttempt, code: string, message: string, metadata?: unknown ): Promise<void> {
-  if ( [ "paid", "refunded" ].includes( payment.status ) ) return;
+  if ( [ "paid", "partially_refunded", "refunded" ].includes( payment.status ) ) return;
   await updatePaymentAttempt( payment.id, { status: "failed", failureCode: code, failureMessage: message, providerMetadata: metadata || {} } );
   await notifyPaymentStatus( payment.id );
 }
@@ -167,26 +175,52 @@ export async function submitZelleClaim( booking: BookingRecord, senderName: stri
   await updatePaymentAttempt( payment.id, { status: "awaiting_verification", senderName, confirmationReference, verificationExpiresAt } );
   const row = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: booking.reference } );
   if ( row ) await pb().collection( pocketBaseCollections.bookings ).update( row.id, { status: "payment_review", holdExpiresAt: verificationExpiresAt } );
-  await syncReturnLeg( booking.reference, { status: "payment_review", holdExpiresAt: verificationExpiresAt } );
   await cancelPaymentReminder( booking.reference );
   const updated = ( await paymentForId( payment.id ) )!;
   await notifyPaymentStatus( payment.id, booking );
   return updated;
 }
 
-export async function markPaymentRefunded( payment: PaymentAttempt, refundReference: string ): Promise<BookingRecord | undefined> {
+/**
+ * Records a refund against a payment. Without an amount the rest of the payment
+ * is refunded. A refund that empties the payment cancels the whole booking;
+ * otherwise only the legs named are cancelled and the rest of the trip stays on.
+ */
+export async function markPaymentRefunded(
+  payment: PaymentAttempt,
+  refundReference: string,
+  options: { amountCents?: number; legs?: BookingLeg[] } = {},
+): Promise<BookingRecord | undefined> {
   const now = new Date().toISOString();
-  const current = await paymentForId( payment.id );
-  const metadata = current?.providerMetadata;
+  const current = await paymentForId( payment.id ) ?? payment;
+  const remainingCents = Math.max( 0, current.amountCents - current.refundedCents );
+  const amountCents = Math.min( remainingCents, options.amountCents ?? remainingCents );
+  const refundedCents = current.refundedCents + amountCents;
+  const fullyRefunded = refundedCents >= current.amountCents;
+  const refund: PaymentRefund = { reference: refundReference, amountCents, legs: fullyRefunded ? [] : options.legs ?? [], refundedAt: now };
+  const metadata = current.providerMetadata;
   const providerMetadata = metadata && typeof metadata === "object" && !Array.isArray( metadata )
     ? { ...metadata as Record<string, unknown>, refundReference }
     : { transaction: metadata ?? null, refundReference };
-  await updatePaymentAttempt( payment.id, { status: "refunded", refundedAt: now, providerMetadata } );
-  const row = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: payment.bookingReference } );
-  if ( row ) await pb().collection( pocketBaseCollections.bookings ).update( row.id, { status: "cancelled" } );
-  await syncReturnLeg( payment.bookingReference, { status: "cancelled" }, { force: true } );
-  await cancelPaymentReminder( payment.bookingReference );
+  await updatePaymentAttempt( payment.id, {
+    status: fullyRefunded ? "refunded" : "partially_refunded",
+    refundedAt: now,
+    refundedCents,
+    refunds: [ ...current.refunds, refund ],
+    providerMetadata,
+  } );
+
   const booking = await getBookingByReference( payment.bookingReference );
-  await notifyPaymentStatus( payment.id, booking );
-  return booking;
+  if ( fullyRefunded ) {
+    const row = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: payment.bookingReference } );
+    if ( row ) await pb().collection( pocketBaseCollections.bookings ).update( row.id, { status: "cancelled", outboundLegStatus: "", returnLegStatus: "" } );
+    await cancelPaymentReminder( payment.bookingReference );
+  } else if ( booking ) {
+    for ( const leg of refund.legs ) {
+      if ( isLegActive( booking, leg ) ) await updateBookingStatus( rideReference( booking.reference, leg ), "cancelled" );
+    }
+  }
+  const updated = await getBookingByReference( payment.bookingReference );
+  await notifyPaymentStatus( payment.id, updated );
+  return updated;
 }

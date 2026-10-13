@@ -14,6 +14,8 @@ export const DEFAULT_PRICE_BY_MILE_CITY = 3;
 export const DEFAULT_PRICE_BY_MILE_HOURLY = 4;
 export const DEFAULT_HOURLY_RATE = 75;
 export const DEFAULT_ROUND_TRIP_DISCOUNT_PERCENT = 10;
+export const DEFAULT_AIRPORT_PICKUP_OFFSET_MINUTES = 0;
+export const DEFAULT_AIRPORT_DROPOFF_OFFSET_MINUTES = 120;
 export const DEFAULT_TWILIO_FROM_NUMBER = "+10000000000";
 export const DEFAULT_PAYMENT_METHODS = [ "card", "apple_pay", "cash_app", "venmo", "zelle" ] as const;
 export const DEFAULT_PAYMENT_PROCESSORS = [ "stripe", "paypal", "zelle" ] as const;
@@ -108,6 +110,14 @@ export async function getRoundTripDiscountPercent(): Promise<number> {
   return Math.min( 100, Math.max( 0, value ) );
 }
 
+export async function getAirportTimingOffsets(): Promise<{ pickupOffsetMinutes: number; dropoffOffsetMinutes: number }> {
+  const clamp = ( value: number ) => Math.min( 720, Math.max( 0, Math.round( value ) ) );
+  return {
+    pickupOffsetMinutes: clamp( await readNumberSetting( "airportPickupOffsetMinutes", "", DEFAULT_AIRPORT_PICKUP_OFFSET_MINUTES ) ),
+    dropoffOffsetMinutes: clamp( await readNumberSetting( "airportDropoffOffsetMinutes", "", DEFAULT_AIRPORT_DROPOFF_OFFSET_MINUTES ) ),
+  };
+}
+
 export async function getTwilioFromNumber(): Promise<string> {
   return await readTextSetting( "twilioFromNumber", "TWILIO_FROM_NUMBER", DEFAULT_TWILIO_FROM_NUMBER );
 }
@@ -182,8 +192,11 @@ export async function getPaymentProviderConfiguration() {
 
 export async function getAdminSettings() {
   const payment = await getPaymentSettings();
+  const airportOffsets = await getAirportTimingOffsets();
   return {
     bookingBufferMinutes: await readNumberSetting( "bookingBufferMinutes", "", 30 ),
+    airportPickupOffsetMinutes: airportOffsets.pickupOffsetMinutes,
+    airportDropoffOffsetMinutes: airportOffsets.dropoffOffsetMinutes,
     notificationTimezone: await getNotificationTimeZone(),
     appUrl: await getAppUrl(),
     emailFromName: await getEmailFromName(),
@@ -202,6 +215,8 @@ export async function getAdminSettings() {
 
 export async function saveAdminSettings( settings: {
   bookingBufferMinutes: number;
+  airportPickupOffsetMinutes?: number;
+  airportDropoffOffsetMinutes?: number;
   notificationTimezone: string;
   appUrl: string;
   emailFromName: string;
@@ -224,6 +239,8 @@ export async function saveAdminSettings( settings: {
   providerCredentials?: Partial<Record<PaymentCredentialKey, string>>;
 } ): Promise<void> {
   await writeSetting( "bookingBufferMinutes", settings.bookingBufferMinutes );
+  await writeSetting( "airportPickupOffsetMinutes", settings.airportPickupOffsetMinutes );
+  await writeSetting( "airportDropoffOffsetMinutes", settings.airportDropoffOffsetMinutes );
   await writeSetting( "notificationTimezone", settings.notificationTimezone );
   await writeSetting( "appUrl", settings.appUrl );
   await writeSetting( "emailFromName", settings.emailFromName );

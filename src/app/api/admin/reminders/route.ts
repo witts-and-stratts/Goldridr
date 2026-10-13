@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAllBookings, getBookingsForChauffeur } from "@/lib/pocketbase/repository";
+import { getAllRides, getRidesForChauffeur } from "@/lib/pocketbase/repository";
 import { getRequestSession } from "@/lib/driver-auth";
 import { createPocketBaseManualReminder, listPocketBaseReminderDeliveries } from "@/lib/pocketbase/notifications";
 
@@ -7,8 +7,8 @@ export async function GET( request: Request ) {
   const session = await getRequestSession( request );
   if ( !session ) return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
   const bookings = session.role === "admin"
-    ? await getAllBookings()
-    : await getBookingsForChauffeur( session.chauffeurId! );
+    ? await getAllRides()
+    : await getRidesForChauffeur( session.chauffeurId! );
   return NextResponse.json( {
     success: true,
     reminders: await listPocketBaseReminderDeliveries(),
@@ -30,8 +30,8 @@ export async function POST( request: Request ) {
   if ( !session ) return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
   const body = await request.json();
   const allowedBookings = session.role === "admin"
-    ? await getAllBookings()
-    : await getBookingsForChauffeur( session.chauffeurId! );
+    ? await getAllRides()
+    : await getRidesForChauffeur( session.chauffeurId! );
   const booking = allowedBookings.find( item => item.reference === body.reference );
   if ( !booking ) return NextResponse.json( { success: false, error: "Booking not found" }, { status: 404 } );
   if ( [ "cancelled", "rejected" ].includes( booking.status ) ) {

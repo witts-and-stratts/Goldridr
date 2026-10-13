@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { FlightProviderBudgetError, lookupFlight } from "@/lib/flights/service";
+import { FlightDateUnavailableError } from "@/lib/flights/providers";
 import { normalizeFlightLookupKey } from "@/lib/flights/types";
+import { getAirportTimingOffsets } from "@/lib/admin-settings";
 
 function invalidLookup() {
   return NextResponse.json( { error: "A valid flight number is required" }, { status: 400 } );
@@ -41,10 +43,16 @@ export async function POST( request: Request ) {
         providerAvailable: result.providerAvailable,
       }, { status: result.providerAvailable ? 404 : 503 } );
     }
-    return NextResponse.json( result );
+    return NextResponse.json( { ...result, timing: await getAirportTimingOffsets() } );
   } catch ( error ) {
     if ( error instanceof FlightProviderBudgetError ) {
       return NextResponse.json( { error: error.message }, { status: 429 } );
+    }
+    if ( error instanceof FlightDateUnavailableError ) {
+      return NextResponse.json( {
+        error: "Live flight details are only available on the day of travel. Enter the terminal manually; we track the flight automatically closer to pickup.",
+        providerAvailable: true,
+      }, { status: 422 } );
     }
     console.error( "Manual flight lookup failed", error );
     return NextResponse.json( { error: "The configured flight provider could not complete the lookup" }, { status: 502 } );

@@ -51,7 +51,6 @@ export async function POST( req: Request ) {
       success: true,
       booking: await bookingRecordToBookingData( outcome.booking ),
       bookingId: outcome.booking.id,
-      returnBooking: outcome.returnBooking ? await bookingRecordToBookingData( outcome.returnBooking ) : undefined,
       message: outcome.message,
     } );
   } catch ( error: unknown ) {

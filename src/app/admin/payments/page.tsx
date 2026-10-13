@@ -10,11 +10,13 @@ import { Card, CardContent } from "@/components/admin-ui/card";
 import { Input } from "@/components/admin-ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/admin-ui/tabs";
 import type { Payment, PaymentBooking, PaymentMethod, PaymentStatus } from "./types";
-import { STATUS_OPTIONS } from "./constants";
+import { FILTER_OPTIONS } from "./constants";
+import { formatMoney } from "./utils";
 import { SummaryCards } from "./components/summary-cards";
 import { PaymentsTable } from "./components/payments-table";
 import { RecordPaymentDialog } from "./components/record-payment-dialog";
 import { PaymentTransactionDialog } from "./components/payment-transaction-dialog";
+import { RefundDialog, type RefundRequest } from "./components/refund-dialog";
 
 export default function PaymentsPage() {
   const queryClient = useQueryClient();
@@ -35,7 +37,8 @@ export default function PaymentsPage() {
       const res = await fetch("/api/admin/bookings");
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Failed to load bookings");
-      return data.bookings as PaymentBooking[];
+      // Payments belong to the booking, so a round trip's return ride is not offered separately.
+      return (data.bookings as Array<PaymentBooking & { leg?: string }>).filter(booking => booking.leg !== "return");
     },
   });
 
@@ -46,6 +49,7 @@ export default function PaymentsPage() {
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailsPaymentId, setDetailsPaymentId] = useState<number | null>(null);
+  const [refundPaymentId, setRefundPaymentId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [bookingReference, setBookingReference] = useState("");
@@ -56,9 +60,9 @@ export default function PaymentsPage() {
   const [notes, setNotes] = useState("");
 
   const summary = useMemo(() => {
-    const paid = payments.filter(p => p.status === "paid").reduce((t, p) => t + p.amountCents, 0);
+    const paid = payments.filter(p => p.status === "paid" || p.status === "partially_refunded").reduce((t, p) => t + p.amountCents - (p.refundedCents || 0), 0);
     const pending = payments.filter(p => p.status === "pending").reduce((t, p) => t + p.amountCents, 0);
-    const refunded = payments.filter(p => p.status === "refunded").reduce((t, p) => t + p.amountCents, 0);
+    const refunded = payments.reduce((t, p) => t + (p.refundedCents || (p.status === "refunded" ? p.amountCents : 0)), 0);
     return { paid, pending, refunded };
   }, [payments]);
 
@@ -174,14 +178,19 @@ export default function PaymentsPage() {
     } catch (error) { toast.error(error instanceof Error ? error.message : "Verification failed"); }
   }
 
-  async function refundPayment(payment: Payment): Promise<boolean> {
-    if (!window.confirm(`Issue a full ${payment.provider === "manual" ? "recorded Zelle " : ""}refund and cancel booking ${payment.bookingReference}?`)) return false;
+  function refundPayment(payment: Payment) {
+    setDetailsPaymentId(null);
+    setRefundPaymentId(payment.id);
+  }
+
+  async function submitRefund(payment: Payment, request: RefundRequest): Promise<boolean> {
     try {
-      const response = await fetch(`/api/admin/payments/${payment.id}/refund`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ manualConfirmed: payment.provider === "manual" }) });
+      const response = await fetch(`/api/admin/payments/${payment.id}/refund`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...request, manualConfirmed: payment.provider === "manual" }) });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || "Refund failed");
       await Promise.all([queryClient.invalidateQueries({ queryKey: qk.payments() }), queryClient.invalidateQueries({ queryKey: qk.bookings() })]);
-      toast.success("Payment refunded and booking cancelled");
+      const refunded = formatMoney(data.amountCents ?? 0, payment.currency);
+      toast.success(request.legs.length ? `Refunded ${refunded} and cancelled the ${request.legs.join(" and ")} leg` : request.amountCents ? `Refunded ${refunded}` : "Payment refunded and booking cancelled");
       return true;
     } catch (error) { toast.error(error instanceof Error ? error.message : "Refund failed"); return false; }
   }
@@ -224,8 +233,8 @@ export default function PaymentsPage() {
           <Tabs value={statusFilter} onValueChange={setStatusFilter}>
             <TabsList className="h-9">
               <TabsTrigger value="all">All</TabsTrigger>
-              {STATUS_OPTIONS.map(option => (
-                <TabsTrigger key={option} value={option} className="capitalize">{option}</TabsTrigger>
+              {FILTER_OPTIONS.map(option => (
+                <TabsTrigger key={option} value={option} className="capitalize">{option.replaceAll("_", " ")}</TabsTrigger>
               ))}
             </TabsList>
           </Tabs>
@@ -247,6 +256,12 @@ export default function PaymentsPage() {
         payment={payments.find(payment => payment.id === detailsPaymentId) || null}
         onClose={() => setDetailsPaymentId(null)}
         onRefund={refundPayment}
+      />
+
+      <RefundDialog
+        payment={payments.find(payment => payment.id === refundPaymentId) || null}
+        onClose={() => setRefundPaymentId(null)}
+        onSubmit={submitRefund}
       />
 
       <RecordPaymentDialog

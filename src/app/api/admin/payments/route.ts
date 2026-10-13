@@ -5,9 +5,11 @@ import { getRequestSession } from "@/lib/driver-auth";
 import {
   createPayment,
   deletePayment,
+  getAllBookings,
   getAllPayments,
   updatePayment,
 } from "@/lib/pocketbase/repository";
+import { bookingCharges, isLegActive, rideView } from "@/lib/booking-legs";
 
 const PaymentStatus = z.enum( [ "pending", "awaiting_verification", "paid", "refunded", "failed", "expired" ] );
 const PaymentMethod = z.enum( [ "card", "zelle", "cash", "bank_transfer", "other" ] );
@@ -47,7 +49,19 @@ export async function GET( request: Request ) {
     const authError = await requireAdmin( request );
     if ( authError ) return authError;
 
-    return NextResponse.json( { success: true, payments: await getAllPayments() } );
+    const [ payments, bookings ] = await Promise.all( [ getAllPayments(), getAllBookings() ] );
+    const byReference = new Map( bookings.map( booking => [ booking.reference, booking ] ) );
+    // What each leg was charged, so a refund can default to the price of the leg being cancelled.
+    return NextResponse.json( {
+      success: true,
+      payments: payments.map( payment => {
+        const booking = byReference.get( payment.bookingReference );
+        const legs = booking?.returnLeg
+          ? bookingCharges( booking ).legs.map( item => ( { leg: item.leg, chargedCents: item.chargedCents, date: rideView( booking, item.leg )?.date ?? "", time: rideView( booking, item.leg )?.time ?? "", active: isLegActive( booking, item.leg ) } ) )
+          : [];
+        return { ...payment, legs };
+      } ),
+    } );
   } catch ( error: unknown ) {
     const message = error instanceof Error ? error.message : "Failed to fetch payments";
     return NextResponse.json( { success: false, error: message }, { status: 500 } );

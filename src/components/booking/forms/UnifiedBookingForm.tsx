@@ -56,15 +56,6 @@ export function UnifiedBookingForm({
     onSubmit: () => setStep(2),
   });
   const contactForm = useContactForm(() => setStep(3));
-  const {
-    flightDetails,
-    isFlightLoading,
-    tripDirection,
-    selectTripDirection,
-    resetFlightDetails,
-    fetchFlightDetails,
-  } = useFlightDetails(form);
-
   const serviceType = useSelector(
     form.store,
     (state) => state.values.serviceType,
@@ -111,6 +102,17 @@ export function UnifiedBookingForm({
     pickupLocation,
     dropoffLocation,
   });
+  const {
+    flightDetails,
+    isFlightLoading,
+    tripDirection,
+    selectTripDirection,
+    resetFlightDetails,
+    fetchFlightDetails,
+  } = useFlightDetails(
+    form,
+    serviceType === 'airport' ? (distanceData?.duration_minutes ?? null) : null,
+  );
 
   const selectService = (next: BookingServiceType) => {
     form.setFieldValue('serviceType', next);

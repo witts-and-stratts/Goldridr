@@ -22,7 +22,7 @@ import {
 } from "@/components/admin-ui/table";
 import type { Payment, PaymentStatus } from "../types";
 import { STATUS_OPTIONS } from "../constants";
-import { formatMoney, formatMethod } from "../utils";
+import { formatMoney, formatMethod, isRefundable } from "../utils";
 import { PaymentStatusBadge } from "./payment-status-badge";
 
 interface PaymentsTableProps {
@@ -132,8 +132,8 @@ export function PaymentsTable({ payments, filteredPayments, loading, onUpdateSta
                       <DropdownMenuItem onClick={() => onViewDetails(payment)}><Eye className="size-4" />View transaction</DropdownMenuItem>
                       <DropdownMenuSeparator />
                       {payment.status === "awaiting_verification" ? <><DropdownMenuLabel>Zelle verification</DropdownMenuLabel><DropdownMenuItem onClick={() => onVerify(payment, "approve")}><Check className="size-4" />Approve payment</DropdownMenuItem><DropdownMenuItem onClick={() => onVerify(payment, "reject")} className="text-destructive"><X className="size-4" />Reject claim</DropdownMenuItem><DropdownMenuSeparator /></> : null}
-                      {payment.status === "paid" ? <><DropdownMenuItem onClick={() => onRefund(payment)}><RotateCcw className="size-4" />Issue full refund</DropdownMenuItem><DropdownMenuSeparator /></> : null}
-                      {payment.provider === "manual" && payment.status !== "awaiting_verification" && payment.status !== "paid" ? <><DropdownMenuLabel>Set status</DropdownMenuLabel>{STATUS_OPTIONS.filter(option => option !== payment.status).map(option => (
+                      {isRefundable(payment) ? <><DropdownMenuItem onClick={() => onRefund(payment)}><RotateCcw className="size-4" />Issue refund…</DropdownMenuItem><DropdownMenuSeparator /></> : null}
+                      {payment.provider === "manual" && payment.status !== "awaiting_verification" && payment.status !== "paid" && payment.status !== "partially_refunded" ? <><DropdownMenuLabel>Set status</DropdownMenuLabel>{STATUS_OPTIONS.filter(option => option !== payment.status).map(option => (
                         <DropdownMenuItem
                           key={option}
                           disabled={option === "paid" && payment.bookingStatus === "cancelled"}

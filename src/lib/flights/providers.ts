@@ -1,3 +1,4 @@
+import { isHoustonAirport } from "@/lib/airports";
 import type { FlightLookupKey, FlightSnapshot } from "./types";
 
 export interface FlightDataProvider {
@@ -25,6 +26,15 @@ export function definePermissionedScrapeProvider( provider: PermissionedScrapePr
     throw new Error( `Scrape provider ${ provider.id } must define a respectful request interval` );
   }
   return provider;
+}
+
+// Raised when the provider plan cannot filter by date and the unfiltered (live) feed
+// has no flight on the requested day, which is always the case for future dates.
+export class FlightDateUnavailableError extends Error {
+  constructor( readonly flightDate: string ) {
+    super( `Flight data for ${ flightDate } is not available from the current flight data plan` );
+    this.name = "FlightDateUnavailableError";
+  }
 }
 
 type AviationStackFlight = {
@@ -164,22 +174,165 @@ function getAviationStackProvider(): FlightDataProvider | null {
       const dateFilter = setDateFilter( url, key );
       url.searchParams.set( "limit", "10" );
       let flights: AviationStackFlight[];
+      let dateFilterRestricted = false;
       try {
         flights = await requestAviationStack( url );
       } catch ( error ) {
         if ( !key.flightDate || !isDateFilterError( error ) ) throw error;
         if ( dateFilter ) url.searchParams.delete( dateFilter );
+        dateFilterRestricted = true;
         flights = await requestAviationStack( url );
       }
       const flight = selectFlight( key, flights );
+      if ( !flight && dateFilterRestricted && key.flightDate ) throw new FlightDateUnavailableError( key.flightDate );
       return flight ? snapshotFromAviationStack( key, flight ) : null;
     },
   };
 }
 
+type AeroDataBoxTime = { utc?: string | null; local?: string | null };
+
+type AeroDataBoxMovement = {
+  airport?: { iata?: string | null; icao?: string | null; name?: string | null; shortName?: string | null } | null;
+  scheduledTime?: AeroDataBoxTime | null;
+  revisedTime?: AeroDataBoxTime | null;
+  predictedTime?: AeroDataBoxTime | null;
+  runwayTime?: AeroDataBoxTime | null;
+  terminal?: string | null;
+  gate?: string | null;
+};
+
+type AeroDataBoxFlight = {
+  number?: string;
+  status?: string;
+  codeshareStatus?: string;
+  isCargo?: boolean;
+  airline?: { name?: string | null; iata?: string | null } | null;
+  departure?: AeroDataBoxMovement | null;
+  arrival?: AeroDataBoxMovement | null;
+};
+
+const AERODATABOX_DEFAULT_HOST = "aerodatabox.p.rapidapi.com";
+
+// AeroDataBox times look like "2026-10-23 14:05Z"; the space is not valid ISO 8601 everywhere.
+function aeroDataBoxInstant( time: AeroDataBoxTime | null | undefined ): string | null {
+  const utc = value( time?.utc );
+  if ( !utc ) return null;
+  const iso = utc.replace( " ", "T" );
+  return Number.isFinite( Date.parse( iso ) ) ? iso : null;
+}
+
+function aeroDataBoxLocalDate( time: AeroDataBoxTime | null | undefined ): string | null {
+  const local = value( time?.local );
+  return local && /^\d{4}-\d{2}-\d{2}/.test( local ) ? local.slice( 0, 10 ) : null;
+}
+
+// Mapped onto the vocabulary the rest of the app already uses (Aviationstack's).
+function aeroDataBoxStatus( status: string | undefined ): string {
+  switch ( status ) {
+    case "Arrived": return "landed";
+    case "Canceled":
+    case "CanceledUncertain": return "cancelled";
+    case "Diverted": return "diverted";
+    case "Departed":
+    case "EnRoute":
+    case "Approaching": return "active";
+    case "Delayed": return "delayed";
+    default: return "scheduled";
+  }
+}
+
+function aeroDataBoxPlace( movement: AeroDataBoxMovement | null | undefined ) {
+  const airport = movement?.airport;
+  return { iata: value( airport?.iata ) || "UNK", name: value( airport?.name ) || value( airport?.shortName ) };
+}
+
+function houstonSide( key: FlightLookupKey, flight: AeroDataBoxFlight ): boolean {
+  const departure = flight.departure?.airport?.iata;
+  const arrival = flight.arrival?.airport?.iata;
+  if ( key.direction === "from_airport" ) return isHoustonAirport( arrival );
+  if ( key.direction === "to_airport" ) return isHoustonAirport( departure );
+  return isHoustonAirport( arrival ) || isHoustonAirport( departure );
+}
+
+// A flight number can return several legs or codeshare duplicates; prefer the
+// passenger leg that touches Houston on the requested side, operated by the carrier itself.
+function selectAeroDataBoxFlight( key: FlightLookupKey, flights: AeroDataBoxFlight[] ): AeroDataBoxFlight | undefined {
+  const passenger = flights.filter( flight => !flight.isCargo );
+  const candidates = passenger.length ? passenger : flights;
+  const score = ( flight: AeroDataBoxFlight ) =>
+    ( houstonSide( key, flight ) ? 2 : 0 ) + ( flight.codeshareStatus === "IsCodeshared" ? 0 : 1 );
+  return candidates.reduce<AeroDataBoxFlight | undefined>( ( best, flight ) => ( !best || score( flight ) > score( best ) ? flight : best ), undefined );
+}
+
+function snapshotFromAeroDataBox( key: FlightLookupKey, flight: AeroDataBoxFlight ): FlightSnapshot {
+  const departure = flight.departure;
+  const arrival = flight.arrival;
+  const direction = key.direction || ( isHoustonAirport( arrival?.airport?.iata ) ? "from_airport" : "to_airport" );
+  const sideTime = direction === "from_airport" ? arrival?.scheduledTime : departure?.scheduledTime;
+  return {
+    provider: "aerodatabox",
+    flightIata: value( flight.number )?.replaceAll( " ", "" ).toUpperCase() || key.flightIata,
+    flightDate: key.flightDate || aeroDataBoxLocalDate( sideTime ) || new Date().toISOString().slice( 0, 10 ),
+    direction,
+    status: aeroDataBoxStatus( flight.status ),
+    airline: value( flight.airline?.name ),
+    origin: aeroDataBoxPlace( departure ),
+    destination: aeroDataBoxPlace( arrival ),
+    scheduled: { departure: aeroDataBoxInstant( departure?.scheduledTime ), arrival: aeroDataBoxInstant( arrival?.scheduledTime ) },
+    estimated: {
+      departure: aeroDataBoxInstant( departure?.revisedTime ) || aeroDataBoxInstant( departure?.predictedTime ),
+      arrival: aeroDataBoxInstant( arrival?.revisedTime ) || aeroDataBoxInstant( arrival?.predictedTime ),
+    },
+    actual: { departure: aeroDataBoxInstant( departure?.runwayTime ), arrival: aeroDataBoxInstant( arrival?.runwayTime ) },
+    terminal: { departure: value( departure?.terminal ), arrival: value( arrival?.terminal ) },
+    gate: { departure: value( departure?.gate ), arrival: value( arrival?.gate ) },
+    observedAt: new Date().toISOString(),
+  };
+}
+
+function getAeroDataBoxProvider(): FlightDataProvider | null {
+  const apiKey = process.env.AERODATABOX_RAPIDAPI_KEY?.trim();
+  if ( !apiKey ) return null;
+  const host = process.env.AERODATABOX_RAPIDAPI_HOST?.trim() || AERODATABOX_DEFAULT_HOST;
+  return {
+    id: "aerodatabox",
+    async lookup( key ) {
+      const path = key.flightDate
+        ? `/flights/number/${ encodeURIComponent( key.flightIata ) }/${ key.flightDate }`
+        : `/flights/number/${ encodeURIComponent( key.flightIata ) }`;
+      const url = new URL( path, `https://${ host }` );
+      if ( key.flightDate ) {
+        url.searchParams.set( "dateLocalRole", key.direction === "from_airport" ? "Arrival" : key.direction === "to_airport" ? "Departure" : "Both" );
+      }
+      url.searchParams.set( "withAircraftImage", "false" );
+      url.searchParams.set( "withLocation", "false" );
+      const response = await fetch( url, {
+        cache: "no-store",
+        signal: AbortSignal.timeout( 10_000 ),
+        headers: { "x-rapidapi-key": apiKey, "x-rapidapi-host": host },
+      } );
+      // 204 is how AeroDataBox says the flight does not operate on that date. Anything
+      // else that is not OK (including a 404 from a mistyped host) is a configuration or
+      // quota problem and must not be reported to the guest as a missing flight.
+      if ( response.status === 204 ) return null;
+      const body = await response.json().catch( () => null ) as AeroDataBoxFlight[] | { message?: string } | null;
+      if ( !response.ok ) {
+        const message = body && !Array.isArray( body ) && body.message ? body.message : `AeroDataBox returned ${ response.status }`;
+        throw new Error( message );
+      }
+      const flight = Array.isArray( body ) ? selectAeroDataBoxFlight( key, body ) : undefined;
+      return flight ? snapshotFromAeroDataBox( key, flight ) : null;
+    },
+  };
+}
+
 export function getPrimaryFlightProvider(): FlightDataProvider | null {
-  const provider = process.env.FLIGHT_PRIMARY_PROVIDER?.trim().toLowerCase() || "aviationstack";
-  return provider === "aviationstack" ? getAviationStackProvider() : null;
+  const provider = process.env.FLIGHT_PRIMARY_PROVIDER?.trim().toLowerCase();
+  if ( provider === "aerodatabox" ) return getAeroDataBoxProvider();
+  if ( provider === "aviationstack" ) return getAviationStackProvider();
+  if ( provider ) return null;
+  return getAeroDataBoxProvider() ?? getAviationStackProvider();
 }
 
 export function getManualFlightProvider(): FlightDataProvider | null {
