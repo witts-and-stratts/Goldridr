@@ -1,0 +1,2 @@
+{{ company.name }} update: booking {{ booking.reference }} is awaiting a chauffeur assignment.
+Terminal: {{ trip.terminal }}

@@ -1,0 +1,2 @@
+{{ company.name }} reminder: booking {{ booking.reference }} is scheduled for {{ trip.date }} at {{ trip.time }}.
+Terminal: {{ trip.terminal }}

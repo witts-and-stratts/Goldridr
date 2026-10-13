@@ -1,0 +1,2 @@
+{{ company.name }} update: {{ chauffeur.name }} is assigned to booking {{ booking.reference }}.
+Terminal: {{ trip.terminal }}

@@ -1,0 +1,5 @@
+import { GoldridrEmail, type EmailContent } from "./goldridr-email";
+import { stringValue } from "@/lib/notifications/template-context";
+import type { EmailEditableContent } from "@/lib/notifications/template-types";
+export function ChauffeurReminderEmail( { content }: { content: EmailContent } ) { return <GoldridrEmail content={ content } />; }
+export function chauffeurReminderContent( payload: Record<string, unknown> ): EmailEditableContent { const reference = stringValue( payload.bookingReference ); const passenger = stringValue( payload.passengerName ) || "Passenger"; const dateTime = payload.date && payload.time ? `${ stringValue( payload.date ) } at ${ stringValue( payload.time ) }` : ""; const reminder = stringValue( payload.reminderHours ); return { subject: reminder === "Manual" ? `Pickup reminder: ${ reference }` : `${ reminder }-hour pickup reminder: ${ reference }`, preview: "An assigned pickup is approaching.", heading: "Upcoming assigned ride", message: `${ passenger }'s pickup is scheduled for ${ dateTime }.`, ctaLabel: "View booking" }; }

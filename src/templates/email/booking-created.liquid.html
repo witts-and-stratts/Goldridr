@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+
+<body style="margin:0;background:#050505;color:#f7f4ed;font-family:Arial,sans-serif;padding:32px">
+  <table role="presentation" width="100%" style="max-width:600px;margin:auto;border:1px solid #3a3935">
+    <tr>
+      <td style="padding:30px">
+        <p style="color:#c29e66;letter-spacing:2px">GOLDRIDR CHAUFFEUR SERVICE</p>
+        <h1>Booking request received</h1>
+        <p>Hello {{ rider.name }}, your chauffeur is held for two hours. Pay to confirm your ride.</p>
+        <table role="presentation" width="100%" style="border:1px solid #3a3935">
+          <tr>
+            <td style="padding:16px"><b>BOOKING REFERENCE</b>
+              <h2>{{ booking.reference }}</h2>
+            </td>
+            <td align="right" style="padding:16px;color:#c29e66"><b>AWAITING PAYMENT</b></td>
+          </tr>
+          <tr>
+            <td colspan="2" style="padding:16px;border-top:1px solid #3a3935"><b>{{ trip.serviceLabel }}</b>
+              <p>{{ trip.date }} · {{ trip.time }}</p>
+              <p><b>Pickup</b><br>{{ trip.pickup }}</p>
+              <p><b>Dropoff</b><br>{{ trip.dropoff }}</p>{% if trip.passengers %}<p>Passengers: {{ trip.passengers }}
+              </p>{% endif %}{% if trip.flightNumber %}<p>Flight: {{ trip.flightNumber }}</p>{% endif %}{% if
+              trip.terminal %}<p>Terminal: {{ trip.terminal }}</p>{% endif %}{% if trip.notes %}<p>Special requests: {{
+                trip.notes }}</p>{% endif %}
+            </td>
+          </tr>
+        </table>{% if pin %}<p><b>Your pickup PIN:</b> {{ pin }}</p>{% endif %}<p><a href="{{ links.payment }}"
+            style="background:#c29e66;color:#1a1a18;padding:14px 20px;text-decoration:none">PAY TO CONFIRM</a></p>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

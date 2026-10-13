@@ -45,7 +45,7 @@ const navSections = [
       { label: "Logs", icon: ScrollText, href: "/admin/logs", adminOnly: true },
       { label: "Settings", icon: Settings, href: "/admin/settings" },
       { label: "Testing", icon: TestTube2, href: "/admin/testing", adminOnly: true, developmentOnly: true },
-      { label: "Templates", icon: LayoutTemplate, href: "/admin/templates", adminOnly: true, developmentOnly: true },
+      { label: "Templates", icon: LayoutTemplate, href: "/admin/templates", adminOnly: true },
     ],
   },
   {

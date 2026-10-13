@@ -29,6 +29,10 @@ export interface NotificationDeliveryRecord {
   attempts: number;
   leaseToken: string | null;
   leaseExpiresAt: string | null;
+  templateVariant: string | null;
+  templateRevision: number | null;
+  templateSource: "default" | "override" | null;
+  templateSnapshot: string | null;
 }
 
 export interface RenderedEmail {

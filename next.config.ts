@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   output: "standalone",
+  outputFileTracingIncludes: {
+    "/*": [ "./src/templates/sms/**/*.txt" ],
+  },
   deploymentId: process.env.DEPLOYMENT_VERSION,
   turbopack: {
     root: process.cwd(),

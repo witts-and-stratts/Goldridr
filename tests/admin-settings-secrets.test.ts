@@ -7,10 +7,11 @@ const projectFile = ( name: string ) => new URL( `../${ name }`, import.meta.url
 test( "saved payment credentials are masked and revealed only on demand", async () => {
   const page = await readFile( projectFile( "src/app/admin/settings/page.tsx" ), "utf8" );
 
-  assert.match( page, /configured \? '\*\*\*\*\*\*\*\*\*\*\*\*'/ );
+  assert.match( page, /const displayValue = editing \? value : configured \? "\*\*\*\*\*\*\*\*\*\*\*\*" : value;/ );
+  assert.match( page, /value=\{displayValue\}/ );
   assert.match( page, /\/api\/admin\/settings\/credential\?key=/ );
   assert.match( page, /aria-label=\{revealed \? `Hide \$\{label\}` : `Show \$\{label\}`\}/ );
-  assert.match( page, /cache: 'no-store'/ );
+  assert.match( page, /cache: "no-store"/ );
 } );
 
 test( "credential reveal is admin-only, allowlisted, and never cached", async () => {

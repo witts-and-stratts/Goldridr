@@ -1,0 +1,3 @@
+{{ company.name }}: we received booking {{ booking.reference }} for {{ trip.date }} at {{ trip.time }}.
+Terminal: {{ trip.terminal }}
+Pay within 2 hours to confirm: {{ links.payment }}
