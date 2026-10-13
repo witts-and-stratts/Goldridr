@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAllBookings, getBookingsForChauffeur } from "@/lib/pocketbase/repository";
+import { getAllRides, getRidesForChauffeur } from "@/lib/pocketbase/repository";
 import { getAppSession, unauthorizedResponse } from "@/lib/driver-auth";
 import { bookingRecordToDriverRide } from "@/lib/driver-ride";
 
@@ -10,8 +10,8 @@ export async function GET( req: Request ) {
 
     // Admins get dispatcher-wide visibility; chauffeurs only their own rides.
     const bookings = session.role === "admin"
-      ? await getAllBookings()
-      : await getBookingsForChauffeur( session.chauffeurId! );
+      ? await getAllRides()
+      : await getRidesForChauffeur( session.chauffeurId! );
 
     const rides = bookings
       .map( bookingRecordToDriverRide )

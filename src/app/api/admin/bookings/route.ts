@@ -6,15 +6,14 @@ import { PastBookingTimeError } from "@/lib/booking-time";
 import {
   DiscountCodeError,
   deleteBooking,
-  getAllBookings,
-  getBookingByReference,
-  getBookingsForChauffeur,
+  getAllRides,
+  getRideByReference,
+  getRidesForChauffeur,
   updateBookingChauffeur,
   updateBookingSchedule,
   updateBookingStatus,
 } from "@/lib/pocketbase/repository";
 import { createPocketBaseBookingStatusUpdate } from "@/lib/pocketbase/notifications";
-import { syncReturnLeg } from "@/lib/round-trip";
 import { bookingRecordToBookingData } from "@/lib/booking-data";
 import { BookingRequestSchema, createBookingRequest, ReturnTimeError } from "@/lib/booking-create";
 import { BookingPricingSchema, type BookingPricingOverride } from "@/lib/booking-pricing";
@@ -72,7 +71,6 @@ export async function POST( req: Request ) {
         success: true,
         booking: await bookingRecordToBookingData( outcome.booking ),
         bookingId: outcome.booking.id,
-        returnBooking: outcome.returnBooking ? await bookingRecordToBookingData( outcome.returnBooking ) : undefined,
         message: outcome.message,
       },
       { status: 201 }
@@ -109,11 +107,12 @@ export async function GET( req: Request ) {
       return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
     }
     const bookings = session.role === "admin"
-      ? await getAllBookings()
-      : await getBookingsForChauffeur( session.chauffeurId! );
-    
-    // Parse the JSON string from tripDetails into objects
-    const parsedBookings = bookings.map( booking => {
+      ? await getAllRides()
+      : await getRidesForChauffeur( session.chauffeurId! );
+
+    // Each leg of a round trip is listed as its own ride; `bookingReference` and `leg` tie it back to the booking.
+    const parsedBookings = bookings.map( ride => {
+      const booking = { ...ride, returnLeg: undefined, outboundStatus: undefined };
       let tripDetailsObj = {};
       try {
         if ( booking.tripDetails ) {
@@ -163,9 +162,6 @@ export async function PATCH( req: Request ) {
 
     if ( status !== undefined ) {
       statusUpdated = await updateBookingStatus( reference, status );
-      if ( statusUpdated && [ "confirmed", "cancelled", "rejected", "payment_expired" ].includes( status ) ) {
-        await syncReturnLeg( reference, { status } );
-      }
       updated = statusUpdated;
     }
 
@@ -190,8 +186,8 @@ export async function PATCH( req: Request ) {
 
     if ( updated ) {
       if ( statusUpdated ) {
-        const booking = await getBookingByReference( reference );
-        if ( booking ) await createPocketBaseBookingStatusUpdate( booking );
+        const ride = await getRideByReference( reference );
+        if ( ride ) await createPocketBaseBookingStatusUpdate( ride );
       }
       return NextResponse.json( {
         success: true,

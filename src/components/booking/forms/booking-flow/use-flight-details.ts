@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { resolveHoustonAirportDirection } from '@/lib/airports';
@@ -8,13 +8,47 @@ import { toApiDate } from './date';
 import type { FlightDetails } from './types';
 import type { TripFormApi } from './use-booking-forms';
 
-export function useFlightDetails(form: TripFormApi) {
+type AirportTiming = {
+  pickupOffsetMinutes: number;
+  dropoffOffsetMinutes: number;
+};
+
+const DEFAULT_AIRPORT_TIMING: AirportTiming = {
+  pickupOffsetMinutes: 0,
+  dropoffOffsetMinutes: 120,
+};
+
+export function useFlightDetails(
+  form: TripFormApi,
+  travelMinutes: number | null = null,
+) {
   const [flightDetails, setFlightDetails] = useState<FlightDetails | null>(null);
+  const timingRef = useRef<AirportTiming>(DEFAULT_AIRPORT_TIMING);
   const [isFlightLoading, setIsFlightLoading] = useState(false);
   const [tripDirection, setTripDirection] = useState<FlightDirection | null>(
     null,
   );
   const manualTripDirectionRef = useRef<FlightDirection | null>(null);
+
+  const setPickupDateTime = (pickupDate: Date) => {
+    form.setFieldValue('date', pickupDate);
+    form.setFieldValue(
+      'time',
+      pickupDate.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }),
+    );
+  };
+
+  const applyDropoffPickupTime = (scheduledDeparture: string) => {
+    const leadMinutes =
+      timingRef.current.dropoffOffsetMinutes + (travelMinutes ?? 0);
+    setPickupDateTime(
+      new Date(new Date(scheduledDeparture).getTime() - leadMinutes * 60_000),
+    );
+  };
 
   const applyFlightDirection = (
     details: FlightDetails,
@@ -34,15 +68,11 @@ export function useFlightDetails(form: TripFormApi) {
         form.setFieldValue('terminal', details.terminal);
       }
       if (details.scheduledArrival) {
-        const arrivalDate = new Date(details.scheduledArrival);
-        form.setFieldValue('date', arrivalDate);
-        form.setFieldValue(
-          'time',
-          arrivalDate.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          }),
+        setPickupDateTime(
+          new Date(
+            new Date(details.scheduledArrival).getTime() +
+              timingRef.current.pickupOffsetMinutes * 60_000,
+          ),
         );
       }
       return;
@@ -61,19 +91,20 @@ export function useFlightDetails(form: TripFormApi) {
       form.setFieldValue('terminal', details.departureTerminal);
     }
     if (details.scheduledDeparture) {
-      const pickupDate = new Date(details.scheduledDeparture);
-      pickupDate.setHours(pickupDate.getHours() - 2);
-      form.setFieldValue('date', pickupDate);
-      form.setFieldValue(
-        'time',
-        pickupDate.toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        }),
-      );
+      applyDropoffPickupTime(details.scheduledDeparture);
     }
   };
+
+  const scheduledDeparture =
+    tripDirection === 'to_airport' ? flightDetails?.scheduledDeparture : null;
+
+  // Travel time arrives after the airport is filled in as the drop-off, so re-derive the pickup once the route estimate lands.
+  useEffect(() => {
+    if (scheduledDeparture && travelMinutes !== null) {
+      applyDropoffPickupTime(scheduledDeparture);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [travelMinutes, scheduledDeparture]);
 
   const selectTripDirection = (direction: FlightDirection) => {
     manualTripDirectionRef.current = direction;
@@ -120,6 +151,7 @@ export function useFlightDetails(form: TripFormApi) {
       }
 
       const data = result.flight;
+      if (result.timing) timingRef.current = result.timing;
       const resolvedDirection = resolveHoustonAirportDirection(
         manualTripDirectionRef.current,
         data.origin?.iata,

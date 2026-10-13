@@ -1,4 +1,19 @@
-export type PaymentStatus = "pending" | "awaiting_verification" | "paid" | "refunded" | "failed" | "expired";
+export type PaymentStatus = "pending" | "awaiting_verification" | "paid" | "partially_refunded" | "refunded" | "failed" | "expired";
+
+export interface PaymentLeg {
+  leg: "outbound" | "return";
+  chargedCents: number;
+  date: string;
+  time: string;
+  active: boolean;
+}
+
+export interface PaymentRefund {
+  reference: string;
+  amountCents: number;
+  legs: Array<"outbound" | "return">;
+  refundedAt: string;
+}
 export type PaymentMethod = "card" | "apple_pay" | "cash_app" | "venmo" | "zelle" | "cash" | "bank_transfer" | "other";
 
 export interface Payment {
@@ -17,6 +32,10 @@ export interface Payment {
   confirmationReference: string | null;
   verificationExpiresAt: string | null;
   refundedAt: string | null;
+  refundedCents: number;
+  refunds: PaymentRefund[];
+  /** Per-leg charges for round trips; empty for one-way bookings. */
+  legs: PaymentLeg[];
   failureMessage: string | null;
   cardLast4: string | null;
   cardBrand: string | null;

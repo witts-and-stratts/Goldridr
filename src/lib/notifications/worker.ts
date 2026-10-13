@@ -11,6 +11,7 @@ import { zonedDateTimeToDate } from "./time";
 import { getPocketBaseClient } from "@/lib/pocketbase/client";
 import { pocketBaseCollections } from "@/lib/pocketbase/collections";
 import { first, legacyId } from "@/lib/pocketbase/core";
+import { getRideByReference } from "@/lib/pocketbase/repository";
 import { buildSmsBody, smsDisclosureFor, withCompliance } from "./sms-program";
 import type { EmailEditableContent } from "./template-types";
 import { expirePaymentHolds } from "@/lib/payments/hold-expiry";
@@ -167,8 +168,9 @@ export class NotificationWorker {
     if ( !notification ) throw new Error( "Notification no longer exists" );
 
     if ( notification.category === "reminders" && notification.bookingReference ) {
-      const booking = await first( pocketBaseCollections.bookings, "reference = {:reference}", { reference: String( notification.bookingReference ) } );
-      if ( !booking || [ "cancelled", "rejected" ].includes( booking.status ) || zonedDateTimeToDate( String( booking.pickupDate ), String( booking.pickupTime ) ).getTime() <= Date.now() ) {
+      const metadata = notification.metadata && typeof notification.metadata === "object" ? notification.metadata as Record<string, unknown> : {};
+      const ride = await getRideByReference( String( metadata.rideReference || notification.bookingReference ) );
+      if ( !ride || [ "cancelled", "rejected" ].includes( ride.status ) || zonedDateTimeToDate( ride.date, ride.time ).getTime() <= Date.now() ) {
         await this.queue.update( delivery, { status: "cancelled", leaseToken: null, leaseExpiresAt: null } );
         this.emit( {
           event: "notification.delivery.cancelled", deliveryId: delivery.id, notificationId: delivery.notificationId,

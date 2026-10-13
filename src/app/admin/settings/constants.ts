@@ -1,8 +1,18 @@
 import type { AdminSettingsState } from "./types";
-import { Bell, Mail, MessageSquareText } from "lucide-react";
+import {
+  Bell,
+  CircleDollarSign,
+  CreditCard,
+  Mail,
+  MessageSquareText,
+  Plane,
+  Settings2,
+} from "lucide-react";
 
 export const EMPTY_SETTINGS: AdminSettingsState = {
   bookingBufferMinutes: "30",
+  airportPickupOffsetMinutes: "0",
+  airportDropoffOffsetMinutes: "120",
   notificationTimezone: "America/Chicago",
   appUrl: "http://localhost:3000",
   emailFromName: "Goldridr",
@@ -52,3 +62,14 @@ export const NOTIFICATION_CHANNELS = [
   { value: "email" as const, label: "Email", icon: Mail },
   { value: "sms" as const, label: "SMS", icon: MessageSquareText },
 ];
+
+export const SETTINGS_SECTIONS = [
+  { key: "general", label: "General", description: "Dispatch and links", icon: Settings2 },
+  { key: "email", label: "Email", description: "Sender identity", icon: Mail },
+  { key: "pricing", label: "Pricing", description: "Rates and discounts", icon: CircleDollarSign },
+  { key: "airport", label: "Airport", description: "Pickup and drop-off offsets", icon: Plane },
+  { key: "payments", label: "Payments", description: "Checkout and providers", icon: CreditCard },
+  { key: "notifications", label: "Notifications", description: "Channels and devices", icon: Bell },
+] as const;
+
+export type SettingsSectionKey = ( typeof SETTINGS_SECTIONS )[number]["key"];

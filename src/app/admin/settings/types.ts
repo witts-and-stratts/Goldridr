@@ -7,6 +7,8 @@ export interface Preference {
 
 export interface AdminSettingsState {
   bookingBufferMinutes: string;
+  airportPickupOffsetMinutes: string;
+  airportDropoffOffsetMinutes: string;
   notificationTimezone: string;
   appUrl: string;
   emailFromName: string;

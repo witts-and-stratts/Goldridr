@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { unstable_rethrow } from "next/navigation";
-import { getAllBookings, getBookingsForChauffeur } from "@/lib/pocketbase/repository";
+import { getAllRides, getRidesForChauffeur } from "@/lib/pocketbase/repository";
 import { validatePocketBaseCalendarFeedToken } from "@/lib/pocketbase/operations";
 import { getRequestSession } from "@/lib/driver-auth";
 
@@ -43,8 +43,8 @@ export async function GET( request: Request ) {
       return NextResponse.json( { success: false, error: "Unauthenticated" }, { status: 401 } );
     }
     const bookings = session.role === "admin"
-      ? await getAllBookings()
-      : await getBookingsForChauffeur( session.chauffeurId! );
+      ? await getAllRides()
+      : await getRidesForChauffeur( session.chauffeurId! );
 
     // Filter out cancelled and rejected bookings
     const activeBookings = bookings.filter( 

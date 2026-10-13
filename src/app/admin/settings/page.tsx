@@ -1,6 +1,12 @@
 "use client";
 
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 import { Button } from "@/components/admin-ui/button";
@@ -45,6 +51,8 @@ import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CHANNELS,
   PAYMENT_METHOD_OPTIONS,
+  SETTINGS_SECTIONS,
+  type SettingsSectionKey,
 } from "./constants";
 import { NativeNotificationSettings } from "./components/native-notification-settings";
 
@@ -431,6 +439,66 @@ function ProviderConfiguration({
   );
 }
 
+function SaveBar({
+  status,
+  message,
+  onSave,
+}: {
+  status: "idle" | "saving" | "saved" | "error";
+  message: string;
+  onSave: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-5 py-5">
+      <Button size="sm" onClick={onSave} disabled={status === "saving"}>
+        {status === "saving" ? "Saving…" : "Save settings"}
+      </Button>
+      {status === "saved" && (
+        <span className="text-xs text-muted-foreground" aria-live="polite">
+          {message}
+        </span>
+      )}
+      {status === "error" && (
+        <span
+          className="max-w-2xl whitespace-pre-line text-xs text-destructive"
+          role="alert"
+        >
+          {message}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function SettingsCard({
+  title,
+  description,
+  footer,
+  children,
+}: {
+  title: string;
+  description: string;
+  footer?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-lg border">
+      <div className="bg-muted/30 px-5 py-4">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      </div>
+      <Separator />
+      {children}
+      {footer && (
+        <>
+          <Separator />
+          {footer}
+        </>
+      )}
+    </section>
+  );
+}
+
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [preferences, setPreferences] = useState<Preference[]>([]);
@@ -440,6 +508,8 @@ export default function SettingsPage() {
   >("idle");
   const [settingsMessage, setSettingsMessage] = useState("");
   const [providerTab, setProviderTab] = useState<ProviderTab>("stripe");
+  const [activeSection, setActiveSection] =
+    useState<SettingsSectionKey>("general");
   const providerTabInitialized = useRef(false);
   const [credentialDraft, setCredentialDraft] =
     useState<PaymentCredentialDraft>({ ...EMPTY_PAYMENT_CREDENTIALS });
@@ -475,6 +545,14 @@ export default function SettingsPage() {
       bookingBufferMinutes: String(
         settingsData.bookingBufferMinutes ??
           EMPTY_SETTINGS.bookingBufferMinutes,
+      ),
+      airportPickupOffsetMinutes: String(
+        settingsData.airportPickupOffsetMinutes ??
+          EMPTY_SETTINGS.airportPickupOffsetMinutes,
+      ),
+      airportDropoffOffsetMinutes: String(
+        settingsData.airportDropoffOffsetMinutes ??
+          EMPTY_SETTINGS.airportDropoffOffsetMinutes,
       ),
       notificationTimezone:
         settingsData.notificationTimezone ||
@@ -523,8 +601,7 @@ export default function SettingsPage() {
       const enabledProcessors = (settingsData.enabledProcessors ||
         EMPTY_SETTINGS.enabledProcessors) as ProviderTab[];
       const preferredTab = settingsData.activeProcessor as
-        | ProviderTab
-        | undefined;
+        ProviderTab | undefined;
       setProviderTab(
         preferredTab && enabledProcessors.includes(preferredTab)
           ? preferredTab
@@ -574,6 +651,8 @@ export default function SettingsPage() {
 
   const saveSettings = async () => {
     const minutes = Number(settings.bookingBufferMinutes);
+    const airportPickupOffset = Number(settings.airportPickupOffsetMinutes);
+    const airportDropoffOffset = Number(settings.airportDropoffOffsetMinutes);
     const airport = Number(settings.priceByMileAirport);
     const city = Number(settings.priceByMileCity);
     const hourly = Number(settings.priceByMileHourly);
@@ -581,37 +660,68 @@ export default function SettingsPage() {
     const roundTripDiscountPercent = Number(settings.roundTripDiscountPercent);
     const holdMinutes = Number(settings.holdMinutes);
     const zelleVerificationHours = Number(settings.zelleVerificationHours);
-    if (
-      !Number.isInteger(minutes) ||
-      minutes < 0 ||
-      minutes > 240 ||
-      !settings.notificationTimezone.trim() ||
-      !settings.appUrl.trim() ||
-      !settings.emailFromName.trim() ||
-      !settings.emailFromAddress.trim() ||
-      !Number.isFinite(airport) ||
-      airport < 0 ||
-      !Number.isFinite(city) ||
-      city < 0 ||
-      !Number.isFinite(hourly) ||
-      hourly < 0 ||
-      !settings.twilioFromNumber.trim() ||
-      !Number.isFinite(hourlyRate) ||
-      hourlyRate < 0 ||
-      !Number.isFinite(roundTripDiscountPercent) ||
-      roundTripDiscountPercent < 0 ||
-      roundTripDiscountPercent > 100 ||
-      !Number.isInteger(holdMinutes) ||
-      holdMinutes < 30 ||
-      !Number.isInteger(zelleVerificationHours) ||
-      zelleVerificationHours < 1 ||
-      settings.enabledProcessors.length === 0 ||
-      !hasAvailablePaymentMethod(settings)
-    ) {
+    const invalid: [SettingsSectionKey, string][] = [
+      [
+        "general",
+        !Number.isInteger(minutes) ||
+        minutes < 0 ||
+        minutes > 240 ||
+        !settings.notificationTimezone.trim() ||
+        !settings.appUrl.trim() ||
+        !settings.twilioFromNumber.trim()
+          ? "Enter a buffer of 0–240 minutes, a timezone, an app URL and a Twilio number."
+          : "",
+      ],
+      [
+        "email",
+        !settings.emailFromName.trim() || !settings.emailFromAddress.trim()
+          ? "Enter a sender name and from address."
+          : "",
+      ],
+      [
+        "pricing",
+        !Number.isFinite(airport) ||
+        airport < 0 ||
+        !Number.isFinite(city) ||
+        city < 0 ||
+        !Number.isFinite(hourly) ||
+        hourly < 0 ||
+        !Number.isFinite(hourlyRate) ||
+        hourlyRate < 0 ||
+        !Number.isFinite(roundTripDiscountPercent) ||
+        roundTripDiscountPercent < 0 ||
+        roundTripDiscountPercent > 100
+          ? "Rates must be zero or more and the round trip discount 0–100%."
+          : "",
+      ],
+      [
+        "airport",
+        !Number.isInteger(airportPickupOffset) ||
+        airportPickupOffset < 0 ||
+        airportPickupOffset > 720 ||
+        !Number.isInteger(airportDropoffOffset) ||
+        airportDropoffOffset < 0 ||
+        airportDropoffOffset > 720
+          ? "Offsets must be whole minutes between 0 and 720."
+          : "",
+      ],
+      [
+        "payments",
+        !Number.isInteger(holdMinutes) ||
+        holdMinutes < 30 ||
+        !Number.isInteger(zelleVerificationHours) ||
+        zelleVerificationHours < 1 ||
+        settings.enabledProcessors.length === 0 ||
+        !hasAvailablePaymentMethod(settings)
+          ? "Check the hold time and select at least one available payment method."
+          : "",
+      ],
+    ];
+    const firstInvalid = invalid.find(([, message]) => message);
+    if (firstInvalid) {
+      setActiveSection(firstInvalid[0]);
       setSettingsStatus("error");
-      setSettingsMessage(
-        "Review the required runtime values and select at least one available payment method.",
-      );
+      setSettingsMessage(firstInvalid[1]);
       return;
     }
 
@@ -623,6 +733,8 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingBufferMinutes: minutes,
+          airportPickupOffsetMinutes: airportPickupOffset,
+          airportDropoffOffsetMinutes: airportDropoffOffset,
           notificationTimezone: settings.notificationTimezone.trim(),
           appUrl: settings.appUrl.trim(),
           emailFromName: settings.emailFromName.trim(),
@@ -734,601 +846,677 @@ export default function SettingsPage() {
         </p>
       </header>
 
-      <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside>
-          <p className="text-sm font-medium">Workspace</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Operational values that used to sit in environment files.
-          </p>
-        </aside>
-
-        <div className="grid gap-4">
-          <NativeNotificationSettings />
-          <section className="overflow-hidden rounded-lg border">
-            <div className="bg-muted/30 px-5 py-4">
-              <h2 className="text-sm font-semibold">Runtime configuration</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Changes take effect immediately for new requests and
-                notifications.
-              </p>
-            </div>
-            <Separator />
-            <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
-              <SuperField
-                type="number"
-                label="Booking buffer minutes"
-                min={0}
-                max={240}
-                step={5}
-                value={settings.bookingBufferMinutes}
-                onChange={(event) =>
-                  updateField("bookingBufferMinutes", event.target.value)
-                }
-              />
-              <SuperField
-                type="searchable-select"
-                label="Timezone"
-                value={settings.notificationTimezone}
-                onValueChange={(value) =>
-                  value && updateField("notificationTimezone", value)
-                }
-                options={AVAILABLE_TIMEZONES}
-                placeholder="Search timezones"
-              />
-              <SuperField
-                type="url"
-                label="App URL"
-                value={settings.appUrl}
-                onChange={(event) => updateField("appUrl", event.target.value)}
-                placeholder="https://goldridr.com"
-                description="Use the public HTTPS URL; email QR links and read tracking pixels are generated from this address."
-                className="md:col-span-2"
-              />
-              <SuperField
-                type="text"
-                label="Email from name"
-                value={settings.emailFromName}
-                onChange={(event) =>
-                  updateField("emailFromName", event.target.value)
-                }
-                placeholder="Goldridr"
-              />
-              <SuperField
-                type="email"
-                label="Email from address"
-                value={settings.emailFromAddress}
-                onChange={(event) =>
-                  updateField("emailFromAddress", event.target.value)
-                }
-                placeholder="notifications@example.com"
-              />
-              <SuperField
-                type="email"
-                label="Reply-to address"
-                value={settings.emailReplyTo}
-                onChange={(event) =>
-                  updateField("emailReplyTo", event.target.value)
-                }
-                placeholder="support@example.com"
-                description="Use the mailbox Resend Receiving or webmail IMAP monitors for passenger replies."
-                className="md:col-span-2"
-              />
-              <SuperField
-                type="number"
-                label="Airport price per mile"
-                min={0}
-                step="0.01"
-                value={settings.priceByMileAirport}
-                onChange={(event) =>
-                  updateField("priceByMileAirport", event.target.value)
-                }
-              />
-              <SuperField
-                type="number"
-                label="City price per mile"
-                min={0}
-                step="0.01"
-                value={settings.priceByMileCity}
-                onChange={(event) =>
-                  updateField("priceByMileCity", event.target.value)
-                }
-              />
-              <SuperField
-                type="number"
-                label="Hourly price per mile"
-                min={0}
-                step="0.01"
-                value={settings.priceByMileHourly}
-                onChange={(event) =>
-                  updateField("priceByMileHourly", event.target.value)
-                }
-              />
-              <SuperField
-                type="tel"
-                label="Twilio from number"
-                value={settings.twilioFromNumber}
-                onChange={(event) =>
-                  updateField("twilioFromNumber", event.target.value)
-                }
-                placeholder="+17135550000"
-              />
-            </div>
-            <Separator />
-            <div className="flex flex-wrap items-center gap-3 px-5 py-5">
-              <Button
-                size="sm"
-                onClick={saveSettings}
-                disabled={settingsStatus === "saving"}
-              >
-                {settingsStatus === "saving" ? "Saving…" : "Save settings"}
-              </Button>
-              {settingsStatus === "saved" && (
-                <span
-                  className="text-xs text-muted-foreground"
-                  aria-live="polite"
-                >
-                  {settingsMessage}
-                </span>
-              )}
-              {settingsStatus === "error" && (
-                <span
-                  className="max-w-2xl whitespace-pre-line text-xs text-destructive"
-                  role="alert"
-                >
-                  {settingsMessage}
-                </span>
-              )}
-            </div>
-          </section>
-        </div>
-      </div>
-
-      <div className="mt-10 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside>
-          <p className="text-sm font-medium">Payments</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Control checkout and encrypted provider credentials. Environment
-            variables remain fallbacks.
-          </p>
-        </aside>
-        <section className="overflow-hidden rounded-lg border">
-          <div className="bg-muted/30 px-5 py-4">
-            <h2 className="text-sm font-semibold">Checkout configuration</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Choose a provider tab to update its checkout behavior and
-              connection settings.
-            </p>
-          </div>
-          <Separator />
-          <div className="grid gap-5 px-5 py-5 sm:grid-cols-2">
-            <SuperField
-              type="number"
-              label="Hourly fare"
-              min={0}
-              step="0.01"
-              value={settings.hourlyRate}
-              onChange={(event) =>
-                updateField("hourlyRate", event.target.value)
-              }
-            />
-            <SuperField
-              type="number"
-              label="Round trip discount (%)"
-              min={0}
-              max={100}
-              step="0.5"
-              value={settings.roundTripDiscountPercent}
-              onChange={(event) =>
-                updateField("roundTripDiscountPercent", event.target.value)
-              }
-            />
-            <SuperField
-              type="number"
-              label="Payment hold minutes"
-              min={30}
-              max={1440}
-              value={settings.holdMinutes}
-              onChange={(event) =>
-                updateField("holdMinutes", event.target.value)
-              }
-            />
-          </div>
-          <Separator />
-          <Tabs
-            value={providerTab}
-            onValueChange={(value) => setProviderTab(value as ProviderTab)}
-          >
-            <div className="overflow-x-auto border-b px-5">
-              <TabsList
-                aria-label="Payment providers"
-                className="h-auto min-w-max justify-start rounded-none bg-transparent p-0"
-              >
-                {PAYMENT_PROVIDERS.map((provider) => (
-                  <TabsTrigger
-                    key={provider.key}
-                    value={provider.key}
-                    className="gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                  >
-                    <ProviderTabIcon icons={provider.icons} />
-                    {provider.label}
-                  </TabsTrigger>
-                ))}
-                <TabsTrigger
-                  value="zelle"
-                  className="gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                >
-                  <ProviderTabIcon icons={[siZelle]} />
-                  Zelle
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            {PAYMENT_PROVIDERS.filter(
-              (provider) => provider.key === "stripe",
-            ).map((provider) => {
-              const processor = provider.key as "stripe";
-              const active = settings.activeProcessor === processor;
-              const configuration = settingsData?.paymentProviders
-                ? (
-                    settingsData.paymentProviders as PaymentProviderConfigurations
-                  )[provider.key]
-                : undefined;
+      <div className="grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <nav
+          aria-label="Settings sections"
+          className="-mx-6 overflow-x-auto px-6 lg:mx-0 lg:overflow-visible lg:px-0"
+        >
+          <ul className="flex min-w-max gap-1 lg:sticky lg:top-6 lg:min-w-0 lg:flex-col">
+            {SETTINGS_SECTIONS.map((section) => {
+              const active = section.key === activeSection;
               return (
-                <TabsContent
-                  key={provider.key}
-                  value={provider.key}
-                  className="mt-0"
+                <li key={section.key}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection(section.key)}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                      active
+                        ? "bg-muted font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                    }`}
+                  >
+                    <section.icon className="size-4 shrink-0" />
+                    <span className="min-w-0">
+                      <span className="block">{section.label}</span>
+                      <span className="hidden text-xs font-normal text-muted-foreground lg:block">
+                        {section.description}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        <div className="min-w-0">
+          {activeSection === "general" && (
+            <div className="grid gap-4">
+              <SettingsCard
+                title="General"
+                description="Dispatch behaviour and the public address used in links."
+                footer={
+                  <SaveBar
+                    status={settingsStatus}
+                    message={settingsMessage}
+                    onSave={saveSettings}
+                  />
+                }
+              >
+                <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
+                  <SuperField
+                    type="number"
+                    label="Booking buffer minutes"
+                    min={0}
+                    max={240}
+                    step={5}
+                    value={settings.bookingBufferMinutes}
+                    onChange={(event) =>
+                      updateField("bookingBufferMinutes", event.target.value)
+                    }
+                  />
+                  <SuperField
+                    type="searchable-select"
+                    label="Timezone"
+                    value={settings.notificationTimezone}
+                    onValueChange={(value) =>
+                      value && updateField("notificationTimezone", value)
+                    }
+                    options={AVAILABLE_TIMEZONES}
+                    placeholder="Search timezones"
+                  />
+                  <SuperField
+                    type="url"
+                    label="App URL"
+                    value={settings.appUrl}
+                    onChange={(event) =>
+                      updateField("appUrl", event.target.value)
+                    }
+                    placeholder="https://goldridr.com"
+                    description="Use the public HTTPS URL; email QR links and read tracking pixels are generated from this address."
+                    className="md:col-span-2"
+                  />
+                  <SuperField
+                    type="tel"
+                    label="Twilio from number"
+                    value={settings.twilioFromNumber}
+                    onChange={(event) =>
+                      updateField("twilioFromNumber", event.target.value)
+                    }
+                    placeholder="+17135550000"
+                  />
+                </div>
+              </SettingsCard>
+            </div>
+          )}
+          {activeSection === "email" && (
+            <div className="grid gap-4">
+              <SettingsCard
+                title="Email"
+                description="Sender identity for passenger and admin emails."
+                footer={
+                  <SaveBar
+                    status={settingsStatus}
+                    message={settingsMessage}
+                    onSave={saveSettings}
+                  />
+                }
+              >
+                <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
+                  <SuperField
+                    type="text"
+                    label="Email from name"
+                    value={settings.emailFromName}
+                    onChange={(event) =>
+                      updateField("emailFromName", event.target.value)
+                    }
+                    placeholder="Goldridr"
+                  />
+                  <SuperField
+                    type="email"
+                    label="Email from address"
+                    value={settings.emailFromAddress}
+                    onChange={(event) =>
+                      updateField("emailFromAddress", event.target.value)
+                    }
+                    placeholder="notifications@example.com"
+                  />
+                  <SuperField
+                    type="email"
+                    label="Reply-to address"
+                    value={settings.emailReplyTo}
+                    onChange={(event) =>
+                      updateField("emailReplyTo", event.target.value)
+                    }
+                    placeholder="support@example.com"
+                    description="Use the mailbox Resend Receiving or webmail IMAP monitors for passenger replies."
+                    className="md:col-span-2"
+                  />
+                </div>
+              </SettingsCard>
+            </div>
+          )}
+          {activeSection === "pricing" && (
+            <div className="grid gap-4">
+              <SettingsCard
+                title="Pricing"
+                description="Per-mile rates, hourly fare and round trip discount used in quotes."
+                footer={
+                  <SaveBar
+                    status={settingsStatus}
+                    message={settingsMessage}
+                    onSave={saveSettings}
+                  />
+                }
+              >
+                <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
+                  <SuperField
+                    type="number"
+                    label="Airport price per mile"
+                    min={0}
+                    step="0.01"
+                    value={settings.priceByMileAirport}
+                    onChange={(event) =>
+                      updateField("priceByMileAirport", event.target.value)
+                    }
+                  />
+                  <SuperField
+                    type="number"
+                    label="City price per mile"
+                    min={0}
+                    step="0.01"
+                    value={settings.priceByMileCity}
+                    onChange={(event) =>
+                      updateField("priceByMileCity", event.target.value)
+                    }
+                  />
+                  <SuperField
+                    type="number"
+                    label="Hourly price per mile"
+                    min={0}
+                    step="0.01"
+                    value={settings.priceByMileHourly}
+                    onChange={(event) =>
+                      updateField("priceByMileHourly", event.target.value)
+                    }
+                  />
+                  <SuperField
+                    type="number"
+                    label="Hourly fare"
+                    min={0}
+                    step="0.01"
+                    value={settings.hourlyRate}
+                    onChange={(event) =>
+                      updateField("hourlyRate", event.target.value)
+                    }
+                  />
+                  <SuperField
+                    type="number"
+                    label="Round trip discount (%)"
+                    min={0}
+                    max={100}
+                    step="0.5"
+                    value={settings.roundTripDiscountPercent}
+                    onChange={(event) =>
+                      updateField(
+                        "roundTripDiscountPercent",
+                        event.target.value,
+                      )
+                    }
+                  />
+                </div>
+              </SettingsCard>
+            </div>
+          )}
+          {activeSection === "airport" && (
+            <div className="grid gap-4">
+              <SettingsCard
+                title="Airport offset times"
+                description="Pickups start at arrival plus the pickup offset. Drop-offs start at departure minus the drop-off offset and the travel time."
+                footer={
+                  <SaveBar
+                    status={settingsStatus}
+                    message={settingsMessage}
+                    onSave={saveSettings}
+                  />
+                }
+              >
+                <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
+                  <SuperField
+                    type="number"
+                    label="Pickup offset (minutes)"
+                    min={0}
+                    max={720}
+                    step={5}
+                    value={settings.airportPickupOffsetMinutes}
+                    onChange={(event) =>
+                      updateField(
+                        "airportPickupOffsetMinutes",
+                        event.target.value,
+                      )
+                    }
+                    description="Added to the flight's scheduled arrival."
+                  />
+                  <SuperField
+                    type="number"
+                    label="Drop-off offset (minutes)"
+                    min={0}
+                    max={720}
+                    step={5}
+                    value={settings.airportDropoffOffsetMinutes}
+                    onChange={(event) =>
+                      updateField(
+                        "airportDropoffOffsetMinutes",
+                        event.target.value,
+                      )
+                    }
+                    description="Subtracted from the flight's scheduled departure, on top of the estimated travel time."
+                  />
+                </div>
+              </SettingsCard>
+            </div>
+          )}
+          {activeSection === "payments" && (
+            <div className="grid gap-4">
+              <SettingsCard
+                title="Checkout configuration"
+                description="Choose a provider tab to update its checkout behavior and connection settings."
+                footer={
+                  <SaveBar
+                    status={settingsStatus}
+                    message={settingsMessage}
+                    onSave={saveSettings}
+                  />
+                }
+              >
+                <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
+                  <SuperField
+                    type="number"
+                    label="Payment hold minutes"
+                    min={30}
+                    max={1440}
+                    value={settings.holdMinutes}
+                    onChange={(event) =>
+                      updateField("holdMinutes", event.target.value)
+                    }
+                  />
+                </div>
+                <Separator />
+                <Tabs
+                  value={providerTab}
+                  onValueChange={(value) =>
+                    setProviderTab(value as ProviderTab)
+                  }
                 >
-                  <div className="border-b px-5 py-4">
-                    <BookingProcessorToggle
-                      processor={BOOKING_PROCESSORS[0]}
-                      checked={settings.enabledProcessors.includes(processor)}
-                      disabled={
-                        settings.enabledProcessors.includes(processor) &&
-                        settings.enabledProcessors.length === 1
-                      }
-                      onCheckedChange={(enabled) =>
-                        toggleBookingProcessor(processor, enabled)
-                      }
-                    />
+                  <div className="overflow-x-auto border-b px-5">
+                    <TabsList
+                      aria-label="Payment providers"
+                      className="h-auto min-w-max justify-start rounded-none bg-transparent p-0"
+                    >
+                      {PAYMENT_PROVIDERS.map((provider) => (
+                        <TabsTrigger
+                          key={provider.key}
+                          value={provider.key}
+                          className="gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                        >
+                          <ProviderTabIcon icons={provider.icons} />
+                          {provider.label}
+                        </TabsTrigger>
+                      ))}
+                      <TabsTrigger
+                        value="zelle"
+                        className="gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                      >
+                        <ProviderTabIcon icons={[siZelle]} />
+                        Zelle
+                      </TabsTrigger>
+                    </TabsList>
                   </div>
-                  {settings.enabledProcessors.includes(processor) ? (
-                    <>
-                      <div className="px-5 py-5">
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                          <div>
-                            <h3 className="text-sm font-semibold">
-                              {provider.label} checkout
-                            </h3>
-                            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                              Configure the customer methods handled by{" "}
-                              {provider.label}.
-                            </p>
-                          </div>
-                          {active ? (
-                            <Badge variant="secondary" className="gap-1.5">
-                              <CheckCircle2 className="size-3" />
-                              Active processor
-                            </Badge>
-                          ) : (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => selectProcessor(processor)}
-                            >
-                              Use {provider.label}
-                            </Button>
-                          )}
+
+                  {PAYMENT_PROVIDERS.filter(
+                    (provider) => provider.key === "stripe",
+                  ).map((provider) => {
+                    const processor = provider.key as "stripe";
+                    const active = settings.activeProcessor === processor;
+                    const configuration = settingsData?.paymentProviders
+                      ? (
+                          settingsData.paymentProviders as PaymentProviderConfigurations
+                        )[provider.key]
+                      : undefined;
+                    return (
+                      <TabsContent
+                        key={provider.key}
+                        value={provider.key}
+                        className="mt-0"
+                      >
+                        <div className="border-b px-5 py-4">
+                          <BookingProcessorToggle
+                            processor={BOOKING_PROCESSORS[0]}
+                            checked={settings.enabledProcessors.includes(
+                              processor,
+                            )}
+                            disabled={
+                              settings.enabledProcessors.includes(processor) &&
+                              settings.enabledProcessors.length === 1
+                            }
+                            onCheckedChange={(enabled) =>
+                              toggleBookingProcessor(processor, enabled)
+                            }
+                          />
                         </div>
-                        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                          {PAYMENT_METHOD_OPTIONS.filter(
-                            (method) =>
-                              method.value === "card" ||
-                              method.value === "apple_pay" ||
-                              method.value === "cash_app",
-                          ).map((method) => (
+                        {settings.enabledProcessors.includes(processor) ? (
+                          <>
+                            <div className="px-5 py-5">
+                              <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div>
+                                  <h3 className="text-sm font-semibold">
+                                    {provider.label} checkout
+                                  </h3>
+                                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                    Configure the customer methods handled by{" "}
+                                    {provider.label}.
+                                  </p>
+                                </div>
+                                {active ? (
+                                  <Badge
+                                    variant="secondary"
+                                    className="gap-1.5"
+                                  >
+                                    <CheckCircle2 className="size-3" />
+                                    Active processor
+                                  </Badge>
+                                ) : (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => selectProcessor(processor)}
+                                  >
+                                    Use {provider.label}
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                                {PAYMENT_METHOD_OPTIONS.filter(
+                                  (method) =>
+                                    method.value === "card" ||
+                                    method.value === "apple_pay" ||
+                                    method.value === "cash_app",
+                                ).map((method) => (
+                                  <PaymentMethodToggle
+                                    key={method.value}
+                                    label={method.label}
+                                    checked={settings.enabledMethods.includes(
+                                      method.value,
+                                    )}
+                                    onCheckedChange={(checked) =>
+                                      togglePaymentMethod(method.value, checked)
+                                    }
+                                  />
+                                ))}
+                              </div>
+                              <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                                {PROVIDER_CREDENTIAL_FIELDS[provider.key].map(
+                                  (field) => (
+                                    <CredentialField
+                                      key={`${field.key}:${credentialRevision}`}
+                                      name={field.key}
+                                      label={field.label}
+                                      value={credentialDraft[field.key]}
+                                      configured={Boolean(
+                                        configuration?.credentials[field.key],
+                                      )}
+                                      onChange={(value) =>
+                                        updateCredential(field.key, value)
+                                      }
+                                    />
+                                  ),
+                                )}
+                              </div>
+                            </div>
+                            {configuration ? (
+                              <>
+                                <Separator />
+                                <ProviderConfiguration
+                                  provider={provider}
+                                  configuration={configuration}
+                                  appUrl={settings.appUrl}
+                                />
+                              </>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </TabsContent>
+                    );
+                  })}
+
+                  <TabsContent value="paypal" className="mt-0">
+                    <div className="border-b px-5 py-4">
+                      <BookingProcessorToggle
+                        processor={BOOKING_PROCESSORS[1]}
+                        checked={settings.enabledProcessors.includes("paypal")}
+                        disabled={
+                          settings.enabledProcessors.includes("paypal") &&
+                          settings.enabledProcessors.length === 1
+                        }
+                        onCheckedChange={(enabled) =>
+                          toggleBookingProcessor("paypal", enabled)
+                        }
+                      />
+                    </div>
+                    {settings.enabledProcessors.includes("paypal") ? (
+                      <>
+                        <div className="px-5 py-5">
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                              <h3 className="text-sm font-semibold">
+                                PayPal / Venmo checkout
+                              </h3>
+                              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                Venmo appears only when PayPal reports that the
+                                customer and device are eligible.
+                              </p>
+                            </div>
+                            {settings.enabledMethods.includes("venmo") ? (
+                              <Badge variant="secondary">Venmo enabled</Badge>
+                            ) : null}
+                          </div>
+                          <div className="mt-5 max-w-sm">
                             <PaymentMethodToggle
-                              key={method.value}
-                              label={method.label}
+                              label="Venmo"
                               checked={settings.enabledMethods.includes(
-                                method.value,
+                                "venmo",
                               )}
                               onCheckedChange={(checked) =>
-                                togglePaymentMethod(method.value, checked)
+                                togglePaymentMethod("venmo", checked)
                               }
                             />
-                          ))}
-                        </div>
-                        <div className="mt-6 grid gap-5 sm:grid-cols-2">
-                          {PROVIDER_CREDENTIAL_FIELDS[provider.key].map(
-                            (field) => (
+                          </div>
+                          <SuperField
+                            type="select"
+                            size="md"
+                            label="Environment"
+                            value={settings.paypalEnvironment}
+                            onValueChange={(value) =>
+                              value && updateField("paypalEnvironment", value)
+                            }
+                            options={[
+                              { value: "sandbox", label: "Sandbox" },
+                              { value: "production", label: "Production" },
+                            ]}
+                            className="mt-5 max-w-sm"
+                          />
+                          <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                            {PROVIDER_CREDENTIAL_FIELDS.paypal.map((field) => (
                               <CredentialField
                                 key={`${field.key}:${credentialRevision}`}
                                 name={field.key}
                                 label={field.label}
                                 value={credentialDraft[field.key]}
                                 configured={Boolean(
-                                  configuration?.credentials[field.key],
+                                  (
+                                    settingsData?.paymentProviders as
+                                      PaymentProviderConfigurations | undefined
+                                  )?.paypal.credentials[field.key],
                                 )}
                                 onChange={(value) =>
                                   updateCredential(field.key, value)
                                 }
                               />
-                            ),
-                          )}
+                            ))}
+                          </div>
+                        </div>
+                        {settingsData?.paymentProviders ? (
+                          <>
+                            <Separator />
+                            <ProviderConfiguration
+                              provider={PAYMENT_PROVIDERS[1]}
+                              configuration={
+                                (
+                                  settingsData.paymentProviders as PaymentProviderConfigurations
+                                ).paypal
+                              }
+                              appUrl={settings.appUrl}
+                            />
+                          </>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </TabsContent>
+
+                  <TabsContent value="zelle" className="mt-0">
+                    <div className="border-b px-5 py-4">
+                      <BookingProcessorToggle
+                        processor={BOOKING_PROCESSORS[2]}
+                        checked={settings.enabledProcessors.includes("zelle")}
+                        disabled={
+                          settings.enabledProcessors.includes("zelle") &&
+                          settings.enabledProcessors.length === 1
+                        }
+                        onCheckedChange={(enabled) =>
+                          toggleBookingProcessor("zelle", enabled)
+                        }
+                      />
+                    </div>
+                    {settings.enabledProcessors.includes("zelle") ? (
+                      <div className="px-5 py-5">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div>
+                            <h3 className="text-sm font-semibold">
+                              Zelle manual verification
+                            </h3>
+                            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                              Customers submit their transfer reference for
+                              staff approval.
+                            </p>
+                          </div>
+                          <Badge variant="outline">Manual provider</Badge>
+                        </div>
+                        <div className="mt-5 max-w-sm">
+                          <PaymentMethodToggle
+                            label="Offer Zelle at checkout"
+                            checked={settings.enabledMethods.includes("zelle")}
+                            onCheckedChange={(checked) =>
+                              togglePaymentMethod("zelle", checked)
+                            }
+                          />
+                        </div>
+                        <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                          <SuperField
+                            type="text"
+                            label="Zelle recipient"
+                            value={settings.zelleRecipient}
+                            onChange={(event) =>
+                              updateField("zelleRecipient", event.target.value)
+                            }
+                            placeholder="Business email or mobile number"
+                          />
+                          <SuperField
+                            type="number"
+                            label="Verification hold hours"
+                            min={1}
+                            max={168}
+                            value={settings.zelleVerificationHours}
+                            onChange={(event) =>
+                              updateField(
+                                "zelleVerificationHours",
+                                event.target.value,
+                              )
+                            }
+                          />
+                          <SuperField
+                            type="textarea"
+                            label="Customer instructions"
+                            value={settings.zelleInstructions}
+                            onChange={(event) =>
+                              updateField(
+                                "zelleInstructions",
+                                event.target.value,
+                              )
+                            }
+                            rows={3}
+                            className="sm:col-span-2"
+                          />
                         </div>
                       </div>
-                      {configuration ? (
-                        <>
-                          <Separator />
-                          <ProviderConfiguration
-                            provider={provider}
-                            configuration={configuration}
-                            appUrl={settings.appUrl}
-                          />
-                        </>
-                      ) : null}
-                    </>
-                  ) : null}
-                </TabsContent>
-              );
-            })}
-
-            <TabsContent value="paypal" className="mt-0">
-              <div className="border-b px-5 py-4">
-                <BookingProcessorToggle
-                  processor={BOOKING_PROCESSORS[1]}
-                  checked={settings.enabledProcessors.includes("paypal")}
-                  disabled={
-                    settings.enabledProcessors.includes("paypal") &&
-                    settings.enabledProcessors.length === 1
-                  }
-                  onCheckedChange={(enabled) =>
-                    toggleBookingProcessor("paypal", enabled)
-                  }
-                />
-              </div>
-              {settings.enabledProcessors.includes("paypal") ? (
-                <>
-                  <div className="px-5 py-5">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <h3 className="text-sm font-semibold">
-                          PayPal / Venmo checkout
-                        </h3>
+                    ) : null}
+                  </TabsContent>
+                </Tabs>
+              </SettingsCard>
+            </div>
+          )}
+          {activeSection === "notifications" && (
+            <div className="grid gap-4">
+              <NativeNotificationSettings />
+              <section className="overflow-hidden rounded-lg border">
+                <div className="grid grid-cols-[minmax(0,1fr)_repeat(3,72px)] items-end gap-3 bg-muted/30 px-5 py-4">
+                  <div>
+                    <h2 className="text-sm font-semibold">
+                      Channel preferences
+                    </h2>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Choose where each kind of update should reach you.
+                    </p>
+                  </div>
+                  {NOTIFICATION_CHANNELS.map((channel) => (
+                    <div key={channel.value} className="text-center">
+                      <channel.icon className="mx-auto mb-1 size-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {channel.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <Separator />
+                {NOTIFICATION_CATEGORIES.map((category) => {
+                  const preference = preferenceFor(category.value);
+                  return (
+                    <div
+                      key={category.value}
+                      className="grid grid-cols-[minmax(0,1fr)_repeat(3,72px)] items-center gap-3 border-b px-5 py-5 last:border-b-0"
+                    >
+                      <div className="pr-6">
+                        <p className="text-sm font-medium">{category.label}</p>
                         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                          Venmo appears only when PayPal reports that the
-                          customer and device are eligible.
+                          {category.description}
                         </p>
                       </div>
-                      {settings.enabledMethods.includes("venmo") ? (
-                        <Badge variant="secondary">Venmo enabled</Badge>
-                      ) : null}
-                    </div>
-                    <div className="mt-5 max-w-sm">
-                      <PaymentMethodToggle
-                        label="Venmo"
-                        checked={settings.enabledMethods.includes("venmo")}
-                        onCheckedChange={(checked) =>
-                          togglePaymentMethod("venmo", checked)
-                        }
-                      />
-                    </div>
-                    <SuperField
-                      type="select"
-                      size="md"
-                      label="Environment"
-                      value={settings.paypalEnvironment}
-                      onValueChange={(value) =>
-                        value && updateField("paypalEnvironment", value)
-                      }
-                      options={[
-                        { value: "sandbox", label: "Sandbox" },
-                        { value: "production", label: "Production" },
-                      ]}
-                      className="mt-5 max-w-sm"
-                    />
-                    <div className="mt-6 grid gap-5 sm:grid-cols-2">
-                      {PROVIDER_CREDENTIAL_FIELDS.paypal.map((field) => (
-                        <CredentialField
-                          key={`${field.key}:${credentialRevision}`}
-                          name={field.key}
-                          label={field.label}
-                          value={credentialDraft[field.key]}
-                          configured={Boolean(
-                            (
-                              settingsData?.paymentProviders as
-                                PaymentProviderConfigurations | undefined
-                            )?.paypal.credentials[field.key],
-                          )}
-                          onChange={(value) =>
-                            updateCredential(field.key, value)
-                          }
-                        />
+                      {NOTIFICATION_CHANNELS.map((channel) => (
+                        <div
+                          key={channel.value}
+                          className="flex justify-center"
+                        >
+                          <Checkbox
+                            aria-label={`${category.label} via ${channel.label}`}
+                            checked={Boolean(preference[channel.value])}
+                            onCheckedChange={(checked) =>
+                              updatePreference(
+                                category.value,
+                                channel.value,
+                                checked === true,
+                              )
+                            }
+                          />
+                        </div>
                       ))}
                     </div>
-                  </div>
-                  {settingsData?.paymentProviders ? (
-                    <>
-                      <Separator />
-                      <ProviderConfiguration
-                        provider={PAYMENT_PROVIDERS[1]}
-                        configuration={
-                          (
-                            settingsData.paymentProviders as PaymentProviderConfigurations
-                          ).paypal
-                        }
-                        appUrl={settings.appUrl}
-                      />
-                    </>
-                  ) : null}
-                </>
-              ) : null}
-            </TabsContent>
-
-            <TabsContent value="zelle" className="mt-0">
-              <div className="border-b px-5 py-4">
-                <BookingProcessorToggle
-                  processor={BOOKING_PROCESSORS[2]}
-                  checked={settings.enabledProcessors.includes("zelle")}
-                  disabled={
-                    settings.enabledProcessors.includes("zelle") &&
-                    settings.enabledProcessors.length === 1
-                  }
-                  onCheckedChange={(enabled) =>
-                    toggleBookingProcessor("zelle", enabled)
-                  }
-                />
-              </div>
-              {settings.enabledProcessors.includes("zelle") ? (
-                <div className="px-5 py-5">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <h3 className="text-sm font-semibold">
-                        Zelle manual verification
-                      </h3>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                        Customers submit their transfer reference for staff
-                        approval.
-                      </p>
-                    </div>
-                    <Badge variant="outline">Manual provider</Badge>
-                  </div>
-                  <div className="mt-5 max-w-sm">
-                    <PaymentMethodToggle
-                      label="Offer Zelle at checkout"
-                      checked={settings.enabledMethods.includes("zelle")}
-                      onCheckedChange={(checked) =>
-                        togglePaymentMethod("zelle", checked)
-                      }
-                    />
-                  </div>
-                  <div className="mt-5 grid gap-5 sm:grid-cols-2">
-                    <SuperField
-                      type="text"
-                      label="Zelle recipient"
-                      value={settings.zelleRecipient}
-                      onChange={(event) =>
-                        updateField("zelleRecipient", event.target.value)
-                      }
-                      placeholder="Business email or mobile number"
-                    />
-                    <SuperField
-                      type="number"
-                      label="Verification hold hours"
-                      min={1}
-                      max={168}
-                      value={settings.zelleVerificationHours}
-                      onChange={(event) =>
-                        updateField(
-                          "zelleVerificationHours",
-                          event.target.value,
-                        )
-                      }
-                    />
-                    <SuperField
-                      type="textarea"
-                      label="Customer instructions"
-                      value={settings.zelleInstructions}
-                      onChange={(event) =>
-                        updateField("zelleInstructions", event.target.value)
-                      }
-                      rows={3}
-                      className="sm:col-span-2"
-                    />
-                  </div>
-                </div>
-              ) : null}
-            </TabsContent>
-          </Tabs>
-          <Separator />
-          <div className="flex flex-wrap items-center gap-3 px-5 py-5">
-            <Button
-              size="sm"
-              onClick={saveSettings}
-              disabled={settingsStatus === "saving"}
-            >
-              {settingsStatus === "saving" ? "Saving…" : "Save settings"}
-            </Button>
-            {settingsStatus === "saved" && (
-              <span
-                className="text-xs text-muted-foreground"
-                aria-live="polite"
-              >
-                {settingsMessage}
-              </span>
-            )}
-            {settingsStatus === "error" && (
-              <span
-                className="max-w-2xl whitespace-pre-line text-xs text-destructive"
-                role="alert"
-              >
-                {settingsMessage}
-              </span>
-            )}
-          </div>
-        </section>
-      </div>
-
-      <div className="mt-10 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside>
-          <p className="text-sm font-medium">Notifications</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Choose where each kind of update should reach you.
-          </p>
-        </aside>
-
-        <section className="overflow-hidden rounded-lg border">
-          <div className="grid grid-cols-[minmax(0,1fr)_repeat(3,72px)] items-end gap-3 bg-muted/30 px-5 py-4">
-            <div>
-              <h2 className="text-sm font-semibold">Channel preferences</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Choose where each kind of update should reach you.
-              </p>
+                  );
+                })}
+              </section>
             </div>
-            {NOTIFICATION_CHANNELS.map((channel) => (
-              <div key={channel.value} className="text-center">
-                <channel.icon className="mx-auto mb-1 size-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">
-                  {channel.label}
-                </span>
-              </div>
-            ))}
-          </div>
-          <Separator />
-          {NOTIFICATION_CATEGORIES.map((category) => {
-            const preference = preferenceFor(category.value);
-            return (
-              <div
-                key={category.value}
-                className="grid grid-cols-[minmax(0,1fr)_repeat(3,72px)] items-center gap-3 border-b px-5 py-5 last:border-b-0"
-              >
-                <div className="pr-6">
-                  <p className="text-sm font-medium">{category.label}</p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {category.description}
-                  </p>
-                </div>
-                {NOTIFICATION_CHANNELS.map((channel) => (
-                  <div key={channel.value} className="flex justify-center">
-                    <Checkbox
-                      aria-label={`${category.label} via ${channel.label}`}
-                      checked={Boolean(preference[channel.value])}
-                      onCheckedChange={(checked) =>
-                        updatePreference(
-                          category.value,
-                          channel.value,
-                          checked === true,
-                        )
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </section>
+          )}
+        </div>
       </div>
     </div>
   );

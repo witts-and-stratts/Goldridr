@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { useForm } from '@tanstack/react-form';
 
 import {
@@ -13,23 +14,32 @@ type UseTripFormOptions = {
 };
 
 export function useTripForm({ service, onSubmit }: UseTripFormOptions) {
+  // useForm re-applies its options whenever defaultValues changes identity, so
+  // fresh Date objects on every render would update the store in a loop.
+  const [today] = useState(() => new Date());
+  const defaultValues = useMemo(
+    () =>
+      ({
+        serviceType: service,
+        pickupLocation: '',
+        dropoffLocation: '',
+        date: today,
+        time: '',
+        passengers: '2',
+        luggage: '2',
+        flightNumber: '',
+        terminal: '',
+        duration: '',
+        roundTrip: false,
+        returnDate: today,
+        returnTime: '',
+        returnFlightNumber: '',
+      }) as UnifiedBookingData,
+    [service, today],
+  );
+
   return useForm({
-    defaultValues: {
-      serviceType: service,
-      pickupLocation: '',
-      dropoffLocation: '',
-      date: new Date(),
-      time: '',
-      passengers: '2',
-      luggage: '2',
-      flightNumber: '',
-      terminal: '',
-      duration: '',
-      roundTrip: false,
-      returnDate: new Date(),
-      returnTime: '',
-      returnFlightNumber: '',
-    } as UnifiedBookingData,
+    defaultValues,
     validators: {
       onSubmit: UnifiedBookingSchema,
     },

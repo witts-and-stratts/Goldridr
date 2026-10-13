@@ -108,15 +108,18 @@ export async function verifyPayPalWebhook( headers: Headers, event: unknown ): P
   return data.verification_status === "SUCCESS";
 }
 
-export async function refundProviderPayment( payment: PaymentAttempt ): Promise<string> {
+/** Refunds `amountCents` (default: whatever is left) through the payment's provider. */
+export async function refundProviderPayment( payment: PaymentAttempt, amountCents = payment.amountCents - ( payment.refundedCents || 0 ) ): Promise<string> {
+  // Each refund on a payment needs its own idempotency key so a second partial refund is not treated as a retry of the first.
+  const idempotencyKey = `${ payment.idempotencyKey || payment.id }:refund:${ payment.refunds?.length || 0 }`;
   if ( payment.provider === "stripe" ) {
     if ( !payment.transactionReference ) throw new Error( "Stripe PaymentIntent is missing" );
-    const refund = await ( await stripeClient() ).refunds.create( { payment_intent: payment.transactionReference, reason: "requested_by_customer", metadata: { paymentId: String( payment.id ), bookingReference: payment.bookingReference } }, { idempotencyKey: `${ payment.idempotencyKey || payment.id }:refund` } );
+    const refund = await ( await stripeClient() ).refunds.create( { payment_intent: payment.transactionReference, amount: amountCents, reason: "requested_by_customer", metadata: { paymentId: String( payment.id ), bookingReference: payment.bookingReference } }, { idempotencyKey } );
     return refund.id;
   }
   if ( payment.provider === "paypal" ) {
     if ( !payment.transactionReference ) throw new Error( "PayPal capture ID is missing" );
-    const data = await paypalRequest( `/v2/payments/captures/${ encodeURIComponent( payment.transactionReference ) }/refund`, { method: "POST", headers: { "PayPal-Request-Id": `${ payment.idempotencyKey || payment.id }:refund` }, body: JSON.stringify( { amount: { value: ( payment.amountCents / 100 ).toFixed( 2 ), currency_code: "USD" }, note_to_payer: `Refund for booking ${ payment.bookingReference }` } ) } );
+    const data = await paypalRequest( `/v2/payments/captures/${ encodeURIComponent( payment.transactionReference ) }/refund`, { method: "POST", headers: { "PayPal-Request-Id": idempotencyKey }, body: JSON.stringify( { amount: { value: ( amountCents / 100 ).toFixed( 2 ), currency_code: payment.currency || "USD" }, note_to_payer: `Refund for booking ${ payment.bookingReference }` } ) } );
     return String( data.id );
   }
   throw new Error( "Zelle refunds must be completed manually" );

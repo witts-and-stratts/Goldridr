@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getFlightAlertChanges, getNextFlightCheck, FLIGHT_FIVE_MINUTES, FLIGHT_FIFTEEN_MINUTES, FLIGHT_SIX_HOURS } from "../src/lib/flights/policy";
 import { flightLookupId, normalizeFlightLookupKey, type FlightSnapshot } from "../src/lib/flights/types";
-import { definePermissionedScrapeProvider, getManualFlightProvider, getPrimaryFlightProvider } from "../src/lib/flights/providers";
+import { definePermissionedScrapeProvider, FlightDateUnavailableError, getManualFlightProvider, getPrimaryFlightProvider } from "../src/lib/flights/providers";
 
 function snapshot( overrides: Partial<FlightSnapshot> = {} ): FlightSnapshot {
   return {
@@ -105,6 +105,44 @@ test( "Aviationstack retries a restricted date filter and keeps the requested da
     assert.equal( new URL( requestedUrls[ 0 ] ).searchParams.get( "flight_date" ), "2026-08-09" );
     assert.equal( new URL( requestedUrls[ 1 ] ).searchParams.has( "flight_date" ), false );
     assert.equal( flight?.flightDate, "2026-08-09" );
+  } finally {
+    globalThis.fetch = previousFetch;
+    if ( previousPrimary === undefined ) delete process.env.FLIGHT_PRIMARY_PROVIDER;
+    else process.env.FLIGHT_PRIMARY_PROVIDER = previousPrimary;
+    if ( previousKey === undefined ) delete process.env.AVIATIONSTACK_API_KEY;
+    else process.env.AVIATIONSTACK_API_KEY = previousKey;
+  }
+} );
+
+test( "Aviationstack reports a future date the plan cannot filter instead of a missing flight", async () => {
+  const previousPrimary = process.env.FLIGHT_PRIMARY_PROVIDER;
+  const previousKey = process.env.AVIATIONSTACK_API_KEY;
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  process.env.FLIGHT_PRIMARY_PROVIDER = "aviationstack";
+  process.env.AVIATIONSTACK_API_KEY = "test-key";
+  globalThis.fetch = ( async () => {
+    calls++;
+    if ( calls === 1 ) {
+      return new Response( JSON.stringify( {
+        error: { code: "function_access_restricted", message: "Your current subscription plan does not support this API function." },
+      } ), { status: 403, headers: { "Content-Type": "application/json" } } );
+    }
+    return new Response( JSON.stringify( {
+      data: [ {
+        flight_date: "2026-08-08",
+        flight: { iata: "UA1476" },
+        departure: { iata: "ORD", scheduled: "2026-08-08T12:00:00Z" },
+        arrival: { iata: "IAH", scheduled: "2026-08-08T15:00:00Z" },
+      } ],
+    } ), { status: 200, headers: { "Content-Type": "application/json" } } );
+  } ) as typeof fetch;
+  try {
+    const provider = getPrimaryFlightProvider();
+    await assert.rejects(
+      provider!.lookup( normalizeFlightLookupKey( { flightIata: "UA1476", flightDate: "2026-08-20" } )! ),
+      FlightDateUnavailableError,
+    );
   } finally {
     globalThis.fetch = previousFetch;
     if ( previousPrimary === undefined ) delete process.env.FLIGHT_PRIMARY_PROVIDER;

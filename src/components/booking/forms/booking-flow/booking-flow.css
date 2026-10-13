@@ -90,7 +90,7 @@
 }
 
 .booking-flow__trip-type {
-  @apply space-y-2;
+  @apply flex flex-col gap-3;
 }
 
 .booking-flow__trip-tabs {

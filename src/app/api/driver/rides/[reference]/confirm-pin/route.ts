@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getBookingByReference, confirmBookingPin } from "@/lib/pocketbase/repository";
+import { getRideByReference, confirmBookingPin } from "@/lib/pocketbase/repository";
 import { getAppSession, unauthorizedResponse } from "@/lib/driver-auth";
 import { bookingRecordToDriverRide } from "@/lib/driver-ride";
 
@@ -13,7 +13,7 @@ export async function POST( req: Request, context: RouteContext ) {
     const { reference } = await context.params;
     const ref = reference.trim().toUpperCase();
 
-    const booking = await getBookingByReference( ref );
+    const booking = await getRideByReference( ref );
     if ( !booking || ( session.role !== "admin" && booking.chauffeurId !== session.chauffeurId ) ) {
       return NextResponse.json( { success: false, error: "Ride not found" }, { status: 404 } );
     }
@@ -30,7 +30,7 @@ export async function POST( req: Request, context: RouteContext ) {
       return NextResponse.json( { success: false, error: result.error }, { status: 400 } );
     }
 
-    const updated = ( await getBookingByReference( ref ) )!;
+    const updated = ( await getRideByReference( ref ) )!;
     return NextResponse.json( { success: true, ride: bookingRecordToDriverRide( updated ) } );
   } catch ( err: unknown ) {
     const message = err instanceof Error ? err.message : "Failed to confirm PIN";

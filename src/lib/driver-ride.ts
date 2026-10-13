@@ -5,6 +5,9 @@ import { bookingRecordToResponses } from "@/lib/booking-data";
 
 export interface DriverRide {
   reference: string;
+  /** The booking this ride belongs to; differs from `reference` for a round trip's return leg. */
+  bookingReference: string;
+  leg: "outbound" | "return" | null;
   status: string;
   chauffeurId: string | null;
   tripType: string;
@@ -27,6 +30,8 @@ export function bookingRecordToDriverRide( booking: BookingRecord ): DriverRide 
 
   return {
     reference: booking.reference,
+    bookingReference: booking.bookingReference || booking.reference,
+    leg: booking.leg ?? null,
     status: booking.status,
     chauffeurId: booking.chauffeurId ?? null,
     tripType: booking.tripType,
