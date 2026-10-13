@@ -20,6 +20,7 @@ export const EMPTY_SETTINGS: AdminSettingsState = {
   holdMinutes: "120",
   zelleVerificationHours: "24",
   hourlyRate: "75",
+  roundTripDiscountPercent: "10",
   paypalEnvironment: "sandbox",
 };
 

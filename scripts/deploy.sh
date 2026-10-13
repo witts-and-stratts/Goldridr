@@ -122,15 +122,21 @@ if [[ "$update_worker" == true ]]; then
 fi
 
 docker compose --env-file .env -f "$COMPOSE_FILE" pull "${services[@]}"
-if ! docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans --wait --wait-timeout 90 "${services[@]}"; then
-  docker compose --env-file .env -f "$COMPOSE_FILE" logs --tail=100 pocketbase web notifications-worker nginx >&2
+if ! docker compose --env-file .env -f "$COMPOSE_FILE" up -d --wait --wait-timeout 90 pocketbase; then
+  docker compose --env-file .env -f "$COMPOSE_FILE" logs --tail=100 pocketbase >&2
   rollback_release
   exit 1
 fi
 
 if ! docker compose --env-file .env -f "$COMPOSE_FILE" run --rm --no-deps notifications-worker npm run pocketbase:verify; then
-  echo "PocketBase application persistence verification failed" >&2
+  echo "PocketBase preflight failed. Check superuser credentials, the pocketbase-data mount, and migrations before redeploying." >&2
   docker compose --env-file .env -f "$COMPOSE_FILE" logs --tail=100 pocketbase web notifications-worker >&2
+  rollback_release
+  exit 1
+fi
+
+if ! docker compose --env-file .env -f "$COMPOSE_FILE" up -d --remove-orphans --wait --wait-timeout 90 "${services[@]}"; then
+  docker compose --env-file .env -f "$COMPOSE_FILE" logs --tail=100 pocketbase web notifications-worker nginx >&2
   rollback_release
   exit 1
 fi

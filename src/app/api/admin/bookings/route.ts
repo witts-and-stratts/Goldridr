@@ -14,8 +14,9 @@ import {
   updateBookingStatus,
 } from "@/lib/pocketbase/repository";
 import { createPocketBaseBookingStatusUpdate } from "@/lib/pocketbase/notifications";
+import { syncReturnLeg } from "@/lib/round-trip";
 import { bookingRecordToBookingData } from "@/lib/booking-data";
-import { BookingRequestSchema, createBookingRequest } from "@/lib/booking-create";
+import { BookingRequestSchema, createBookingRequest, ReturnTimeError } from "@/lib/booking-create";
 import { BookingPricingSchema, type BookingPricingOverride } from "@/lib/booking-pricing";
 
 export async function POST( req: Request ) {
@@ -56,7 +57,10 @@ export async function POST( req: Request ) {
         {
           success: false,
           error: "clash",
-          message: "All of our chauffeurs are already reserved at that time.",
+          message: outcome.leg === "return"
+            ? "All of our chauffeurs are already reserved for your return trip at that time."
+            : "All of our chauffeurs are already reserved at that time.",
+          leg: outcome.leg,
           alternativeSlots: outcome.alternativeSlots,
         },
         { status: 409 }
@@ -68,6 +72,7 @@ export async function POST( req: Request ) {
         success: true,
         booking: await bookingRecordToBookingData( outcome.booking ),
         bookingId: outcome.booking.id,
+        returnBooking: outcome.returnBooking ? await bookingRecordToBookingData( outcome.returnBooking ) : undefined,
         message: outcome.message,
       },
       { status: 201 }
@@ -76,6 +81,12 @@ export async function POST( req: Request ) {
     if ( error instanceof DiscountCodeError ) {
       return NextResponse.json(
         { success: false, error: "discount_code", message: error.message },
+        { status: 400 }
+      );
+    }
+    if ( error instanceof ReturnTimeError ) {
+      return NextResponse.json(
+        { success: false, error: "return_time", message: error.message },
         { status: 400 }
       );
     }
@@ -152,6 +163,9 @@ export async function PATCH( req: Request ) {
 
     if ( status !== undefined ) {
       statusUpdated = await updateBookingStatus( reference, status );
+      if ( statusUpdated && [ "confirmed", "cancelled", "rejected", "payment_expired" ].includes( status ) ) {
+        await syncReturnLeg( reference, { status } );
+      }
       updated = statusUpdated;
     }
 

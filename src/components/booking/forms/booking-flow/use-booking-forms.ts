@@ -25,6 +25,10 @@ export function useTripForm({ service, onSubmit }: UseTripFormOptions) {
       flightNumber: '',
       terminal: '',
       duration: '',
+      roundTrip: false,
+      returnDate: new Date(),
+      returnTime: '',
+      returnFlightNumber: '',
     } as UnifiedBookingData,
     validators: {
       onSubmit: UnifiedBookingSchema,

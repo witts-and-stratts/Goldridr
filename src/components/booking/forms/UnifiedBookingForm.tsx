@@ -89,6 +89,23 @@ export function UnifiedBookingForm({
     form.store,
     (state) => state.values.flightNumber,
   );
+  const roundTripValue = useSelector(
+    form.store,
+    (state) => state.values.roundTrip,
+  );
+  const isRoundTrip = roundTripValue && serviceType !== 'hourly';
+  const returnDateValue = useSelector(
+    form.store,
+    (state) => state.values.returnDate,
+  );
+  const returnTimeValue = useSelector(
+    form.store,
+    (state) => state.values.returnTime,
+  );
+  const returnFlightNumberValue = useSelector(
+    form.store,
+    (state) => state.values.returnFlightNumber,
+  );
   const { distanceData, isDistanceLoading } = useRouteEstimate({
     serviceType,
     pickupLocation,
@@ -98,6 +115,15 @@ export function UnifiedBookingForm({
   const selectService = (next: BookingServiceType) => {
     form.setFieldValue('serviceType', next);
     onServiceChange?.(next);
+  };
+
+  const selectRoundTrip = (next: boolean) => {
+    form.setFieldValue('roundTrip', next);
+    if (!next) return;
+    const { date, returnDate } = form.state.values;
+    if (returnDate.getTime() < date.getTime()) {
+      form.setFieldValue('returnDate', new Date(date));
+    }
   };
 
   const hourlyHours = durationValue ? Number.parseInt(durationValue, 10) : null;
@@ -167,6 +193,16 @@ export function UnifiedBookingForm({
             estimatedDuration: distanceData?.duration_text,
             estimatedDurationMinutes: distanceData?.duration_minutes,
           },
+          roundTrip: isRoundTrip
+            ? {
+                date: toApiDate(new Date(values.returnDate)),
+                time: values.returnTime,
+                flightNumber:
+                  serviceType === 'airport'
+                    ? values.returnFlightNumber || undefined
+                    : undefined,
+              }
+            : undefined,
           ...(showPricingOverrides && pricing ? { pricing } : {}),
         }),
       });
@@ -186,8 +222,12 @@ export function UnifiedBookingForm({
         onSuccess();
       } else {
         showBookingErrorToast(data, (slot) => {
-          form.setFieldValue('date', new Date(`${slot.date}T00:00:00`));
-          form.setFieldValue('time', slot.time);
+          const isReturnLeg = data.leg === 'return';
+          form.setFieldValue(
+            isReturnLeg ? 'returnDate' : 'date',
+            new Date(`${slot.date}T00:00:00`),
+          );
+          form.setFieldValue(isReturnLeg ? 'returnTime' : 'time', slot.time);
           setStep(1);
         });
       }
@@ -232,6 +272,24 @@ export function UnifiedBookingForm({
           }
           terminal={terminalValue}
           isLoading={isDistanceLoading}
+          returnTrip={
+            isRoundTrip
+              ? {
+                  date: new Date(returnDateValue),
+                  time: returnTimeValue,
+                  flightNumber:
+                    serviceType === 'airport'
+                      ? returnFlightNumberValue
+                      : undefined,
+                  discountPercent: distanceData?.round_trip_discount_percent,
+                  fare: distanceData
+                    ? distanceData.total_price *
+                      2 *
+                      (1 - (distanceData.round_trip_discount_percent ?? 0) / 100)
+                    : null,
+                }
+              : null
+          }
         />
       }
     >
@@ -243,6 +301,10 @@ export function UnifiedBookingForm({
           tripDirection={tripDirection}
           isFlightLoading={isFlightLoading}
           flightNumberValue={flightNumberValue}
+          roundTrip={roundTripValue}
+          pickupLocation={pickupLocation}
+          dropoffLocation={dropoffLocation}
+          onRoundTripChange={selectRoundTrip}
           onServiceChange={selectService}
           onTripDirectionChange={selectTripDirection}
           onFlightNumberChange={resetFlightDetails}
@@ -279,6 +341,7 @@ export function UnifiedBookingForm({
             serviceType={serviceType}
             distanceData={distanceData}
             hourlyData={hourlyData}
+            roundTrip={isRoundTrip}
             onChange={setPricing}
           />
         )}

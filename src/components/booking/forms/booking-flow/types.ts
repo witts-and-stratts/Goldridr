@@ -22,6 +22,7 @@ export type DistanceData = {
   duration_text: string;
   price_per_mile: number;
   total_price: number;
+  round_trip_discount_percent?: number;
 };
 
 export type HourlyData = {

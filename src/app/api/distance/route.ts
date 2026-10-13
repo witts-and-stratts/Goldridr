@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { quoteRoute, type QuoteServiceType } from "@/lib/payments/quote";
+import { getRoundTripDiscountPercent } from "@/lib/admin-settings";
 
 export async function GET( request: Request ) {
   const { searchParams } = new URL( request.url );
@@ -29,6 +30,7 @@ export async function GET( request: Request ) {
       origin_formatted: quote.originFormatted,
       destination_formatted: quote.destinationFormatted,
       booking_type: type,
+      round_trip_discount_percent: await getRoundTripDiscountPercent(),
     } );
   } catch ( error: unknown ) {
     console.error( "Error calculating distance:", error );

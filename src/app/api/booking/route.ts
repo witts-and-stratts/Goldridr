@@ -9,6 +9,7 @@ import {
 import {
   BookingRequestSchema,
   createBookingRequest,
+  ReturnTimeError,
 } from "@/lib/booking-create";
 import { checkSlotAvailability } from "@/lib/booking-availability";
 
@@ -36,7 +37,10 @@ export async function POST( req: Request ) {
         {
           success: false,
           error: "clash",
-          message: "All of our chauffeurs are already reserved at that time.",
+          message: outcome.leg === "return"
+            ? "All of our chauffeurs are already reserved for your return trip at that time."
+            : "All of our chauffeurs are already reserved at that time.",
+          leg: outcome.leg,
           alternativeSlots: outcome.alternativeSlots,
         },
         { status: 409 }
@@ -47,12 +51,19 @@ export async function POST( req: Request ) {
       success: true,
       booking: await bookingRecordToBookingData( outcome.booking ),
       bookingId: outcome.booking.id,
+      returnBooking: outcome.returnBooking ? await bookingRecordToBookingData( outcome.returnBooking ) : undefined,
       message: outcome.message,
     } );
   } catch ( error: unknown ) {
     if ( error instanceof DiscountCodeError ) {
       return NextResponse.json(
         { success: false, error: "discount_code", message: error.message },
+        { status: 400 }
+      );
+    }
+    if ( error instanceof ReturnTimeError ) {
+      return NextResponse.json(
+        { success: false, error: "return_time", message: error.message },
         { status: 400 }
       );
     }

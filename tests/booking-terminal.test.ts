@@ -16,6 +16,10 @@ test( "airport form accepts an empty flight number and terminal" , () => {
     dropoffLocation: "100 Main Street, Houston",
     date: new Date( "2099-06-11T00:00:00" ),
     time: "13:01",
+    roundTrip: false,
+    returnDate: new Date( "2099-06-11T00:00:00" ),
+    returnTime: "",
+    returnFlightNumber: "",
   } );
 
   assert.equal( result.success, true );
