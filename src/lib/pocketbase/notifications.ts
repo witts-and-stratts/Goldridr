@@ -9,15 +9,54 @@ import { sendPushToUsers } from "@/lib/notifications/push";
 import { enqueueWebPushDeliveries } from "@/lib/notifications/web-push";
 import { paymentNotificationFor, type PaymentNotificationInput } from "@/lib/notifications/payment-events";
 import { formatBookingStatus } from "@/lib/booking-status-label";
+import { resolveTemplate } from "@/lib/notifications/template-store";
+import { resolveTemplateIdentity } from "@/lib/notifications/template-registry";
 
-async function createNotification( input: { type: string; category: "messages" | "reminders" | "system"; title: string; body: string; eventKey?: string; bookingReference?: string; actorUserId?: string; metadata?: Record<string, unknown>; inAppUserIds?: string[]; deliveries?: Array<{ channel: "email" | "sms"; recipient: string; template: string; payload: Record<string, unknown>; scheduledAt?: string; idempotencyKey?: string }> } ) {
+interface DeliveryInput { channel: "email" | "sms"; recipient: string; template: string; payload: Record<string, unknown>; scheduledAt?: string; idempotencyKey?: string }
+
+async function createNotification( input: { type: string; category: "messages" | "reminders" | "system"; title: string; body: string; eventKey?: string; bookingReference?: string; actorUserId?: string; metadata?: Record<string, unknown>; inAppUserIds?: string[]; deliveries?: DeliveryInput[] } ) {
   const pb = getPocketBaseClient();
+
+  const resolvedDeliveries = await Promise.all( ( input.deliveries || [] ).map( async item => {
+    const identity = resolveTemplateIdentity( item.channel, item.template, item.payload );
+    if ( !identity ) {
+      if ( item.template === "manual_message" || item.template === "broadcast" ) return { item, resolved: null };
+      throw new Error( `No template registry entry for ${ item.channel }:${ item.template }` );
+    }
+    const resolved = await resolveTemplate( item.channel, item.template, item.payload );
+    if ( !resolved ) throw new Error( `Unable to resolve template snapshot for ${ item.channel }:${ item.template }` );
+    return { item, resolved };
+  } ) );
+
   const notification = await pb.collection( pocketBaseCollections.notifications ).create( { legacyId: legacyId(), eventKey: input.eventKey || `${ input.type }:${ randomUUID() }`, type: input.type, category: input.category, title: input.title, body: input.body, bookingReference: input.bookingReference || "", actorUserId: input.actorUserId || "", metadata: input.metadata || {}, sourceCreatedAt: new Date().toISOString() } );
-  const recipients = await Promise.all( ( input.inAppUserIds || [] ).map( userId => pb.collection( pocketBaseCollections.recipients ).create( { legacyId: legacyId(), notification: notification.id, userId, sourceCreatedAt: new Date().toISOString() } ) ) );
+  try {
+    await Promise.all( [
+      ...( input.inAppUserIds || [] ).map( userId =>
+        pb.collection( pocketBaseCollections.recipients ).create( { legacyId: legacyId(), notification: notification.id, userId, sourceCreatedAt: new Date().toISOString() } )
+      ),
+      ...resolvedDeliveries.map( ( { item, resolved } ) => {
+        const scheduledAt = item.scheduledAt || new Date().toISOString();
+        return pb.collection( pocketBaseCollections.deliveries ).create( {
+          legacyId: legacyId(), notification: notification.id, channel: item.channel, recipient: item.recipient,
+          template: item.template, payload: item.payload,
+          idempotencyKey: item.idempotencyKey || `${ notification.id }:${ item.channel }:${ item.recipient }:${ item.template }`,
+          status: "pending", scheduledAt, nextAttemptAt: scheduledAt, attempts: 0,
+          ...( resolved ? { templateVariant: resolved.variant, templateRevision: resolved.revision, templateSource: resolved.source, templateSnapshot: { content: resolved.content } } : {} ),
+        } );
+      } ),
+    ] );
+  } catch ( error ) {
+    await pb.collection( pocketBaseCollections.notifications ).delete( notification.id ).catch( cleanupError => {
+      console.error( "Unable to clean up notification after delivery setup failure", cleanupError );
+    } );
+    throw error;
+  }
+  const recipients = await pb.collection( pocketBaseCollections.recipients ).getFullList( {
+    filter: pb.filter( "notification = {:notification}", { notification: notification.id } ),
+  } );
   await enqueueWebPushDeliveries( notification, recipients ).catch( error => {
     console.error( "Unable to enqueue Web Push deliveries", error );
   } );
-  await Promise.all( ( input.deliveries || [] ).map( item => { const scheduledAt = item.scheduledAt || new Date().toISOString(); return pb.collection( pocketBaseCollections.deliveries ).create( { legacyId: legacyId(), notification: notification.id, channel: item.channel, recipient: item.recipient, template: item.template, payload: item.payload, idempotencyKey: item.idempotencyKey || `${ notification.id }:${ item.channel }:${ item.recipient }:${ item.template }`, status: "pending", scheduledAt, nextAttemptAt: scheduledAt, attempts: 0 } ); } ) );
   return Number( notification.legacyId );
 }
 

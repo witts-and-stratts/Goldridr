@@ -1,0 +1,2 @@
+{{ company.name }} update: booking {{ booking.reference }} is now {{ booking.statusLabel }}.
+Terminal: {{ trip.terminal }}

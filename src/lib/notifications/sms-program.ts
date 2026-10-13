@@ -2,47 +2,73 @@ import {
   SMS_BODY_FULL_DISCLOSURE,
   SMS_BODY_OPT_OUT,
 } from "@/lib/sms-consent-copy";
-import { formatBookingStatus } from "@/lib/booking-status-label";
+import { buildTemplateContext, stringValue } from "@/lib/notifications/template-context";
+import { renderLiquidText } from "@/lib/notifications/liquid";
+import type { SmsContent } from "@/lib/notifications/template-types";
 
-function withCompliance( body: string, disclosure: string ): string {
+export function withCompliance( body: string, disclosure: string ): string {
   const trimmed = body.trim();
   return trimmed.endsWith( disclosure ) ? trimmed : `${ trimmed } ${ disclosure }`;
 }
 
+const smsTemplateCache = new Map<string, string>();
+
+function sourceTemplateName( template: string ): string {
+  return template.replaceAll( ":", "_" );
+}
+
+function sourceTemplateId( template: string, payload: Record<string, unknown> ): string {
+  const key = template.split( ":" )[ 0 ];
+  if ( template.includes( ":" ) ) return template;
+  if ( key === "booking_assignment" ) {
+    return stringValue( payload.chauffeurName ) ? "booking_assignment:assigned" : "booking_assignment:unassigned";
+  }
+  if ( key === "booking_status" ) {
+    return [ "confirmed", "accepted" ].includes( stringValue( payload.status ).toLowerCase() ) ? "booking_status:confirmed" : "booking_status:updated";
+  }
+  return template;
+}
+
+function sourceTemplate( template: string ): string {
+  const name = sourceTemplateName( template );
+  const cached = smsTemplateCache.get( name );
+  if ( cached ) return cached;
+  const content = readFileSync( join( process.cwd(), "src", "templates", "sms", `${ name }.txt` ), "utf8" ).trim();
+  smsTemplateCache.set( name, content );
+  return content;
+}
+
+function trimEmptyTerminal( body: string ): string {
+  return body.replace( /^Terminal:\s*\r?\n?/m, "" ).replace( /\n{2,}/g, "\n" ).trim();
+}
+
+// Returns the editable message body without the compliance suffix. `template` may
+// be a base delivery key ("booking_assignment") or a variant id ("booking_assignment:assigned").
+export function smsDraftBody( template: string, payload: Record<string, unknown> ): string {
+  const key = template.split( ":" )[ 0 ];
+
+  if ( key === "manual_message" || key === "broadcast" ) {
+    return stringValue( payload.message ).slice( 0, 1500 - SMS_BODY_OPT_OUT.length - 1 );
+  }
+  const source = sourceTemplateId( template, payload );
+  return trimEmptyTerminal( renderLiquidText( sourceTemplate( source ), buildTemplateContext( payload ) ) );
+}
+
+export function smsDefaultEditorContent( template: string, payload: Record<string, unknown> ): SmsContent {
+  return { body: sourceTemplate( sourceTemplateId( template, payload ) ) };
+}
+
+export function smsDisclosureFor( template: string ): string {
+  return template.split( ":" )[ 0 ] === "booking_created" ? SMS_BODY_FULL_DISCLOSURE : SMS_BODY_OPT_OUT;
+}
+
+export function smsDefaultContent( templateId: string, payload: Record<string, unknown> ): SmsContent {
+  return { body: smsDraftBody( templateId, payload ) };
+}
+
 export function buildSmsBody( template: string | null, payload: Record<string, unknown> ): string {
-  if ( template === "manual_message" || template === "broadcast" ) {
-    const message = String( payload.message || "" ).slice( 0, 1500 - SMS_BODY_OPT_OUT.length - 1 );
-    return withCompliance( message, SMS_BODY_OPT_OUT );
-  }
-
-  const reference = String( payload.bookingReference || "" );
-  const tripDetails = payload.tripDetails && typeof payload.tripDetails === "object"
-    ? payload.tripDetails as Record<string, unknown>
-    : {};
-  const terminal = typeof tripDetails.terminal === "string" && tripDetails.terminal.trim()
-    ? ` Terminal: ${ tripDetails.terminal.trim() }.`
-    : "";
-
-  if ( template === "booking_reminder" ) {
-    return withCompliance( `Goldridr reminder: booking ${ reference } is scheduled for ${ payload.date } at ${ payload.time }.${ terminal }`, SMS_BODY_OPT_OUT );
-  }
-  if ( template === "payment_reminder" ) {
-    return withCompliance( `Goldridr reminder: booking ${ reference } is still awaiting payment. Pay before your hold expires: ${ payload.paymentUrl || "" }`, SMS_BODY_OPT_OUT );
-  }
-  if ( template === "booking_created" ) {
-    return withCompliance( `Goldridr: we received booking ${ reference } for ${ payload.date } at ${ payload.time }.${ terminal } Pay within 2 hours to confirm: ${ payload.paymentUrl || "" }`, SMS_BODY_FULL_DISCLOSURE );
-  }
-  if ( template === "booking_assignment" ) {
-    const chauffeur = String( payload.chauffeurName || "" );
-    return withCompliance( chauffeur
-      ? `Goldridr update: ${ chauffeur } is assigned to booking ${ reference }.${ terminal }`
-      : `Goldridr update: booking ${ reference } is awaiting a chauffeur assignment.${ terminal }`, SMS_BODY_OPT_OUT );
-  }
-  if ( template === "booking_deleted" ) {
-    return withCompliance( `Goldridr update: booking ${ reference } was deleted.${ terminal } Contact us if this was unexpected.`, SMS_BODY_OPT_OUT );
-  }
-  const status = payload.status ? formatBookingStatus( String( payload.status ) ) : "Updated";
-  return withCompliance( `Goldridr update: booking ${ reference } is now ${ status }.${ terminal }`, SMS_BODY_OPT_OUT );
+  const resolved = template || "default";
+  return withCompliance( smsDraftBody( resolved, payload ), smsDisclosureFor( resolved ) );
 }
 
 export function resolveTwilioWebhookUrl( request: Request, configuredUrl?: string ): string {
@@ -54,3 +80,5 @@ export function resolveTwilioWebhookUrl( request: Request, configuredUrl?: strin
   }
   return request.url;
 }
+import { readFileSync } from "node:fs";
+import { join } from "node:path";

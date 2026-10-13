@@ -3,12 +3,15 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   output: "standalone",
+  outputFileTracingIncludes: {
+    "/*": [ "./src/templates/sms/**/*.txt" ],
+  },
   deploymentId: process.env.DEPLOYMENT_VERSION,
   turbopack: {
     root: process.cwd(),
   },
   cacheComponents: true,
-  allowedDevOrigins: ['100.104.165.110', 'localhost', '127.0.0.1', 'wittss-macbook-pro-2.tail0f543.ts.net', 'true-apes-follow.loca.lt', 'goldridr.local'],
+  allowedDevOrigins: ['100.104.165.110', 'localhost', '127.0.0.1', 'wittss-macbook-pro-2.tail0f543.ts.net', 'true-apes-follow.loca.lt', 'goldridr.local', 'goldridr.ngrok-free.app', 'f734-41-184-168-64.ngrok-free.app'],
   async headers() {
     return [
       {

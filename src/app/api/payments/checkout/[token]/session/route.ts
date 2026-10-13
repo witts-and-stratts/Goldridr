@@ -23,7 +23,6 @@ export async function POST( request: Request, { params }: { params: Promise<{ to
     return NextResponse.json( { success: true, provider: "paypal", orderId: order.externalId } );
   }
 
-  if ( settings.activeProcessor === "square" ) return NextResponse.json( { success: true, provider: "square" } );
   const payment = await createPaymentAttempt( { booking, method: parsed.data.method, provider: "stripe" } );
   const paymentPageUrl = `${ new URL( request.url ).origin }/pay/${ encodeURIComponent( token ) }`;
   const session = await createStripeCheckout( payment, booking, parsed.data.method, paymentPageUrl );

@@ -20,9 +20,6 @@ body:has(.admin-dashboard) {
   /* Custom font aliases from the frontend */
   --font-wide: var(--font-sans);
   --font-widest: var(--font-sans);
-  --font-engravers: var(--font-sans);
-  --font-epilogue: var(--font-sans);
-  --font-engry: var(--font-sans);
 
   font-family: var(--font-sans);
 
@@ -75,6 +72,55 @@ body:has(.admin-dashboard) {
   --sidebar-ring:                 oklch(0.556 0 0);
 }
 
+/*
+ * The next/font face variables are remapped one level below <body> so body
+ * keeps the real hashed font names; the booking overlay re-inherits them.
+ */
+body:has(.admin-dashboard) > * {
+  --font-engravers: var(--font-sans);
+  --font-epilogue: var(--font-sans);
+  --font-engry: var(--font-sans);
+}
+
+/*
+ * The admin "Create booking" overlay must look exactly like the public /book
+ * page, so while it is open every other body child (the overlay's portal and
+ * any popovers it opens) gets the frontend theme back. Values mirror :root in
+ * globals.css.
+ */
+body:has(.admin-dashboard):has(.booking-overlay) > :not(.admin-dashboard, :has(.admin-dashboard)) {
+  --font-engravers: inherit;
+  --font-epilogue: inherit;
+  --font-engry: inherit;
+  --font-sans: var(--font-epilogue);
+  --font-serif: var(--font-engry);
+  --font-wide: var(--font-engravers);
+  --font-widest: var(--font-engravers);
+  --font-mono: monospace;
+  font-family: var(--font-epilogue);
+
+  --gold: #C29E66;
+  --radius: 0;
+  --background: oklch(0% 0 0);
+  --foreground: oklch(100% 0.00011 271.152);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: var(--gold);
+  --primary-foreground: oklch(0.99 0.02 95);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.58 0.22 27);
+  --border: oklch(0.922 0 0);
+  --input: oklch(26.862% 0.00003 271.152);
+  --ring: oklch(62.075% 0.06772 90.362);
+}
+
 .admin-dashboard {
   height: 100dvh;
   display: flex;
@@ -85,10 +131,11 @@ body:has(.admin-dashboard) {
 /*
  * The shared luxury components (src/components/ui) hardcode rounded-none
  * and text-xs. Restore stock shadcn corners and sizing wherever they are
- * used inside the admin. admin.css is unlayered, so these win over
+ * used inside the admin (but not in the booking overlay, which mirrors
+ * the public /book page). admin.css is unlayered, so these win over
  * Tailwind's layered utilities.
  */
-body:has(.admin-dashboard) :is(
+:is(.admin-dashboard, body:has(.admin-dashboard):not(:has(.booking-overlay)) > *) :is(
   [data-slot="button"],
   [data-slot="input"],
   [data-slot="textarea"],
@@ -99,22 +146,22 @@ body:has(.admin-dashboard) :is(
   border-radius: calc(var(--radius) - 2px);
 }
 
-body:has(.admin-dashboard) [data-slot="button"] {
+:is(.admin-dashboard, body:has(.admin-dashboard):not(:has(.booking-overlay)) > *) [data-slot="button"] {
   font-size: 0.875rem;
 }
 
-body:has(.admin-dashboard) :is(
+:is(.admin-dashboard, body:has(.admin-dashboard):not(:has(.booking-overlay)) > *) :is(
   [data-slot="select-content"],
   [data-slot="dialog-content"]
 ) {
   border-radius: var(--radius);
 }
 
-body:has(.admin-dashboard) [data-slot="select-item"] {
+:is(.admin-dashboard, body:has(.admin-dashboard):not(:has(.booking-overlay)) > *) [data-slot="select-item"] {
   border-radius: calc(var(--radius) - 4px);
 }
 
-body:has(.admin-dashboard) [data-slot="scroll-area-thumb"] {
+:is(.admin-dashboard, body:has(.admin-dashboard):not(:has(.booking-overlay)) > *) [data-slot="scroll-area-thumb"] {
   border-radius: 9999px;
 }
 

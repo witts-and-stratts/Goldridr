@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPaymentCredentialHealth, getPaymentSettings } from "@/lib/admin-settings";
 import { expirePaymentHolds, findBookingByPaymentToken, latestPaymentForBooking } from "@/lib/payments/repository";
-import { paypalBrowserConfig, squareBrowserConfig } from "@/lib/payments/providers";
+import { paypalBrowserConfig } from "@/lib/payments/providers";
 
 export async function GET( _request: Request, { params }: { params: Promise<{ token: string }> } ) {
   await expirePaymentHolds();
@@ -13,9 +13,7 @@ export async function GET( _request: Request, { params }: { params: Promise<{ to
   const trip = JSON.parse( booking.tripDetails || "{}" ) as Record<string, unknown>;
   const payment = await latestPaymentForBooking( booking.reference );
 
-  let square: Awaited<ReturnType<typeof squareBrowserConfig>> | null = null;
   let paypal: Awaited<ReturnType<typeof paypalBrowserConfig>> | null = null;
-  if ( settings.activeProcessor === "square" && health.square ) square = await squareBrowserConfig();
   if ( settings.enabledMethods.includes( "venmo" ) && health.paypal ) paypal = await paypalBrowserConfig();
 
   return NextResponse.json( {
@@ -49,7 +47,6 @@ export async function GET( _request: Request, { params }: { params: Promise<{ to
           countryCode: "US",
         };
       })(),
-      square,
       paypal,
       credentialHealth: health,
       payment: payment ? {

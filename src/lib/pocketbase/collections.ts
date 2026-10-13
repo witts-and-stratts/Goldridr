@@ -16,6 +16,8 @@ export const pocketBaseCollections = {
   blockedSlots: "blocked_slots",
   settings: "app_settings",
   smsConsents: "sms_consents",
+  templates: "templates",
+  templateRevisions: "template_revisions",
   passwordResetTokens: "password_reset_tokens",
   calendarFeedTokens: "calendar_feed_tokens",
   mockSmsMessages: "mock_sms_messages",

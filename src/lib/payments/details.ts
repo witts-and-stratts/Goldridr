@@ -39,21 +39,6 @@ export function stripePaymentDetails( session: unknown ): StoredPaymentDetails {
   };
 }
 
-export function squarePaymentDetails( payment: unknown ): StoredPaymentDetails {
-  const source = record( payment );
-  const cardDetails = record( source.card_details );
-  const card = record( cardDetails.card );
-  const wallet = record( card.digital_wallet );
-  return {
-    cardLast4: text( card.last_4 ),
-    cardBrand: text( card.card_brand ),
-    cardExpiryMonth: number( card.exp_month ),
-    cardExpiryYear: number( card.exp_year ),
-    walletType: text( wallet.type ),
-    receiptUrl: text( source.receipt_url ),
-  };
-}
-
 export function paypalPaymentDetails( capture: unknown ): StoredPaymentDetails {
   const source = record( capture );
   const paymentSource = record( source.payment_source );

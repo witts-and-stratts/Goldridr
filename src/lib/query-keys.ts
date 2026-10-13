@@ -3,6 +3,7 @@ export const qk = {
   blockedSlots: () => [ "blockedSlots" ] as const,
   chauffeurs: () => [ "chauffeurs" ] as const,
   payments: () => [ "payments" ] as const,
+  invoices: () => [ "invoices" ] as const,
   discounts: () => [ "discounts" ] as const,
   settings: () => [ "settings" ] as const,
   notificationPreferences: () => [ "notificationPreferences" ] as const,

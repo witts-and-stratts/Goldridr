@@ -7,7 +7,7 @@ export interface Payment {
   amountCents: number;
   currency: string;
   method: PaymentMethod;
-  provider: "stripe" | "square" | "paypal" | "manual";
+  provider: "stripe" | "paypal" | "manual";
   status: PaymentStatus;
   transactionReference: string | null;
   externalId: string | null;

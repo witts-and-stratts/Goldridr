@@ -1,0 +1,29 @@
+@reference "tailwindcss";
+@reference "../../styles/globals.css";
+
+.availability-overlay { @apply inset-0 left-0 top-0 h-dvh max-h-none w-screen max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none border-none bg-black/70 p-4 text-white shadow-none sm:p-6; }
+.availability-overlay__panel { @apply m-auto flex w-full max-w-2xl flex-col border border-white/15 bg-black/95 p-6 shadow-2xl sm:p-10; }
+.availability-overlay__intro { @apply flex gap-4 border-b border-white/10 pb-7; }
+.availability-overlay__mark { @apply flex size-10 shrink-0 items-center justify-center border border-gold/50 text-gold; }
+.availability-overlay__title { @apply font-wide text-2xl lowercase tracking-widest text-white sm:text-3xl; }
+.availability-overlay__description { @apply mt-2 max-w-lg text-sm leading-6 text-white/60; }
+.availability-overlay__form { @apply mt-8 space-y-6; }
+.availability-overlay__services legend, .availability-overlay__fields [data-slot="field-label"], .availability-overlay__form > label span { @apply mb-2 text-xs font-medium uppercase tracking-[0.16em] text-white/60; }
+.availability-overlay__service-grid { @apply grid grid-cols-1 gap-2 sm:grid-cols-3; }
+.availability-overlay__service-grid button { @apply border border-white/15 px-3 py-3 text-left text-sm text-white/65 transition-colors hover:border-white/35 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold; }
+.availability-overlay__service-grid button.is-selected { @apply border-gold bg-gold/10 text-white; }
+.availability-overlay__fields { @apply grid grid-cols-1 gap-4 sm:grid-cols-2; }
+.availability-overlay__form > label select option { @apply bg-black text-white; }
+.availability-overlay__message { @apply border px-4 py-3 text-sm; }
+.availability-overlay__message--error { @apply border-red-400/40 bg-red-400/10 text-red-100; }
+.availability-overlay__result { @apply grid grid-cols-[auto_1fr] gap-4 border p-5; }
+.availability-overlay__result.is-available { @apply border-gold/50 bg-gold/10; }
+.availability-overlay__result.is-unavailable { @apply border-white/15 bg-white/[0.04]; }
+.availability-overlay__result-icon { @apply flex size-9 items-center justify-center text-gold; }
+.availability-overlay__result h2 { @apply text-base font-medium text-white; }
+.availability-overlay__result p { @apply mt-1 text-sm leading-6 text-white/60; }
+.availability-overlay__alternatives { @apply col-span-full grid gap-2 sm:grid-cols-2; }
+.availability-overlay__alternatives button { @apply border border-white/15 px-3 py-2 text-left text-xs text-white/75 transition-colors hover:border-gold/70 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold; }
+.availability-overlay__actions { @apply flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center; }
+.availability-overlay__actions > button:first-child { @apply sm:min-w-48; }
+.availability-overlay__actions > button:last-child { @apply sm:ml-auto; }

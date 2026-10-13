@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { createEmailTransport } from "./email-transports";
-import { renderNotificationEmail } from "./email-template";
+import { renderNotificationEmail } from "@/templates/email/goldridr-email";
 import { createEmailOpenTrackingUrl } from "./email-open-tracking";
 import { getSmsConfig } from "./config";
 import { createSmsTransport, type SmsTransport } from "./sms";
@@ -11,7 +11,8 @@ import { zonedDateTimeToDate } from "./time";
 import { getPocketBaseClient } from "@/lib/pocketbase/client";
 import { pocketBaseCollections } from "@/lib/pocketbase/collections";
 import { first, legacyId } from "@/lib/pocketbase/core";
-import { buildSmsBody } from "./sms-program";
+import { buildSmsBody, smsDisclosureFor, withCompliance } from "./sms-program";
+import type { EmailEditableContent } from "./template-types";
 import { expirePaymentHolds } from "@/lib/payments/hold-expiry";
 import {
   enqueueWebPushDeliveries,
@@ -51,6 +52,18 @@ function parsePayload( delivery: NotificationDeliveryRecord ): Record<string, un
     return JSON.parse( delivery.payload ) as Record<string, unknown>;
   } catch {
     return {};
+  }
+}
+
+function snapshotContent( delivery: NotificationDeliveryRecord ): Record<string, unknown> | null {
+  if ( !delivery.templateSnapshot ) return null;
+  try {
+    const parsed = JSON.parse( delivery.templateSnapshot ) as { content?: unknown };
+    return parsed && typeof parsed.content === "object" && parsed.content !== null
+      ? parsed.content as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
   }
 }
 
@@ -174,6 +187,7 @@ export class NotificationWorker {
     }
 
     const payload = { ...parsePayload( delivery ), notificationId: delivery.notificationId };
+    const snapshot = snapshotContent( delivery );
     let result: {
       provider: string;
       messageId: string;
@@ -192,16 +206,20 @@ export class NotificationWorker {
         delivery.recipient.trim(),
         payload,
         delivery.idempotencyKey,
-        notification.type === "message.manual" ? await createEmailOpenTrackingUrl( delivery.id ) : undefined
+        notification.type === "message.manual" ? await createEmailOpenTrackingUrl( delivery.id ) : undefined,
+        snapshot as EmailEditableContent | null
       );
       result = await this.emailTransport!.send( message );
     } else if ( delivery.channel === "sms" ) {
       if ( !this.smsTransport ) this.smsTransport = await createSmsTransport();
       const smsConfig = await getSmsConfig();
+      const snapshotBody = typeof snapshot?.body === "string" ? snapshot.body : null;
       const response = await this.smsTransport.send( {
         from: smsConfig.from,
         to: delivery.recipient,
-        body: buildSmsBody( delivery.template, payload ),
+        body: snapshotBody !== null
+          ? withCompliance( snapshotBody, smsDisclosureFor( delivery.template || "default" ) )
+          : buildSmsBody( delivery.template, payload ),
       } );
       result = {
         provider: response.provider,

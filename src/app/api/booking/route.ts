@@ -1,301 +1,53 @@
 import { NextResponse } from "next/server";
 import z from "zod/v4";
-import {
-  checkBlockedClash,
-  checkBookingClash,
-  findAvailableChauffeur,
-  DiscountCodeError,
-  getBookingByReference,
-  saveBooking,
-  updateBookingStatus,
-} from "@/lib/pocketbase/repository";
+import { DiscountCodeError } from "@/lib/pocketbase/repository";
 import { bookingRecordToBookingData } from "@/lib/booking-data";
-import { createPocketBaseBookingCreated, createPocketBaseBookingStatusUpdate } from "@/lib/pocketbase/notifications";
-import { recordSmsConsent } from "@/lib/notifications/sms-consent";
-import { smsConsentEvidenceFromRequest } from "@/lib/notifications/sms-evidence";
-import { SMS_CONSENT_VERSION } from "@/lib/sms-consent-copy";
-import { getAppUrl, getPaymentSettings } from "@/lib/admin-settings";
-import { quoteBooking } from "@/lib/payments/quote";
-import { paymentToken, paymentTokenHash } from "@/lib/payments/tokens";
-import { getNotificationTimeZone } from "@/lib/admin-settings";
 import {
   assertFutureBookingTime,
-  isBookingTimeInFuture,
   PastBookingTimeError,
 } from "@/lib/booking-time";
-import { zonedDateTimeToDate } from "@/lib/notifications/time";
+import {
+  BookingRequestSchema,
+  createBookingRequest,
+} from "@/lib/booking-create";
+import { checkSlotAvailability } from "@/lib/booking-availability";
 
-const AttendeeSchema = z.object( {
-  name: z.string().min( 1, "Attendee name is required" ),
-  email: z.email( "Invalid email address" ),
-  phone: z.string().optional(),
-  timeZone: z.string().optional(),
-  language: z.string().optional(),
-} );
-
-const TripDetailsSchema = z.object( {
-  pickupLocation: z.string().optional(),
-  pickup: z.string().optional(),
-  dropoffLocation: z.string().optional(),
-  destination: z.string().optional(),
-  estimatedDistance: z.union( [ z.string(), z.number() ] ).optional(),
-  estimatedPrice: z.number().optional(),
-  estimatedTotal: z.number().optional(),
-  estimatedDuration: z.string().optional(),
-  estimatedDurationMinutes: z.number().optional(),
-  passengers: z.union( [ z.string(), z.number() ] ).optional(),
-  flightNumber: z.string().trim().max( 24 ).optional(),
-  terminal: z.string().trim().max( 80 ).optional(),
-  hours: z.number().int().min( 1 ).max( 24 ).optional(),
-} ).loose();
-
-export const BookingRequestSchema = z.object( {
-  date: z.iso.date( "A valid date is required" ),
-  time: z.string().regex( /^(?:[01]\d|2[0-3]):[0-5]\d$/, "A valid time is required" ),
-  duration: z.number().int().positive().max( 24 * 60 ).optional().default( 60 ),
-  attendee: AttendeeSchema,
-  notes: z.string().optional(),
-  smsOptIn: z.boolean().optional().default( false ),
-  marketingSmsOptIn: z.boolean().optional().default( false ),
-  smsConsentVersion: z.string().optional().default( SMS_CONSENT_VERSION ),
-  tripType: z.enum( [ "airport", "city", "hourly" ] ).optional().default( "airport" ),
-  tripDetails: TripDetailsSchema.optional(),
-  discountCode: z.string().trim().optional().default( "" ),
-} ).superRefine( ( input, ctx ) => {
-  if ( ( input.smsOptIn || input.marketingSmsOptIn ) && !input.attendee.phone?.trim() ) {
-    ctx.addIssue( {
-      code: "custom",
-      path: [ "attendee", "phone" ],
-      message: "A mobile phone number is required when opting in to text messages",
-    } );
-  }
-  if ( !input.tripDetails?.pickupLocation?.trim() ) ctx.addIssue( { code: "custom", path: [ "tripDetails", "pickupLocation" ], message: "A pickup location is required" } );
-  if ( input.tripType !== "hourly" && !input.tripDetails?.dropoffLocation?.trim() ) ctx.addIssue( { code: "custom", path: [ "tripDetails", "dropoffLocation" ], message: "A destination is required" } );
-  if ( input.tripType === "hourly" && !input.tripDetails?.hours ) ctx.addIssue( { code: "custom", path: [ "tripDetails", "hours" ], message: "An hourly duration is required" } );
-} );
-
-type BookingRequestInput = z.infer<typeof BookingRequestSchema>;
-
-function generateBookingReference(): string {
-  const timestamp = Date.now().toString( 36 ).toUpperCase();
-  const random = Math.random().toString( 36 ).substring( 2, 6 ).toUpperCase();
-  return `GR-${ timestamp.slice( -4 ) }${ random }`;
-}
-
-async function formatTimeInZone( date: Date ): Promise<string> {
-  return new Intl.DateTimeFormat( "en-GB", {
-    timeZone: await getNotificationTimeZone(),
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  } ).format( date );
-}
-
-interface AlternativeSlot {
-  date: string;
-  time: string;
-}
-
-const MAX_ALTERNATIVES = 4;
-
-function shiftDateString( date: string, days: number ): string {
-  const base = new Date( `${ date }T12:00:00` );
-  base.setDate( base.getDate() + days );
-  const year = base.getFullYear();
-  const month = String( base.getMonth() + 1 ).padStart( 2, "0" );
-  const day = String( base.getDate() ).padStart( 2, "0" );
-  return `${ year }-${ month }-${ day }`;
-}
-
-async function isSlotFree( date: string, time: string, durationMinutes: number, chauffeurId?: string | null ): Promise<boolean> {
-  if ( !isBookingTimeInFuture( date, time, new Date(), await getNotificationTimeZone() ) ) {
-    return false;
-  }
-
-  if ( chauffeurId !== undefined && chauffeurId !== null ) {
-    const bookingClash = await checkBookingClash( date, time, durationMinutes, chauffeurId );
-    const blockedClash = await checkBlockedClash( date, time, durationMinutes, chauffeurId );
-    return !( bookingClash.clash || blockedClash.clash );
-  }
-  return !!await findAvailableChauffeur( date, time, durationMinutes );
-}
-
-async function getAlternativeSlots( date: string, time: string, durationMinutes: number, chauffeurId?: string | null ): Promise<AlternativeSlot[]> {
-  const alternatives: AlternativeSlot[] = [];
-  const timeZone = await getNotificationTimeZone();
-  const requestedDate = zonedDateTimeToDate( date, time, timeZone );
-
-  if ( Number.isNaN( requestedDate.getTime() ) ) return alternatives;
-
-  // Nearby times on the requested day.
-  const offsets = [ -30, -60, -90, -120, 30, 60, 90, 120, 150, 180, 210, 240 ];
-
-  for ( const offset of offsets ) {
-    const testDate = new Date( requestedDate.getTime() + offset * 60 * 1000 );
-    const testTime = await formatTimeInZone( testDate );
-    if ( await isSlotFree( date, testTime, durationMinutes, chauffeurId ) ) {
-      alternatives.push( { date, time: testTime } );
-      if ( alternatives.length >= MAX_ALTERNATIVES ) return alternatives;
-    }
-  }
-
-  // Same time on the following days.
-  for ( let dayOffset = 1; dayOffset <= 3; dayOffset++ ) {
-    const testDate = shiftDateString( date, dayOffset );
-    if ( await isSlotFree( testDate, time, durationMinutes, chauffeurId ) ) {
-      alternatives.push( { date: testDate, time } );
-      if ( alternatives.length >= MAX_ALTERNATIVES ) return alternatives;
-    }
-  }
-
-  return alternatives;
-}
-
-async function checkSlotAvailability(
-  date: string,
-  time: string,
-  durationMinutes: number,
-  chauffeurId?: string | null
-): Promise<{
-  available: boolean;
-  alternativeSlots: AlternativeSlot[];
-  bookingClash: Awaited<ReturnType<typeof checkBookingClash>>;
-  blockedClash: Awaited<ReturnType<typeof checkBlockedClash>>;
-}> {
-  const bookingClash = await checkBookingClash( date, time, durationMinutes, chauffeurId );
-  const blockedClash = await checkBlockedClash( date, time, durationMinutes, chauffeurId );
-  const available = chauffeurId !== undefined && chauffeurId !== null
-    ? !( bookingClash.clash || blockedClash.clash )
-    : !!await findAvailableChauffeur( date, time, durationMinutes );
-
-  return {
-    available,
-    alternativeSlots: available ? [] : await getAlternativeSlots( date, time, durationMinutes, chauffeurId ),
-    bookingClash,
-    blockedClash,
-  };
-}
+export { BookingRequestSchema };
 
 export async function POST( req: Request ) {
   try {
-    const body = await req.json();
-    const parseResult = BookingRequestSchema.safeParse( body );
+    const parsed = BookingRequestSchema.safeParse( await req.json() );
 
-    if ( !parseResult.success ) {
+    if ( !parsed.success ) {
       return NextResponse.json(
         {
           success: false,
           error: "Validation failed",
-          details: z.prettifyError( parseResult.error ),
+          details: z.prettifyError( parsed.error ),
         },
         { status: 400 }
       );
     }
 
-    const input: BookingRequestInput = parseResult.data;
-    const tripDetails = input.tripDetails || {};
-    assertFutureBookingTime( input.date, input.time, new Date(), await getNotificationTimeZone() );
-    const quote = await quoteBooking( {
-      type: input.tripType || "airport",
-      pickupLocation: tripDetails.pickupLocation!,
-      dropoffLocation: tripDetails.dropoffLocation,
-      hours: tripDetails.hours,
-    } );
-    const durationMinutes = input.tripType === "hourly"
-      ? ( tripDetails.hours || 1 ) * 60
-      : quote.durationMinutes || input.duration || 60;
-    const assignedChauffeur = await findAvailableChauffeur( input.date, input.time, durationMinutes );
+    const outcome = await createBookingRequest( req, parsed.data );
 
-    if ( !assignedChauffeur ) {
+    if ( outcome.status === "clash" ) {
       return NextResponse.json(
         {
           success: false,
           error: "clash",
           message: "All of our chauffeurs are already reserved at that time.",
-          alternativeSlots: await getAlternativeSlots( input.date, input.time, durationMinutes ),
+          alternativeSlots: outcome.alternativeSlots,
         },
         { status: 409 }
       );
     }
 
-    const bookingReference = generateBookingReference();
-    const token = paymentToken();
-    const paymentSettings = await getPaymentSettings();
-    const holdExpiresAt = new Date( Date.now() + paymentSettings.holdMinutes * 60_000 ).toISOString();
-    const smsConsented = Boolean( input.smsOptIn && input.attendee.phone );
-    const marketingSmsConsented = Boolean( input.marketingSmsOptIn && input.attendee.phone );
-    const smsConsentedAt = smsConsented ? new Date().toISOString() : null;
-    const savedBooking = await saveBooking( {
-      reference: bookingReference,
-      tripType: input.tripType || "airport",
-      date: input.date,
-      time: input.time,
-      duration: durationMinutes,
-      name: input.attendee.name,
-      email: input.attendee.email,
-      phone: input.attendee.phone || "",
-      notes: input.notes || "",
-      status: "pending_payment",
-      tripDetails: JSON.stringify( {
-        ...tripDetails,
-        estimatedPrice: quote.subtotalCents / 100,
-        estimatedDistance: quote.totalMiles,
-        estimatedDuration: quote.durationText,
-        estimatedDurationMinutes: quote.durationMinutes,
-        pricePerMile: quote.pricePerMile,
-      } ),
-      discountCode: input.discountCode || null,
-      chauffeurId: assignedChauffeur.id,
-      smsConsentVersion: smsConsented ? SMS_CONSENT_VERSION : null,
-      smsConsentedAt,
-      paymentFlow: {
-        tokenHash: paymentTokenHash( token ),
-        holdExpiresAt,
-        subtotalCents: quote.subtotalCents,
-        currency: quote.currency,
-      },
-    } );
-
-    if ( smsConsented ) {
-      const evidence = smsConsentEvidenceFromRequest( req, "transactional" );
-      await recordSmsConsent( {
-        customerEmail: input.attendee.email,
-        phone: input.attendee.phone!,
-        ...evidence,
-        consentedAt: smsConsentedAt!,
-      } );
-    }
-
-    if ( marketingSmsConsented ) {
-      const evidence = smsConsentEvidenceFromRequest( req, "marketing" );
-      await recordSmsConsent( {
-        customerEmail: input.attendee.email,
-        phone: input.attendee.phone!,
-        ...evidence,
-        consentedAt: smsConsentedAt || new Date().toISOString(),
-      } );
-    }
-
-    if ( savedBooking.quoteTotalCents === 0 ) {
-      await updateBookingStatus( savedBooking.reference, "confirmed" );
-      const confirmedBooking = await getBookingByReference( savedBooking.reference );
-      if ( confirmedBooking ) await createPocketBaseBookingStatusUpdate( confirmedBooking );
-      return NextResponse.json( {
-        success: true,
-        booking: await bookingRecordToBookingData( confirmedBooking || savedBooking ),
-        bookingId: savedBooking.id,
-        message: "Booking confirmed. Check your email or text messages for confirmation.",
-      } );
-    }
-
-    const paymentUrl = `${ ( await getAppUrl() ).replace( /\/$/, "" ) }/pay/${ encodeURIComponent( token ) }`;
-    await createPocketBaseBookingCreated( savedBooking, { paymentUrl, holdExpiresAt } );
-
     return NextResponse.json( {
       success: true,
-      booking: await bookingRecordToBookingData( savedBooking ),
-      bookingId: savedBooking.id,
-      message: "Booking request received. Check your email or text messages to pay and confirm.",
+      booking: await bookingRecordToBookingData( outcome.booking ),
+      bookingId: outcome.booking.id,
+      message: outcome.message,
     } );
   } catch ( error: unknown ) {
     if ( error instanceof DiscountCodeError ) {

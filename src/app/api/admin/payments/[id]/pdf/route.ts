@@ -1,0 +1,6 @@
+import { isAdmin } from "@/lib/auth";
+import { getRequestSession } from "@/lib/driver-auth";
+import { paymentPdf } from "@/lib/invoices";
+import { getBookingByReference } from "@/lib/pocketbase/repository";
+import { paymentForId } from "@/lib/payments/repository";
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) { const session = await getRequestSession(request); if (!session) return new Response("Unauthenticated", { status: 401 }); if (!isAdmin(session)) return new Response("Forbidden", { status: 403 }); const id = Number((await params).id); if (!Number.isInteger(id) || id < 1) return new Response("Payment not found", { status: 404 }); const payment = await paymentForId(id); const booking = payment ? await getBookingByReference(payment.bookingReference) : undefined; if (!payment || !booking) return new Response("Payment not found", { status: 404 }); const pdf = await paymentPdf(payment, booking); const body = pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength) as ArrayBuffer; return new Response(body, { headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename=\"payment-${payment.id}.pdf\"`, "Cache-Control": "private, no-store" } }); }

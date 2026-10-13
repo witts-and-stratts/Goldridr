@@ -1,0 +1,4 @@
+import { isAdmin } from "@/lib/auth";
+import { getRequestSession } from "@/lib/driver-auth";
+import { getInvoice, invoicePdf } from "@/lib/invoices";
+export async function GET(request: Request, { params }: { params: Promise<{ reference: string }> }) { const session = await getRequestSession(request); if (!session) return new Response("Unauthenticated", { status: 401 }); if (!isAdmin(session)) return new Response("Forbidden", { status: 403 }); const invoice = await getInvoice((await params).reference); if (!invoice) return new Response("Invoice not found", { status: 404 }); const pdf = await invoicePdf(invoice); const body = pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength) as ArrayBuffer; return new Response(body, { headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename=\"${invoice.number}.pdf\"`, "Cache-Control": "private, no-store" } }); }

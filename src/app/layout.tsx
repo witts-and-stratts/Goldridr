@@ -68,6 +68,7 @@ export const metadata: Metadata = {
 };
 
 import { BookingOverlayWrapper } from "@/components/booking/BookingContext";
+import { CookieConsent } from "@/components/cookie-consent";
 
 // ... existing imports
 
@@ -84,6 +85,7 @@ export default function RootLayout( {
         <BookingOverlayWrapper>
           { children }
         </BookingOverlayWrapper>
+        <CookieConsent />
         <Toaster position="top-right" richColors />
         <Script
           src={ `https://maps.googleapis.com/maps/api/js?key=${ process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }&loading=async&libraries=places` }

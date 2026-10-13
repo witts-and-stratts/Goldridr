@@ -1,0 +1,3 @@
+{{ company.name }} update: booking {{ booking.reference }} was deleted.
+Terminal: {{ trip.terminal }}
+Contact us if this was unexpected.

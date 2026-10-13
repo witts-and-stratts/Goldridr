@@ -48,6 +48,12 @@ function mapDelivery( record: RecordModel ): NotificationDeliveryRecord {
     attempts: Number( record.attempts || 0 ),
     leaseToken: record.leaseToken ? String( record.leaseToken ) : null,
     leaseExpiresAt: record.leaseExpiresAt ? String( record.leaseExpiresAt ) : null,
+    templateVariant: record.templateVariant ? String( record.templateVariant ) : null,
+    templateRevision: record.templateRevision === undefined || record.templateRevision === null || record.templateRevision === ""
+      ? null
+      : Number( record.templateRevision ),
+    templateSource: record.templateSource === "default" || record.templateSource === "override" ? record.templateSource : null,
+    templateSnapshot: record.templateSnapshot ? JSON.stringify( record.templateSnapshot ) : null,
   };
 }
 
