@@ -7,17 +7,16 @@ The production workflow tests the app, builds it explicitly with Turbopack, publ
 Install Docker Engine with the Compose plugin and prepare the deployment directory while logged in as `root`:
 
 ```bash
-mkdir -p /root/goldridr/data /root/goldridr/.next-cache /root/goldridr/pocketbase-data /root/goldridr/scripts /root/goldridr/nginx
+mkdir -p /root/goldridr/data /root/goldridr/.next-cache /root/goldridr/pocketbase-data /root/goldridr/scripts
 chown -R 1001:1001 /root/goldridr/data /root/goldridr/.next-cache
 chown -R 1000:1000 /root/goldridr/pocketbase-data
 ```
 
-Copy `compose.production.yaml`, `scripts/deploy.sh`, and the Nginx configuration to the server once. From a trusted computer in the repository root:
+Copy `compose.production.yaml` and `scripts/deploy.sh` to the server once. From a trusted computer in the repository root:
 
 ```bash
 scp compose.production.yaml root@YOUR_HETZNER_IP:/root/goldridr/compose.production.yaml
 scp scripts/deploy.sh root@YOUR_HETZNER_IP:/root/goldridr/scripts/deploy.sh
-scp nginx/nginx.conf root@YOUR_HETZNER_IP:/root/goldridr/nginx/nginx.conf
 ssh root@YOUR_HETZNER_IP 'chmod 700 /root/goldridr/scripts/deploy.sh'
 ```
 
@@ -67,8 +66,6 @@ After repairing credentials or schema, rerun verification before retrying the pi
 
 Upload the updated `scripts/deploy.sh` to the server before using the new startup order; the GitHub workflow does not sync it. The verification script is bundled into the rebuilt worker image.
 
-The Compose Nginx service listens publicly on `${HTTP_PORT:-80}` and proxies to `web:3000`. The Next.js port is only exposed to the internal Compose network. Allow TCP port 80 through the Hetzner firewall; set `HTTP_PORT` in `/root/goldridr/.env` only if another host port is required.
-
 ## GitHub production environment
 
 Create a GitHub environment named `production`. Add these environment secrets:
@@ -90,8 +87,10 @@ Add these repository variables (the image build needs them before the deployment
 
 Protect the `production` environment with required reviewers if deployments need manual approval. Pull requests run the automated tests and production image build; pushes to `main` and manual workflow runs additionally publish and deploy that image.
 
-## Nginx and TLS
+## Traefik and TLS
 
-The checked-in `nginx/nginx.conf` preserves the original host and forwarding headers, supports WebSocket upgrades, and disables proxy buffering for App Router streaming. Nginx currently serves HTTP on port 80. Before public production use, either add certificate mounts and a TLS server block to this Compose service or terminate TLS at a trusted proxy or load balancer in front of it.
+Production uses the existing Traefik instance as its reverse proxy and TLS terminator. The web container joins the external `weboverlay` network and the stack's default network. Traefik routes `goldridr.com` and `www.goldridr.com` through its `websecure` entrypoint using the `letsencrypt` certificate resolver to the web container's HTTP port `3000`. The app does not publish a host port. PocketBase and workers stay on the default network and have Traefik discovery disabled.
 
-If a host-level Nginx or another process already binds port 80, stop it or choose a different `HTTP_PORT` before starting this stack.
+The `weboverlay` network must already exist and the Traefik container must be attached to it. If this is a Swarm overlay network, it must allow standalone containers to attach because this pipeline uses Docker Compose. Both domain names must resolve to the Traefik server. Traefik must already define the `websecure` entrypoint and `letsencrypt` resolver; labels reference these settings but do not create them. Keep HTTP-to-HTTPS redirection in the existing Traefik configuration.
+
+Nginx is unnecessary for this setup. Upload both updated server files before the next deployment; deployment and rollback now reference only the application services. The deployment's `--remove-orphans` removes the old Compose Nginx container when applying the updated stack. The existing Nginx configuration file is no longer used by production.

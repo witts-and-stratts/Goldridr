@@ -1,28 +1,11 @@
 name: goldridr-production
 
 services:
-  nginx:
-    image: nginx:stable-alpine
-    restart: unless-stopped
-    depends_on:
-      web:
-        condition: service_healthy
-    ports:
-      - "${HTTP_PORT:-80}:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-    security_opt:
-      - no-new-privileges:true
-
   pocketbase:
     image: ${POCKETBASE_IMAGE:-ghcr.io/witts-and-stratts/goldridr-pocketbase:latest}
     restart: unless-stopped
+    labels:
+      - "traefik.enable=false"
     ports:
       - "127.0.0.1:${POCKETBASE_HOST_PORT:-8091}:8090"
     volumes:
@@ -62,6 +45,18 @@ services:
         condition: service_healthy
     expose:
       - "3000"
+    networks:
+      - default
+      - weboverlay
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=weboverlay"
+      - "traefik.http.routers.goldridr.rule=Host(`goldridr.com`) || Host(`www.goldridr.com`)"
+      - "traefik.http.routers.goldridr.entrypoints=websecure"
+      - "traefik.http.routers.goldridr.tls=true"
+      - "traefik.http.routers.goldridr.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.goldridr.service=goldridr"
+      - "traefik.http.services.goldridr.loadbalancer.server.port=3000"
     volumes:
       - ./.next-cache:/app/.next/cache
     healthcheck:
@@ -80,6 +75,8 @@ services:
   notifications-worker:
     image: ${WORKER_IMAGE:-ghcr.io/witts-and-stratts/goldridr-worker:latest}
     restart: unless-stopped
+    labels:
+      - "traefik.enable=false"
     env_file:
       - .env
     environment:
@@ -105,6 +102,8 @@ services:
   flight-tracking-worker:
     image: ${WORKER_IMAGE:-ghcr.io/witts-and-stratts/goldridr-worker:latest}
     restart: unless-stopped
+    labels:
+      - "traefik.enable=false"
     command: ["npm", "run", "flights:worker"]
     env_file:
       - .env
@@ -126,3 +125,8 @@ services:
     stop_grace_period: 30s
     security_opt:
       - no-new-privileges:true
+
+networks:
+  weboverlay:
+    external: true
+    name: weboverlay
